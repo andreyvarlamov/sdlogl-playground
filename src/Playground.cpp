@@ -4,6 +4,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 #include <string>
 #include <fstream>
@@ -187,11 +188,67 @@ int main(int argc, char *argv[])
                 bool quit = false;
                 while (!quit)
                 {
+                    // Poll SDL events
+                    // ---------------
+                    while (SDL_PollEvent(&event))
+                    {
+                        if (event.type == SDL_QUIT)
+                        {
+                            quit = true;
+                        }
+                    }
+                    
                     // Timing
                     // ------
                     u64 currentFrame = SDL_GetTicks64();
                     deltaTime = (float)((double)(currentFrame - lastFrame) / 1000.0);
                     lastFrame = currentFrame;
+
+                    // Process input
+                    // -------------
+                    const u8 *currentKeyStates = SDL_GetKeyboardState(NULL);
+                    if (currentKeyStates[SDL_SCANCODE_ESCAPE])
+                    {
+                        quit = true;
+                    }
+                    // Process camera movement
+                    bool moving = false;
+                    glm::vec3 velocity(0.0f);
+                    if (currentKeyStates[SDL_SCANCODE_W])
+                    {
+                        moving = true;
+                        velocity += CameraFront;
+                    }
+                    if (currentKeyStates[SDL_SCANCODE_S])
+                    {
+                        moving = true;
+                        velocity -= CameraFront;
+                    }
+                    if (currentKeyStates[SDL_SCANCODE_A] || currentKeyStates[SDL_SCANCODE_D])
+                    {
+                        moving = true;
+                        glm::vec3 right = glm::normalize(glm::cross(CameraFront, CameraUp));
+                        if (currentKeyStates[SDL_SCANCODE_D])
+                        {
+                            velocity += right;
+                        }
+                        if (currentKeyStates[SDL_SCANCODE_A])
+                        {
+                            velocity -= right;
+                        }
+                    }
+                    if (moving && glm::length(velocity) > 0.0f)
+                    {
+                        glm::vec3 normalizedVelocity = glm::normalize(velocity);
+                        glm::vec3 positionDelta = normalizedVelocity * CameraMovementSpeed * deltaTime;
+                        CameraPosition += positionDelta;
+#if 0
+                        std::cout << "normVel = " << glm::to_string(normalizedVelocity) << 
+                            " | CamMovSpeed = " << CameraMovementSpeed << 
+                            " | dt = " << deltaTime << 
+                            " | vel = " << glm::length(positionDelta) << '\n';
+#endif
+                    }
 
                     // Render
                     // ------
@@ -201,8 +258,8 @@ int main(int argc, char *argv[])
                     glUseProgram(shaderProgram);
                     glm::mat4 projection = glm::perspective(glm::radians(CameraFov/2.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 100.0f);
                     glm::mat4 view = glm::lookAt(CameraPosition, CameraPosition + CameraFront, CameraUp);
-                    std::cout << CameraPosition.z << " | " << deltaTime << '\n';
                     glm::mat4 model = glm::mat4(1.0f);
+                    model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 0.0f, 1.0f));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
@@ -217,35 +274,6 @@ int main(int argc, char *argv[])
                     // Swap buffer
                     // -----------
                     SDL_GL_SwapWindow(window);
-
-                    // Poll SDL events
-                    // ---------------
-                    while (SDL_PollEvent(&event))
-                    {
-                        if (event.type == SDL_QUIT)
-                        {
-                            quit = true;
-                        }
-                        else if (event.type == SDL_KEYDOWN)
-                        {
-                            SDL_KeyboardEvent *keyboardEvent = &event.key;
-
-                            if (keyboardEvent->keysym.sym == SDLK_ESCAPE && keyboardEvent->state == SDL_PRESSED)
-                            {
-                                quit = true;
-                            }
-                            else if (keyboardEvent->keysym.sym == SDLK_w && keyboardEvent->state == SDL_PRESSED)
-                            {
-                                float velocity = CameraMovementSpeed * deltaTime;
-                                CameraPosition += CameraFront * velocity;
-                            }
-                            else if (keyboardEvent->keysym.sym == SDLK_s && keyboardEvent->state == SDL_PRESSED)
-                            {
-                                float velocity = CameraMovementSpeed * deltaTime;
-                                CameraPosition -= CameraFront * velocity;
-                            }
-                        }
-                    }
                 }
                 
             }
