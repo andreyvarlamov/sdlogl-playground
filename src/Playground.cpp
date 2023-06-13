@@ -1,6 +1,9 @@
 #include <glad/glad.h>
 #include <sdl2/SDL.h>
 #include <sdl2/SDL_image.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #include <string>
 #include <fstream>
@@ -11,6 +14,13 @@
 
 const u32 SCREEN_WIDTH = 1280;
 const u32 SCREEN_HEIGHT = 720;
+
+glm::vec3 CameraPosition = glm::vec3(0.0f, 0.0f, -3.0f);
+glm::vec3 CameraFront = glm::vec3(0.0f, 0.0f, 1.0f);
+glm::vec3 CameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+float CameraMovementSpeed = 2.5f;
+float CameraMouseSensitivity = 0.05f;
+float CameraFov = 90.0f;
 
 std::string readFile(const char *path)
 {
@@ -171,16 +181,31 @@ int main(int argc, char *argv[])
 
                 // Game Loop
                 // ---------
+                float deltaTime = 0.0f;
+                u64 lastFrame = 0.0f;
                 SDL_Event event;
                 bool quit = false;
                 while (!quit)
                 {
+                    // Timing
+                    // ------
+                    u64 currentFrame = SDL_GetTicks64();
+                    deltaTime = (float)((double)(currentFrame - lastFrame) / 1000.0);
+                    lastFrame = currentFrame;
+
                     // Render
                     // ------
-                    glClearColor(1.0f, 0.3f, 0.3f, 1.0f);
+                    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
                     glClear(GL_COLOR_BUFFER_BIT);
 
                     glUseProgram(shaderProgram);
+                    glm::mat4 projection = glm::perspective(glm::radians(CameraFov/2.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 100.0f);
+                    glm::mat4 view = glm::lookAt(CameraPosition, CameraPosition + CameraFront, CameraUp);
+                    std::cout << CameraPosition.z << " | " << deltaTime << '\n';
+                    glm::mat4 model = glm::mat4(1.0f);
+                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, textureID);
                     glBindVertexArray(VAO);
@@ -208,6 +233,16 @@ int main(int argc, char *argv[])
                             if (keyboardEvent->keysym.sym == SDLK_ESCAPE && keyboardEvent->state == SDL_PRESSED)
                             {
                                 quit = true;
+                            }
+                            else if (keyboardEvent->keysym.sym == SDLK_w && keyboardEvent->state == SDL_PRESSED)
+                            {
+                                float velocity = CameraMovementSpeed * deltaTime;
+                                CameraPosition += CameraFront * velocity;
+                            }
+                            else if (keyboardEvent->keysym.sym == SDLK_s && keyboardEvent->state == SDL_PRESSED)
+                            {
+                                float velocity = CameraMovementSpeed * deltaTime;
+                                CameraPosition -= CameraFront * velocity;
                             }
                         }
                     }
