@@ -1,5 +1,6 @@
 #include <glad/glad.h>
 #include <sdl2/SDL.h>
+#include <sdl2/SDL_image.h>
 
 #include <string>
 #include <fstream>
@@ -133,6 +134,41 @@ int main(int argc, char *argv[])
                 glBindBuffer(GL_ARRAY_BUFFER, 0);
                 glBindVertexArray(0);
 
+                // Load textures
+                int imgFlags = IMG_INIT_JPG | IMG_INIT_PNG;
+                if (!(IMG_Init(imgFlags) & imgFlags))
+                {
+                    std::cerr << "SDL_image could not initialize: " << IMG_GetError() << '\n';
+                    SDL_Quit();
+                    exit(-1);
+                }
+
+                u32 textureID = 0;
+                SDL_Surface *texture = IMG_Load("resources/textures/container.jpg");
+                if (texture)
+                {
+                    GLenum format = GL_RGB;
+                    if (texture->format->BytesPerPixel == 4)
+                    {
+                        format = GL_RGBA;
+                    }
+
+                    glGenTextures(1, &textureID);
+                    glBindTexture(GL_TEXTURE_2D, textureID);
+                    glTexImage2D(GL_TEXTURE_2D, 0, format, texture->w, texture->h, 0, format, GL_UNSIGNED_BYTE, texture->pixels);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                }
+                else
+                {
+                    std::cerr << "Failed to load texture\n";
+                }
+
+                glUniform1i(glGetUniformLocation(shaderProgram, "tex"), 0);
+
                 // Game Loop
                 // ---------
                 SDL_Event event;
@@ -145,9 +181,12 @@ int main(int argc, char *argv[])
                     glClear(GL_COLOR_BUFFER_BIT);
 
                     glUseProgram(shaderProgram);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, textureID);
                     glBindVertexArray(VAO);
                     glDrawArrays(GL_TRIANGLES, 0, 3);
                     glBindVertexArray(0);
+                    glBindTexture(GL_TEXTURE_2D, 0);
                     glUseProgram(0);
 
                     // Swap buffer
