@@ -18,10 +18,13 @@ const u32 SCREEN_HEIGHT = 720;
 
 glm::vec3 CameraPosition = glm::vec3(0.0f, 0.0f, -3.0f);
 glm::vec3 CameraFront = glm::vec3(0.0f, 0.0f, 1.0f);
+glm::vec3 CameraRight = glm::vec3(1.0f, 0.0f, 0.0f);
 glm::vec3 CameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 float CameraMovementSpeed = 2.5f;
 float CameraMouseSensitivity = 0.05f;
 float CameraFov = 90.0f;
+float CameraYaw = 90.0f;
+float CameraPitch = 0.0f;
 
 std::string readFile(const char *path)
 {
@@ -66,6 +69,13 @@ int main(int argc, char *argv[])
             SDL_GLContext mainContext = SDL_GL_CreateContext(window);
             if (mainContext)
             {
+                // SDL: Set relative mouse
+                // -----------------------
+                if (SDL_SetRelativeMouseMode(SDL_TRUE) != 0)
+                {
+                    std::cerr << "SDL Could not set mouse relative mode: " << SDL_GetError() << '\n';
+                }
+
                 // GLAD: GL function pointers
                 // --------------------------
                 gladLoadGLLoader(SDL_GL_GetProcAddress);
@@ -203,6 +213,9 @@ int main(int argc, char *argv[])
                     u64 currentFrame = SDL_GetTicks64();
                     deltaTime = (float)((double)(currentFrame - lastFrame) / 1000.0);
                     lastFrame = currentFrame;
+#if 0
+                    std::cout << "DT:" << deltaTime << '\n';
+#endif
 
                     // Process input
                     // -------------
@@ -211,7 +224,25 @@ int main(int argc, char *argv[])
                     {
                         quit = true;
                     }
-                    // Process camera movement
+                    i32 mouseDeltaX, mouseDeltaY;
+                    u32 mouseButtons = SDL_GetRelativeMouseState(&mouseDeltaX, &mouseDeltaY);
+                    // Process camera mouse control
+                    CameraYaw += mouseDeltaX * CameraMouseSensitivity;
+                    CameraPitch -= mouseDeltaY * CameraMouseSensitivity;
+                    if (CameraPitch > 89.0f)
+                    {
+                        CameraPitch = 89.0f;
+                    }
+                    else if (CameraPitch < -89.0f)
+                    {
+                        CameraPitch = -89.0f;
+                    }
+                    CameraFront.x = cos(glm::radians(CameraYaw)) * cos(glm::radians(CameraPitch));
+                    CameraFront.y = sin(glm::radians(CameraPitch));
+                    CameraFront.z = sin(glm::radians(CameraYaw)) * cos(glm::radians(CameraPitch));
+                    CameraFront = glm::normalize(CameraFront);
+                    CameraRight = glm::normalize(glm::cross(CameraFront, CameraUp));
+                    // Process camera keyboard movement
                     bool moving = false;
                     glm::vec3 velocity(0.0f);
                     if (currentKeyStates[SDL_SCANCODE_W])
@@ -224,18 +255,15 @@ int main(int argc, char *argv[])
                         moving = true;
                         velocity -= CameraFront;
                     }
-                    if (currentKeyStates[SDL_SCANCODE_A] || currentKeyStates[SDL_SCANCODE_D])
+                    if (currentKeyStates[SDL_SCANCODE_A])
                     {
                         moving = true;
-                        glm::vec3 right = glm::normalize(glm::cross(CameraFront, CameraUp));
-                        if (currentKeyStates[SDL_SCANCODE_D])
-                        {
-                            velocity += right;
-                        }
-                        if (currentKeyStates[SDL_SCANCODE_A])
-                        {
-                            velocity -= right;
-                        }
+                        velocity -= CameraRight;
+                    }
+                    if (currentKeyStates[SDL_SCANCODE_D])
+                    {
+                        moving = true;
+                        velocity += CameraRight;
                     }
                     if (moving && glm::length(velocity) > 0.0f)
                     {
@@ -243,12 +271,14 @@ int main(int argc, char *argv[])
                         glm::vec3 positionDelta = normalizedVelocity * CameraMovementSpeed * deltaTime;
                         CameraPosition += positionDelta;
 #if 0
-                        std::cout << "normVel = " << glm::to_string(normalizedVelocity) << 
-                            " | CamMovSpeed = " << CameraMovementSpeed << 
-                            " | dt = " << deltaTime << 
-                            " | vel = " << glm::length(positionDelta) << '\n';
+                        std::cout << "cam mov dir:" << glm::to_string(normalizedVelocity) << 
+                            " | mov vel:" << glm::length(positionDelta) << '\n';
 #endif
                     }
+#if 0
+                    std::cout << "cam front:" << glm::to_string(CameraFront) <<
+                        " | position:" << glm::to_string(CameraPosition) << '\n';
+#endif
 
                     // Render
                     // ------
