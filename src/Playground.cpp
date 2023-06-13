@@ -1,29 +1,36 @@
 #include <glad/glad.h>
 #include <sdl2/SDL.h>
 
-#include <cstdio>
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <iostream>
 
 #include "Common.h"
 
 const u32 SCREEN_WIDTH = 1280;
 const u32 SCREEN_HEIGHT = 720;
 
-const char *vertexShaderSource = 
-	"#version 330 core\n"
-	"layout (location = 0) in vec3 aPos;\n"
-	"void main()\n"
-	"{\n"
-	"    gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
-	"}\0";
+std::string readFile(const char *path)
+{
+    std::string content;
+    std::ifstream fileStream;
+    fileStream.exceptions(std::ifstream::failbit | std::ifstream:: badbit);
+    try
+    {
+        fileStream.open(path);
+        std::stringstream contentStream;
+        contentStream << fileStream.rdbuf();
+        fileStream.close();
+        content = contentStream.str();
+    }
+    catch (std::ifstream::failure &e)
+    {
+        std::cerr << "ERROR::SHADER::FILE_NOT_READ: " << e.what() << '\n';
+    }
 
-const char *fragmentShaderSource =
-	"#version 330 core\n"
-	"out vec4 FragColor;\n"
-	"void main()\n"
-	"{\n"
-	"    FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
-	"}\0";
-
+    return content;
+}
 
 int main(int argc, char *argv[])
 {
@@ -50,10 +57,10 @@ int main(int argc, char *argv[])
                 // GLAD: GL function pointers
                 // --------------------------
                 gladLoadGLLoader(SDL_GL_GetProcAddress);
-                printf("OpenGL loaded\n");
-                printf("Vendor: %s\n", glGetString(GL_VENDOR));
-                printf("Renderer: %s\n", glGetString(GL_RENDERER));
-                printf("Version: %s\n", glGetString(GL_VERSION));
+                std::cout << "OpenGL loaded\n";
+                std::cout << "Vendor: " <<  glGetString(GL_VENDOR) << '\n';
+                std::cout << "Renderer: " <<  glGetString(GL_RENDERER) << '\n';
+                std::cout << "Version: " << glGetString(GL_VERSION) << '\n';
 
                 int windowWidth;
                 int windowHeight;
@@ -64,7 +71,9 @@ int main(int argc, char *argv[])
                 // ------------
                 u32 vertexShader;
                 vertexShader = glCreateShader(GL_VERTEX_SHADER);
-                glShaderSource(vertexShader,1 , &vertexShaderSource, NULL);
+                std::string vertexShaderSource = readFile("resources/shaders/Basic.vs");
+                const char *vertexShaderSourceCStr = vertexShaderSource.c_str();
+                glShaderSource(vertexShader,1 , &vertexShaderSourceCStr, NULL);
                 glCompileShader(vertexShader);
                 int success;
                 char infoLog[512];
@@ -72,17 +81,19 @@ int main(int argc, char *argv[])
                 if (!success)
                 {
                     glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-                    fprintf(stderr, "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n%s\n", infoLog);
+                    std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << '\n';
                 }
                 u32 fragmentShader;
                 fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-                glShaderSource(fragmentShader,1 , &fragmentShaderSource, NULL);
+                std::string fragmentShaderSource = readFile("resources/shaders/Basic.fs");
+                const char *fragmentShaderSourceCStr = fragmentShaderSource.c_str();
+                glShaderSource(fragmentShader,1 , &fragmentShaderSourceCStr, NULL);
                 glCompileShader(fragmentShader);
                 glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
                 if (!success)
                 {
                     glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
-                    fprintf(stderr, "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n%s\n", infoLog);
+                    std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << '\n';
                 }
                 u32 shaderProgram;
                 shaderProgram = glCreateProgram();
@@ -93,7 +104,7 @@ int main(int argc, char *argv[])
                 if (!success)
                 {
                     glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
-                    fprintf(stderr, "ERROR::SHADER::PROGRAM::LINKING_FAILED\n%s\n", infoLog);
+                    std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << '\n';
                 }
                 glDeleteShader(vertexShader);
                 glDeleteShader(fragmentShader);
@@ -101,9 +112,10 @@ int main(int argc, char *argv[])
                 // Vertex data
                 // -----------
                 f32 vertices[] = {
-                    -0.5f, -0.5f, 0.0f,
-                     0.5f, -0.5f, 0.0f,
-                     0.0f,  0.5f, 0.0f
+                    // positions        // colors         // uv
+                    -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                     0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,
+                     0.0f,  0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.5f, 1.0f
                 };
                 u32 VBO;
                 glGenBuffers(1, &VBO);
@@ -113,7 +125,11 @@ int main(int argc, char *argv[])
                 glBindBuffer(GL_ARRAY_BUFFER, VBO);
                 glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
                 glEnableVertexAttribArray(0);
-                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *)0);
+                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(f32), (void *)0);
+                glEnableVertexAttribArray(1);
+                glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(f32), (void *)(3 * sizeof(f32)));
+                glEnableVertexAttribArray(2);
+                glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(f32), (void *)(6 * sizeof(f32)));
                 glBindBuffer(GL_ARRAY_BUFFER, 0);
                 glBindVertexArray(0);
 
@@ -161,18 +177,18 @@ int main(int argc, char *argv[])
             }
             else
             {
-                fprintf(stderr, "Couldn't create OpenGL context: %s\n", SDL_GetError());
+                std::cerr << "Couldn't create OpenGL context: " <<  SDL_GetError() << '\n';
             }
         }
         else
         {
-            fprintf(stderr, "Couldn't create SDL window: %s\n", SDL_GetError());
+            std::cerr << "Couldn't create SDL window: " << SDL_GetError() << '\n';
         }
 
     }
     else
     {
-        fprintf(stderr, "Couldn't initialize SDL: %s\n", SDL_GetError());
+        std::cerr << "Couldn't initialize SDL: " << SDL_GetError() << '\n';
     }
 
     SDL_Quit();

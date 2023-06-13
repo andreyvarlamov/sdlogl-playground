@@ -22,6 +22,8 @@
   <ItemGroup>
     <None Include="dlls\assimp-vc143-mtd.dll" />
     <None Include="dlls\SDL2.dll" />
+    <None Include="resources\shaders\Basic.vs" />
+    <None Include="resources\shaders\Basic.fs" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Common.h">
