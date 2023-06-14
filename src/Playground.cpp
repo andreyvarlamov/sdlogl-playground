@@ -30,7 +30,7 @@ std::string readFile(const char *path)
 {
     std::string content;
     std::ifstream fileStream;
-    fileStream.exceptions(std::ifstream::failbit | std::ifstream:: badbit);
+    fileStream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
     try
     {
         fileStream.open(path);
@@ -80,9 +80,13 @@ int main(int argc, char *argv[])
                 // --------------------------
                 gladLoadGLLoader(SDL_GL_GetProcAddress);
                 std::cout << "OpenGL loaded\n";
-                std::cout << "Vendor: " <<  glGetString(GL_VENDOR) << '\n';
-                std::cout << "Renderer: " <<  glGetString(GL_RENDERER) << '\n';
+                std::cout << "Vendor: " << glGetString(GL_VENDOR) << '\n';
+                std::cout << "Renderer: " << glGetString(GL_RENDERER) << '\n';
                 std::cout << "Version: " << glGetString(GL_VERSION) << '\n';
+
+                // GL Global Settings
+                glEnable(GL_DEPTH_TEST);
+                glEnable(GL_CULL_FACE);
 
                 int windowWidth;
                 int windowHeight;
@@ -95,7 +99,7 @@ int main(int argc, char *argv[])
                 vertexShader = glCreateShader(GL_VERTEX_SHADER);
                 std::string vertexShaderSource = readFile("resources/shaders/Basic.vs");
                 const char *vertexShaderSourceCStr = vertexShaderSource.c_str();
-                glShaderSource(vertexShader,1 , &vertexShaderSourceCStr, NULL);
+                glShaderSource(vertexShader, 1, &vertexShaderSourceCStr, NULL);
                 glCompileShader(vertexShader);
                 int success;
                 char infoLog[512];
@@ -109,7 +113,7 @@ int main(int argc, char *argv[])
                 fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
                 std::string fragmentShaderSource = readFile("resources/shaders/Basic.fs");
                 const char *fragmentShaderSourceCStr = fragmentShaderSource.c_str();
-                glShaderSource(fragmentShader,1 , &fragmentShaderSourceCStr, NULL);
+                glShaderSource(fragmentShader, 1, &fragmentShaderSourceCStr, NULL);
                 glCompileShader(fragmentShader);
                 glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
                 if (!success)
@@ -133,19 +137,58 @@ int main(int argc, char *argv[])
 
                 // Vertex data
                 // -----------
-                f32 vertices[] = {
-                    // positions        // colors         // uv
-                    -0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
-                     0.5f, -0.5f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,
-                     0.0f,  0.5f, 0.0f, 0.0f, 0.0f, 1.0f, 0.5f, 1.0f
+                f32 cubeVertices[] = {
+                    // position           // normals          // uv
+                    // back face
+                    -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
+                     1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, // top-right
+                     1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f, // bottom-right         
+                     1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, // top-right
+                    -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
+                    -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f, // top-left
+                    // front face
+                    -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // bottom-left
+                     1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f, // bottom-right
+                     1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, // top-right
+                     1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, // top-right
+                    -1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f, // top-left
+                    -1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // bottom-left
+                    // left face
+                    -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
+                    -1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-left
+                    -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-left
+                    -1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-left
+                    -1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-right
+                    -1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
+                    // right face
+                     1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+                     1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+                     1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-right         
+                     1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+                     1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+                     1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-left     
+                     // bottom face
+                     -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+                      1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f, // top-left
+                      1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+                      1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+                     -1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f, // bottom-right
+                     -1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+                     // top face
+                     -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+                      1.0f,  1.0f , 1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+                      1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f, // top-right     
+                      1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+                     -1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+                     -1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f  // bottom-left        
                 };
-                u32 VBO;
-                glGenBuffers(1, &VBO);
-                u32 VAO;
-                glGenVertexArrays(1, &VAO);
-                glBindVertexArray(VAO);
-                glBindBuffer(GL_ARRAY_BUFFER, VBO);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+                u32 cubeVBO;
+                glGenBuffers(1, &cubeVBO);
+                u32 cubeVAO;
+                glGenVertexArrays(1, &cubeVAO);
+                glBindVertexArray(cubeVAO);
+                glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
+                glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertices), cubeVertices, GL_STATIC_DRAW);
                 glEnableVertexAttribArray(0);
                 glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(f32), (void *)0);
                 glEnableVertexAttribArray(1);
@@ -153,6 +196,32 @@ int main(int argc, char *argv[])
                 glEnableVertexAttribArray(2);
                 glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(f32), (void *)(6 * sizeof(f32)));
                 glBindBuffer(GL_ARRAY_BUFFER, 0);
+                glBindVertexArray(0);
+
+                float planeVertices[] = {
+                    // positions            // normals         // uv
+                     25.0f, -0.5f,  25.0f,  0.0f, 1.0f, 0.0f,  25.0f,  0.0f,
+                    -25.0f, -0.5f, -25.0f,  0.0f, 1.0f, 0.0f,   0.0f, 25.0f,
+                    -25.0f, -0.5f,  25.0f,  0.0f, 1.0f, 0.0f,   0.0f,  0.0f,
+
+                     25.0f, -0.5f,  25.0f,  0.0f, 1.0f, 0.0f,  25.0f,  0.0f,
+                     25.0f, -0.5f, -25.0f,  0.0f, 1.0f, 0.0f,  25.0f, 25.0f,
+                    -25.0f, -0.5f, -25.0f,  0.0f, 1.0f, 0.0f,   0.0f, 25.0f
+                };
+                // plane VAO
+                u32 planeVBO;
+                glGenBuffers(1, &planeVBO);
+                u32 planeVAO;
+                glGenVertexArrays(1, &planeVAO);
+                glBindVertexArray(planeVAO);
+                glBindBuffer(GL_ARRAY_BUFFER, planeVBO);
+                glBufferData(GL_ARRAY_BUFFER, sizeof(planeVertices), planeVertices, GL_STATIC_DRAW);
+                glEnableVertexAttribArray(0);
+                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)0);
+                glEnableVertexAttribArray(1);
+                glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(3 * sizeof(float)));
+                glEnableVertexAttribArray(2);
+                glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void *)(6 * sizeof(float)));
                 glBindVertexArray(0);
 
                 // Load textures
@@ -164,20 +233,46 @@ int main(int argc, char *argv[])
                     exit(-1);
                 }
 
-                u32 textureID = 0;
-                SDL_Surface *texture = IMG_Load("resources/textures/container.jpg");
-                if (texture)
+                u32 containerTextureID = 0;
+                SDL_Surface *containerTexture = IMG_Load("resources/textures/container.jpg");
+                if (containerTexture)
                 {
                     GLenum format = GL_RGB;
-                    if (texture->format->BytesPerPixel == 4)
+                    if (containerTexture->format->BytesPerPixel == 4)
                     {
                         format = GL_RGBA;
                     }
 
-                    glGenTextures(1, &textureID);
-                    glBindTexture(GL_TEXTURE_2D, textureID);
-                    glTexImage2D(GL_TEXTURE_2D, 0, format, texture->w, texture->h, 0, format, GL_UNSIGNED_BYTE, texture->pixels);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                    glGenTextures(1, &containerTextureID);
+                    glBindTexture(GL_TEXTURE_2D, containerTextureID);
+                    glTexImage2D(GL_TEXTURE_2D, 0, format, containerTexture->w, containerTexture->h, 0, format, GL_UNSIGNED_BYTE, containerTexture->pixels);
+                    glGenerateMipmap(GL_TEXTURE_2D);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                }
+                else
+                {
+                    std::cerr << "Failed to load texture\n";
+                }
+
+                u32 grassTextureID = 0;
+                SDL_Surface *grassTexture = IMG_Load("resources/textures/grass.jpg");
+                if (grassTexture)
+                {
+                    GLenum format = GL_RGB;
+                    if (grassTexture->format->BytesPerPixel == 4)
+                    {
+                        format = GL_RGBA;
+                    }
+
+                    glGenTextures(1, &grassTextureID);
+                    glBindTexture(GL_TEXTURE_2D, grassTextureID);
+                    glTexImage2D(GL_TEXTURE_2D, 0, format, grassTexture->w, grassTexture->h, 0, format, GL_UNSIGNED_BYTE, grassTexture->pixels);
+                    glGenerateMipmap(GL_TEXTURE_2D);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -207,7 +302,7 @@ int main(int argc, char *argv[])
                             quit = true;
                         }
                     }
-                    
+
                     // Timing
                     // ------
                     u64 currentFrame = SDL_GetTicks64();
@@ -271,7 +366,7 @@ int main(int argc, char *argv[])
                         glm::vec3 positionDelta = normalizedVelocity * CameraMovementSpeed * deltaTime;
                         CameraPosition += positionDelta;
 #if 0
-                        std::cout << "cam mov dir:" << glm::to_string(normalizedVelocity) << 
+                        std::cout << "cam mov dir:" << glm::to_string(normalizedVelocity) <<
                             " | mov vel:" << glm::length(positionDelta) << '\n';
 #endif
                     }
@@ -283,20 +378,47 @@ int main(int argc, char *argv[])
                     // Render
                     // ------
                     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-                    glClear(GL_COLOR_BUFFER_BIT);
+                    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
                     glUseProgram(shaderProgram);
-                    glm::mat4 projection = glm::perspective(glm::radians(CameraFov/2.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 100.0f);
-                    glm::mat4 view = glm::lookAt(CameraPosition, CameraPosition + CameraFront, CameraUp);
-                    glm::mat4 model = glm::mat4(1.0f);
-                    model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 0.0f, 1.0f));
+                    // perspective projection
+                    glm::mat4 projection = glm::perspective(glm::radians(CameraFov / 2.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 100.0f);
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+
+                    // camera view matrix
+                    glm::mat4 view = glm::lookAt(CameraPosition, CameraPosition + CameraFront, CameraUp);
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+
+                    glm::mat4 model = glm::mat4(1.0f);
+                    // floor
+                    model = glm::mat4(1.0f);
+                    model = glm::scale(model, glm::vec3(0.2f));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, textureID);
-                    glBindVertexArray(VAO);
-                    glDrawArrays(GL_TRIANGLES, 0, 3);
+                    glBindTexture(GL_TEXTURE_2D, grassTextureID);
+                    glBindVertexArray(planeVAO);
+                    glDrawArrays(GL_TRIANGLES, 0, 6);
+
+                    // cube 1
+                    model = glm::mat4(1.0f);
+                    model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 0.0f, 1.0f));
+                    model = glm::scale(model, glm::vec3(0.2f));
+                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, containerTextureID);
+                    glBindVertexArray(cubeVAO);
+                    glDrawArrays(GL_TRIANGLES, 0, 36);
+
+                    // cube 2
+                    model = glm::mat4(1.0f);
+                    model = glm::translate(model, glm::vec3(-1.5f, 2.0f, 2.0f));
+                    model = glm::scale(model, glm::vec3(0.5f));
+                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, containerTextureID);
+                    glBindVertexArray(cubeVAO);
+                    glDrawArrays(GL_TRIANGLES, 0, 36);
+
                     glBindVertexArray(0);
                     glBindTexture(GL_TEXTURE_2D, 0);
                     glUseProgram(0);
@@ -305,18 +427,16 @@ int main(int argc, char *argv[])
                     // -----------
                     SDL_GL_SwapWindow(window);
                 }
-                
             }
             else
             {
-                std::cerr << "Couldn't create OpenGL context: " <<  SDL_GetError() << '\n';
+                std::cerr << "Couldn't create OpenGL context: " << SDL_GetError() << '\n';
             }
         }
         else
         {
             std::cerr << "Couldn't create SDL window: " << SDL_GetError() << '\n';
         }
-
     }
     else
     {
