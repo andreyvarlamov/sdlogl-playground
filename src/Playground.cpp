@@ -16,14 +16,14 @@
 const u32 SCREEN_WIDTH = 1280;
 const u32 SCREEN_HEIGHT = 720;
 
-glm::vec3 CameraPosition = glm::vec3(0.0f, 1.7f, -3.0f);
-glm::vec3 CameraFront = glm::vec3(0.0f, 0.0f, 1.0f);
+glm::vec3 CameraPosition = glm::vec3(0.0f, 1.7f, 3.0f);
+glm::vec3 CameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 CameraRight = glm::vec3(1.0f, 0.0f, 0.0f);
 glm::vec3 CameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 f32 CameraMovementSpeed = 2.5f;
 f32 CameraMouseSensitivity = 0.05f;
 f32 CameraFov = 90.0f;
-f32 CameraYaw = 90.0f;
+f32 CameraYaw = -90.0f;
 f32 CameraPitch = 0.0f;
 bool CameraFPSMode = true;
 
@@ -286,7 +286,13 @@ int main(int argc, char *argv[])
                     std::cerr << "Failed to load texture\n";
                 }
 
-                glUniform1i(glGetUniformLocation(shaderProgram, "tex"), 0);
+                glUseProgram(shaderProgram);
+                glUniform1i(glGetUniformLocation(shaderProgram, "diffuseMap"), 0);
+
+                // Light configuration
+                // -------------------
+                glm::vec3 lightDir = glm::normalize(glm::vec3(-1.0f, -1.0f, -0.33f));
+                glUniform3fv(glGetUniformLocation(shaderProgram, "lightDirection"), 1, &lightDir[0]);
 
                 // Game Loop
                 // ---------
@@ -407,6 +413,7 @@ int main(int argc, char *argv[])
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
 
                     glm::mat4 model = glm::mat4(1.0f);
+                    glm::mat4 normalTransform = glm::mat4(1.0f);
 
                     // floor
                     model = glm::mat4(1.0f);
@@ -424,6 +431,8 @@ int main(int argc, char *argv[])
                     model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
                     model = glm::scale(model, glm::vec3(1.0f));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    normalTransform = glm::transpose(glm::inverse(glm::mat3(model)));
+                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalTransform));
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, containerTextureID);
                     glBindVertexArray(cubeVAO);
@@ -433,7 +442,7 @@ int main(int argc, char *argv[])
 
                     // cube 2
                     model = glm::mat4(1.0f);
-                    model = glm::translate(model, glm::vec3(-1.5f, 2.0f, 2.0f));
+                    model = glm::translate(model, glm::vec3(-1.5f, 2.0f, -2.0f));
                     model = glm::scale(model, glm::vec3(0.70f));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     glActiveTexture(GL_TEXTURE0);
