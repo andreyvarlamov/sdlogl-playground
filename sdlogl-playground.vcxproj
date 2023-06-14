@@ -137,6 +137,7 @@
   <ItemGroup>
     <None Include="dlls\assimp-vc143-mtd.dll" />
     <None Include="dlls\SDL2.dll" />
+    <None Include="dlls\SDL2_image.dll" />
     <None Include="resources\shaders\Basic.fs" />
     <None Include="resources\shaders\Basic.vs" />
   </ItemGroup>

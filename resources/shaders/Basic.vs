@@ -18,6 +18,6 @@ uniform mat3 normalMatrix;
 void main()
 {
     gl_Position = projection * view * model * vec4(aPos, 1.0f);
-    vs_out.Normal = transpose(inverse(mat3(model))) * aNormal;
+    vs_out.Normal = normalMatrix * aNormal;
     vs_out.TexCoords = aTexCoords;
 }

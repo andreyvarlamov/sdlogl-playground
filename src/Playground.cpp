@@ -20,7 +20,7 @@ glm::vec3 CameraPosition = glm::vec3(0.0f, 1.7f, 3.0f);
 glm::vec3 CameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 CameraRight = glm::vec3(1.0f, 0.0f, 0.0f);
 glm::vec3 CameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-f32 CameraMovementSpeed = 2.5f;
+f32 CameraMovementSpeed = 3.5f;
 f32 CameraMouseSensitivity = 0.05f;
 f32 CameraFov = 90.0f;
 f32 CameraYaw = -90.0f;
@@ -413,12 +413,14 @@ int main(int argc, char *argv[])
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
 
                     glm::mat4 model = glm::mat4(1.0f);
-                    glm::mat4 normalTransform = glm::mat4(1.0f);
+                    glm::mat3 normalMatrix = glm::mat3(1.0f);
 
                     // floor
                     model = glm::mat4(1.0f);
                     model = glm::scale(model, glm::vec3(25.0f));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, grassTextureID);
                     glBindVertexArray(planeVAO);
@@ -431,8 +433,8 @@ int main(int argc, char *argv[])
                     model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
                     model = glm::scale(model, glm::vec3(1.0f));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                    normalTransform = glm::transpose(glm::inverse(glm::mat3(model)));
-                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalTransform));
+                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, containerTextureID);
                     glBindVertexArray(cubeVAO);
@@ -445,6 +447,8 @@ int main(int argc, char *argv[])
                     model = glm::translate(model, glm::vec3(-1.5f, 2.0f, -2.0f));
                     model = glm::scale(model, glm::vec3(0.70f));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, containerTextureID);
                     glBindVertexArray(cubeVAO);
