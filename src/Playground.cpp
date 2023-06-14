@@ -20,11 +20,14 @@ glm::vec3 CameraPosition = glm::vec3(0.0f, 1.7f, -3.0f);
 glm::vec3 CameraFront = glm::vec3(0.0f, 0.0f, 1.0f);
 glm::vec3 CameraRight = glm::vec3(1.0f, 0.0f, 0.0f);
 glm::vec3 CameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-float CameraMovementSpeed = 2.5f;
-float CameraMouseSensitivity = 0.05f;
-float CameraFov = 90.0f;
-float CameraYaw = 90.0f;
-float CameraPitch = 0.0f;
+f32 CameraMovementSpeed = 2.5f;
+f32 CameraMouseSensitivity = 0.05f;
+f32 CameraFov = 90.0f;
+f32 CameraYaw = 90.0f;
+f32 CameraPitch = 0.0f;
+bool CameraFPSMode = true;
+
+bool CameraFPSModeButtonPressed = false;
 
 std::string readFile(const char *path)
 {
@@ -99,26 +102,26 @@ int main(int argc, char *argv[])
                 vertexShader = glCreateShader(GL_VERTEX_SHADER);
                 std::string vertexShaderSource = readFile("resources/shaders/Basic.vs");
                 const char *vertexShaderSourceCStr = vertexShaderSource.c_str();
-                glShaderSource(vertexShader, 1, &vertexShaderSourceCStr, NULL);
+                glShaderSource(vertexShader, 1, &vertexShaderSourceCStr, 0);
                 glCompileShader(vertexShader);
                 int success;
                 char infoLog[512];
                 glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
                 if (!success)
                 {
-                    glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
+                    glGetShaderInfoLog(vertexShader, 512, 0, infoLog);
                     std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << '\n';
                 }
                 u32 fragmentShader;
                 fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
                 std::string fragmentShaderSource = readFile("resources/shaders/Basic.fs");
                 const char *fragmentShaderSourceCStr = fragmentShaderSource.c_str();
-                glShaderSource(fragmentShader, 1, &fragmentShaderSourceCStr, NULL);
+                glShaderSource(fragmentShader, 1, &fragmentShaderSourceCStr, 0);
                 glCompileShader(fragmentShader);
                 glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
                 if (!success)
                 {
-                    glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
+                    glGetShaderInfoLog(fragmentShader, 512, 0, infoLog);
                     std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << '\n';
                 }
                 u32 shaderProgram;
@@ -129,7 +132,7 @@ int main(int argc, char *argv[])
                 glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
                 if (!success)
                 {
-                    glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
+                    glGetProgramInfoLog(shaderProgram, 512, 0, infoLog);
                     std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << '\n';
                 }
                 glDeleteShader(vertexShader);
@@ -288,7 +291,7 @@ int main(int argc, char *argv[])
                 // Game Loop
                 // ---------
                 float deltaTime = 0.0f;
-                u64 lastFrame = 0.0f;
+                u64 lastFrame = 0;
                 SDL_Event event;
                 bool quit = false;
                 while (!quit)
@@ -314,10 +317,19 @@ int main(int argc, char *argv[])
 
                     // Process input
                     // -------------
-                    const u8 *currentKeyStates = SDL_GetKeyboardState(NULL);
+                    const u8 *currentKeyStates = SDL_GetKeyboardState(0);
                     if (currentKeyStates[SDL_SCANCODE_ESCAPE])
                     {
                         quit = true;
+                    }
+                    if (currentKeyStates[SDL_SCANCODE_GRAVE] && !CameraFPSModeButtonPressed)
+                    {
+                        CameraFPSMode = !CameraFPSMode;
+                        CameraFPSModeButtonPressed = true;
+                    }
+                    else if (!currentKeyStates[SDL_SCANCODE_GRAVE])
+                    {
+                        CameraFPSModeButtonPressed = false;
                     }
                     i32 mouseDeltaX, mouseDeltaY;
                     u32 mouseButtons = SDL_GetRelativeMouseState(&mouseDeltaX, &mouseDeltaY);
@@ -362,6 +374,10 @@ int main(int argc, char *argv[])
                     }
                     if (moving && glm::length(velocity) > 0.0f)
                     {
+                        if (CameraFPSMode)
+                        {
+                            velocity.y = 0.0f;
+                        }
                         glm::vec3 normalizedVelocity = glm::normalize(velocity);
                         glm::vec3 positionDelta = normalizedVelocity * CameraMovementSpeed * deltaTime;
                         CameraPosition += positionDelta;
