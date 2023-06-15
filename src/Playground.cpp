@@ -236,19 +236,44 @@ int main(int argc, char *argv[])
                     exit(-1);
                 }
 
-                u32 containerTextureID = 0;
-                SDL_Surface *containerTexture = IMG_Load("resources/textures/container.jpg");
-                if (containerTexture)
+                u32 containerDiffuseID = 0;
+                SDL_Surface *containerDiffuse = IMG_Load("resources/textures/container.png");
+                if (containerDiffuse)
                 {
                     GLenum format = GL_RGB;
-                    if (containerTexture->format->BytesPerPixel == 4)
+                    if (containerDiffuse->format->BytesPerPixel == 4)
                     {
                         format = GL_RGBA;
                     }
 
-                    glGenTextures(1, &containerTextureID);
-                    glBindTexture(GL_TEXTURE_2D, containerTextureID);
-                    glTexImage2D(GL_TEXTURE_2D, 0, format, containerTexture->w, containerTexture->h, 0, format, GL_UNSIGNED_BYTE, containerTexture->pixels);
+                    glGenTextures(1, &containerDiffuseID);
+                    glBindTexture(GL_TEXTURE_2D, containerDiffuseID);
+                    glTexImage2D(GL_TEXTURE_2D, 0, format, containerDiffuse->w, containerDiffuse->h, 0, format, GL_UNSIGNED_BYTE, containerDiffuse->pixels);
+                    glGenerateMipmap(GL_TEXTURE_2D);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                }
+                else
+                {
+                    std::cerr << "Failed to load texture\n";
+                }
+
+                u32 containerSpecularID = 0;
+                SDL_Surface *containerSpecular = IMG_Load("resources/textures/container_specular.png");
+                if (containerSpecular)
+                {
+                    GLenum format = GL_RGB;
+                    if (containerSpecular->format->BytesPerPixel == 4)
+                    {
+                        format = GL_RGBA;
+                    }
+
+                    glGenTextures(1, &containerSpecularID);
+                    glBindTexture(GL_TEXTURE_2D, containerSpecularID);
+                    glTexImage2D(GL_TEXTURE_2D, 0, format, containerSpecular->w, containerSpecular->h, 0, format, GL_UNSIGNED_BYTE, containerSpecular->pixels);
                     glGenerateMipmap(GL_TEXTURE_2D);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
                     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -286,8 +311,16 @@ int main(int argc, char *argv[])
                     std::cerr << "Failed to load texture\n";
                 }
 
+                // Shader global uniforms
+                // ----------------------
                 glUseProgram(shaderProgram);
                 glUniform1i(glGetUniformLocation(shaderProgram, "diffuseMap"), 0);
+                glUseProgram(shaderProgram);
+                glUniform1i(glGetUniformLocation(shaderProgram, "specularMap"), 1);
+                glUseProgram(shaderProgram);
+                glUniform1i(glGetUniformLocation(shaderProgram, "emissionMap"), 2);
+                glUseProgram(shaderProgram);
+                glUniform1i(glGetUniformLocation(shaderProgram, "normalMap"), 3);
 
                 // Light configuration
                 // -------------------
@@ -439,7 +472,9 @@ int main(int argc, char *argv[])
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
                     glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
                     glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, containerTextureID);
+                    glBindTexture(GL_TEXTURE_2D, containerDiffuseID);
+                    glActiveTexture(GL_TEXTURE1);
+                    glBindTexture(GL_TEXTURE_2D, containerSpecularID);
                     glBindVertexArray(cubeVAO);
                     glDrawArrays(GL_TRIANGLES, 0, 36);
                     glBindVertexArray(0);
@@ -453,7 +488,9 @@ int main(int argc, char *argv[])
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
                     glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
                     glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, containerTextureID);
+                    glBindTexture(GL_TEXTURE_2D, containerDiffuseID);
+                    glActiveTexture(GL_TEXTURE1);
+                    glBindTexture(GL_TEXTURE_2D, containerSpecularID);
                     glBindVertexArray(cubeVAO);
                     glDrawArrays(GL_TRIANGLES, 0, 36);
                     glBindVertexArray(0);
