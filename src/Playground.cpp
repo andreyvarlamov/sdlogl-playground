@@ -286,6 +286,32 @@ int main(int argc, char *argv[])
                     std::cerr << "Failed to load texture\n";
                 }
 
+                u32 eyeEmissionID = 0;
+                SDL_Surface *eyeEmission = IMG_Load("resources/textures/eye_emission.png");
+                if (eyeEmission)
+                {
+                    GLenum format = GL_RGB;
+                    if (eyeEmission->format->BytesPerPixel == 4)
+                    {
+                        format = GL_RGBA;
+                    }
+
+                    glGenTextures(1, &eyeEmissionID);
+                    glBindTexture(GL_TEXTURE_2D, eyeEmissionID);
+                    glTexImage2D(GL_TEXTURE_2D, 0, format, eyeEmission->w, eyeEmission->h, 0, format, GL_UNSIGNED_BYTE, eyeEmission->pixels);
+                    glGenerateMipmap(GL_TEXTURE_2D);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                }
+                else
+                {
+                    std::cerr << "Failed to load texture\n";
+                }
+
+
                 u32 grassTextureID = 0;
                 SDL_Surface *grassTexture = IMG_Load("resources/textures/grass.jpg");
                 if (grassTexture)
@@ -491,6 +517,8 @@ int main(int argc, char *argv[])
                     glBindTexture(GL_TEXTURE_2D, containerDiffuseID);
                     glActiveTexture(GL_TEXTURE1);
                     glBindTexture(GL_TEXTURE_2D, containerSpecularID);
+                    glActiveTexture(GL_TEXTURE2);
+                    glBindTexture(GL_TEXTURE_2D, eyeEmissionID);
                     glBindVertexArray(cubeVAO);
                     glDrawArrays(GL_TRIANGLES, 0, 36);
                     glBindVertexArray(0);

@@ -40,5 +40,9 @@ void main()
     float specularBrightness = pow(max(dot(normal, halfwayDirection), 0.0), 128.0);
     vec3 specularColor = specularColorSample * specularBrightness;
 
-    FragColor = vec4(fragBrightness * fragColor + specularColor, 1.0);
+    // emission
+    // --------
+    vec3 emissionColor = texture(emissionMap, fs_in.TexCoords).rgb;
+
+    FragColor = vec4(fragBrightness * fragColor + specularColor + emissionColor, 1.0);
 }
