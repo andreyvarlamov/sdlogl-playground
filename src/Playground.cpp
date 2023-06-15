@@ -412,6 +412,9 @@ int main(int argc, char *argv[])
                     glm::mat4 view = glm::lookAt(CameraPosition, CameraPosition + CameraFront, CameraUp);
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
 
+                    // view position for light calculation
+                    glUniform3fv(glGetUniformLocation(shaderProgram, "viewPosition"), 1, &CameraPosition[0]);
+
                     glm::mat4 model = glm::mat4(1.0f);
                     glm::mat3 normalMatrix = glm::mat3(1.0f);
 

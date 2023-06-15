@@ -11,6 +11,7 @@ in VS_OUT
 uniform sampler2D diffuseMap;
 
 uniform vec3 lightDirection;
+uniform vec3 viewPosition;
 
 void main()
 {
@@ -28,5 +29,12 @@ void main()
     float diffuseBrightness = max(dot(normalizedLightDirection, normal), 0.0);
     fragBrightness += diffuseBrightness;
 
-    FragColor = vec4(fragBrightness * fragColor, 1.0);
+    // specular
+    // --------
+    vec3 normalizedViewDirection = normalize(viewPosition - fs_in.FragPos);
+    vec3 halfwayDirection = normalize(normalizedLightDirection + normalizedViewDirection);
+    float specularBrightness = pow(max(dot(normal, halfwayDirection), 0.0), 128.0);
+    vec3 specularColor = vec3(0.3) * specularBrightness;
+
+    FragColor = vec4(fragBrightness * fragColor + specularColor, 1.0);
 }
