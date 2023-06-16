@@ -66,6 +66,186 @@ glm::vec3 calculateTangentForTriangle(const glm::vec3 *positions, glm::vec3 norm
     return result;
 }
 
+void generateTriangleVertexData(float *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs)
+{
+    glm::vec3 tangent = calculateTangentForTriangle(positions, normal, uvs);
+
+    float *vertexDataCursor = vertexData;
+    vertexDataCursor[0]  = positions[0].x;
+    vertexDataCursor[1]  = positions[0].y;
+    vertexDataCursor[2]  = positions[0].z;
+    vertexDataCursor[3]  = normal.x;
+    vertexDataCursor[4]  = normal.y;
+    vertexDataCursor[5]  = normal.z;
+    vertexDataCursor[6]  = uvs[0].x;
+    vertexDataCursor[7]  = uvs[0].y;
+    vertexDataCursor[8]  = tangent.x;
+    vertexDataCursor[9]  = tangent.y;
+    vertexDataCursor[10] = tangent.z;
+
+    vertexDataCursor += 11;
+    vertexDataCursor[0]  = positions[1].x;
+    vertexDataCursor[1]  = positions[1].y;
+    vertexDataCursor[2]  = positions[1].z;
+    vertexDataCursor[3]  = normal.x;
+    vertexDataCursor[4]  = normal.y;
+    vertexDataCursor[5]  = normal.z;
+    vertexDataCursor[6]  = uvs[1].x;
+    vertexDataCursor[7]  = uvs[1].y;
+    vertexDataCursor[8]  = tangent.x;
+    vertexDataCursor[9]  = tangent.y;
+    vertexDataCursor[10] = tangent.z;
+
+    vertexDataCursor += 11;
+    vertexDataCursor[0]  = positions[2].x;
+    vertexDataCursor[1]  = positions[2].y;
+    vertexDataCursor[2]  = positions[2].z;
+    vertexDataCursor[3]  = normal.x;
+    vertexDataCursor[4]  = normal.y;
+    vertexDataCursor[5]  = normal.z;
+    vertexDataCursor[6]  = uvs[2].x;
+    vertexDataCursor[7]  = uvs[2].y;
+    vertexDataCursor[8]  = tangent.x;
+    vertexDataCursor[9]  = tangent.y;
+    vertexDataCursor[10] = tangent.z;
+}
+
+void generatePlaneVertexData(float *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs)
+{
+    // Triangle 1
+    float *vertexDataCursor = vertexData;
+    glm::vec3 triangle1Positions[] = {
+        positions[0], positions[1], positions[2]
+    };
+    glm::vec2 triangle1Uvs[] = {
+        uvs[0], uvs[1], uvs[2]
+    };
+    generateTriangleVertexData(vertexDataCursor, triangle1Positions, normal, triangle1Uvs);
+
+    // Triangle 2
+    vertexDataCursor += 33;
+    glm::vec3 triangle2Positions[] = {
+        positions[0], positions[2], positions[3]
+    };
+    glm::vec2 triangle2Uvs[] = {
+        uvs[0], uvs[2], uvs[3]
+    };
+    generateTriangleVertexData(vertexDataCursor, triangle2Positions, normal, triangle2Uvs);
+}
+
+u32 prepareQuadVAO(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs)
+{
+    // 1 quad - 2 triangles - 6 vertices, 11 floats per vertex (position.xyz,normal.xyz,uv.xy,tangent.xyz) = 66 floats.
+    float vertexData[66] = { 0 };
+
+    generatePlaneVertexData(vertexData, positions, normal, uvs);
+
+    u32 quadVBO;
+    glGenBuffers(1, &quadVBO);
+    u32 quadVAO;
+    glGenVertexArrays(1, &quadVAO);
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), vertexData, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)(3 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)(6 * sizeof(float)));
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)(8 * sizeof(float)));
+    glBindVertexArray(0);
+
+    return quadVAO;
+}
+
+u32 prepareCubeVAO()
+{
+    // 66 floats per face; 6 faces
+    float vertexData[396] = { 0 };
+    glm::vec3 facePositions[4];
+    glm::vec3 faceNormal;
+    glm::vec2 faceUvs[4];
+    faceUvs[0] = glm::vec2(1.0f, 1.0f);
+    faceUvs[1] = glm::vec2(1.0f, 0.0f);
+    faceUvs[2] = glm::vec2(0.0f, 0.0f);
+    faceUvs[3] = glm::vec2(0.0f, 1.0f);
+
+    // Back face
+    float *vertexDataCursor = vertexData;
+    facePositions[0] = glm::vec3( 0.5f, 1.0f, -0.5f);
+    facePositions[1] = glm::vec3( 0.5f, 0.0f, -0.5f);
+    facePositions[2] = glm::vec3(-0.5f, 0.0f, -0.5f);
+    facePositions[3] = glm::vec3(-0.5f, 1.0f, -0.5f);
+    faceNormal = glm::vec3(0.0f, 0.0f, -1.0f);
+    generatePlaneVertexData(vertexDataCursor, facePositions, faceNormal, faceUvs);
+
+    // Front face
+    vertexDataCursor += 66;
+    facePositions[0] = glm::vec3(-0.5f, 1.0f,  0.5f);
+    facePositions[1] = glm::vec3(-0.5f, 0.0f,  0.5f);
+    facePositions[2] = glm::vec3( 0.5f, 0.0f,  0.5f);
+    facePositions[3] = glm::vec3( 0.5f, 1.0f,  0.5f);
+    faceNormal = glm::vec3(0.0f, 0.0f, 1.0f);
+    generatePlaneVertexData(vertexDataCursor, facePositions, faceNormal, faceUvs);
+
+    // Left face
+    vertexDataCursor += 66;
+    facePositions[0] = glm::vec3(-0.5f, 1.0f, -0.5f);
+    facePositions[1] = glm::vec3(-0.5f, 0.0f, -0.5f);
+    facePositions[2] = glm::vec3(-0.5f, 0.0f,  0.5f);
+    facePositions[3] = glm::vec3(-0.5f, 1.0f,  0.5f);
+    faceNormal = glm::vec3(-1.0f, 0.0f, 0.0f);
+    generatePlaneVertexData(vertexDataCursor, facePositions, faceNormal, faceUvs);
+
+    // Right face
+    vertexDataCursor += 66;
+    facePositions[0] = glm::vec3( 0.5f, 1.0f,  0.5f);
+    facePositions[1] = glm::vec3( 0.5f, 0.0f,  0.5f);
+    facePositions[2] = glm::vec3( 0.5f, 0.0f, -0.5f);
+    facePositions[3] = glm::vec3( 0.5f, 1.0f, -0.5f);
+    faceNormal = glm::vec3(1.0f, 0.0f, 0.0f);
+    generatePlaneVertexData(vertexDataCursor, facePositions, faceNormal, faceUvs);
+
+    // Bottom face
+    vertexDataCursor += 66;
+    facePositions[0] = glm::vec3(-0.5f, 0.0f,  0.5f);
+    facePositions[1] = glm::vec3(-0.5f, 0.0f, -0.5f);
+    facePositions[2] = glm::vec3( 0.5f, 0.0f, -0.5f);
+    facePositions[3] = glm::vec3( 0.5f, 0.0f,  0.5f);
+    faceNormal = glm::vec3(0.0f, -1.0f, 0.0f);
+    generatePlaneVertexData(vertexDataCursor, facePositions, faceNormal, faceUvs);
+    
+    // Top face
+    vertexDataCursor += 66;
+    facePositions[0] = glm::vec3(-0.5f, 1.0f, -0.5f);
+    facePositions[1] = glm::vec3(-0.5f, 1.0f,  0.5f);
+    facePositions[2] = glm::vec3( 0.5f, 1.0f,  0.5f);
+    facePositions[3] = glm::vec3( 0.5f, 1.0f, -0.5f);
+    faceNormal = glm::vec3(0.0f, 1.0f, 0.0f);
+    generatePlaneVertexData(vertexDataCursor, facePositions, faceNormal, faceUvs);
+
+    u32 quadVBO;
+    glGenBuffers(1, &quadVBO);
+    u32 quadVAO;
+    glGenVertexArrays(1, &quadVAO);
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), vertexData, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)(3 * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)(6 * sizeof(float)));
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)(8 * sizeof(float)));
+    glBindVertexArray(0);
+
+    return quadVAO;
+}
+
 int main(int argc, char *argv[])
 {
     if (SDL_Init(SDL_INIT_VIDEO) >= 0)
@@ -156,214 +336,40 @@ int main(int argc, char *argv[])
 
                 // Vertex data
                 // -----------
-                f32 cubeVertices[] = {
-                    // position           // normals          // uv
-                    // back face
-                    -0.5f,  0.0f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
-                     0.5f,  1.0f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, // top-right
-                     0.5f,  0.0f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f, // bottom-right         
-                     0.5f,  1.0f, -0.5f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, // top-right
-                    -0.5f,  0.0f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
-                    -0.5f,  1.0f, -0.5f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f, // top-left
-                    // front face
-                    -0.5f,  0.0f,  0.5f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // bottom-left
-                     0.5f,  0.0f,  0.5f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f, // bottom-right
-                     0.5f,  1.0f,  0.5f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, // top-right
-                     0.5f,  1.0f,  0.5f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, // top-right
-                    -0.5f,  1.0f,  0.5f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f, // top-left
-                    -0.5f,  0.0f,  0.5f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // bottom-left
-                    // left face
-                    -0.5f,  1.0f,  0.5f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
-                    -0.5f,  1.0f, -0.5f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-left
-                    -0.5f,  0.0f, -0.5f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-left
-                    -0.5f,  0.0f, -0.5f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-left
-                    -0.5f,  0.0f,  0.5f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-right
-                    -0.5f,  1.0f,  0.5f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
-                    // right face
-                     0.5f,  1.0f,  0.5f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
-                     0.5f,  0.0f, -0.5f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
-                     0.5f,  1.0f, -0.5f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-right         
-                     0.5f,  0.0f, -0.5f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
-                     0.5f,  1.0f,  0.5f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
-                     0.5f,  0.0f,  0.5f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-left     
-                    // bottom face
-                    -0.5f,  0.0f, -0.5f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
-                     0.5f,  0.0f, -0.5f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f, // top-left
-                     0.5f,  0.0f,  0.5f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
-                     0.5f,  0.0f,  0.5f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
-                    -0.5f,  0.0f,  0.5f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f, // bottom-right
-                    -0.5f,  0.0f, -0.5f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
-                    // top face
-                    -0.5f,  1.0f, -0.5f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
-                     0.5f,  1.0f , 0.5f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
-                     0.5f,  1.0f, -0.5f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f, // top-right     
-                     0.5f,  1.0f,  0.5f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
-                    -0.5f,  1.0f, -0.5f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
-                    -0.5f,  1.0f,  0.5f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f  // bottom-left        
-                };
-                u32 cubeVBO;
-                glGenBuffers(1, &cubeVBO);
-                u32 cubeVAO;
-                glGenVertexArrays(1, &cubeVAO);
-                glBindVertexArray(cubeVAO);
-                glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertices), cubeVertices, GL_STATIC_DRAW);
-                glEnableVertexAttribArray(0);
-                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(f32), (void *)0);
-                glEnableVertexAttribArray(1);
-                glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(f32), (void *)(3 * sizeof(f32)));
-                glEnableVertexAttribArray(2);
-                glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(f32), (void *)(6 * sizeof(f32)));
-                glBindBuffer(GL_ARRAY_BUFFER, 0);
-                glBindVertexArray(0);
+                // cube
+                u32 cubeVAO = prepareCubeVAO();
 
                 // floor plane
-                glm::vec3 floorTriangle1Positions[] = {
-                    glm::vec3(1.0f, 0.0f, 1.0f),
+                glm::vec3 floorPositions[] = {
                     glm::vec3(-1.0f, 0.0f, -1.0f),
-                    glm::vec3(-1.0f, 0.0f, 1.0f)
-                };
-                glm::vec3 floorNormal(0.0f, 1.0f, 0.0f);
-                glm::vec2 floorTriangle1Uvs[] = {
-                    glm::vec2(25.0f, 0.0f),
-                    glm::vec2(0.0f, 25.0f),
-                    glm::vec2(0.0f, 0.0f)
-                };
-                glm::vec3 floorTriangle1Tangent = calculateTangentForTriangle(floorTriangle1Positions, floorNormal, floorTriangle1Uvs);
-                glm::vec3 floorTriangle2Positions[] = {
+                    glm::vec3(-1.0f, 0.0f, 1.0f),
                     glm::vec3(1.0f, 0.0f, 1.0f),
                     glm::vec3(1.0f, 0.0f, -1.0f),
-                    glm::vec3(-1.0f, 0.0f, -1.0f)
                 };
-                glm::vec2 floorTriangle2Uvs[] = {
+                glm::vec3 floorNormal(0.0f, 1.0f, 0.0f);
+                glm::vec2 floorUvs[] = {
+                    glm::vec2(0.0f, 25.0f),
+                    glm::vec2(0.0f, 0.0f),
                     glm::vec2(25.0f, 0.0f),
                     glm::vec2(25.0f, 25.0f),
-                    glm::vec2(0.0f, 25.0f)
                 };
-                glm::vec3 floorTriangle2Tangent = calculateTangentForTriangle(floorTriangle2Positions, floorNormal, floorTriangle2Uvs);
-                float floorVertices[] = {
-                    // triangle 1
-                    floorTriangle1Positions[0].x, floorTriangle1Positions[0].y, floorTriangle1Positions[0].z,
-                    floorNormal.x, floorNormal.y, floorNormal.z,
-                    floorTriangle1Uvs[0].x, floorTriangle1Uvs[0].y,
-                    floorTriangle1Tangent.x, floorTriangle1Tangent.y, floorTriangle1Tangent.z,
+                u32 floorVAO = prepareQuadVAO(floorPositions, floorNormal, floorUvs);
 
-                    floorTriangle1Positions[1].x, floorTriangle1Positions[1].y, floorTriangle1Positions[1].z,
-                    floorNormal.x, floorNormal.y, floorNormal.z,
-                    floorTriangle1Uvs[1].x, floorTriangle1Uvs[1].y,
-                    floorTriangle1Tangent.x, floorTriangle1Tangent.y, floorTriangle1Tangent.z,
-
-                    floorTriangle1Positions[2].x, floorTriangle1Positions[2].y, floorTriangle1Positions[2].z,
-                    floorNormal.x, floorNormal.y, floorNormal.z,
-                    floorTriangle1Uvs[2].x, floorTriangle1Uvs[2].y,
-                    floorTriangle1Tangent.x, floorTriangle1Tangent.y, floorTriangle1Tangent.z,
-
-                    // triangle 2
-                    floorTriangle2Positions[0].x, floorTriangle2Positions[0].y, floorTriangle2Positions[0].z,
-                    floorNormal.x, floorNormal.y, floorNormal.z,
-                    floorTriangle2Uvs[0].x, floorTriangle2Uvs[0].y,
-                    floorTriangle2Tangent.x, floorTriangle2Tangent.y, floorTriangle2Tangent.z,
-
-                    floorTriangle2Positions[1].x, floorTriangle2Positions[1].y, floorTriangle2Positions[1].z,
-                    floorNormal.x, floorNormal.y, floorNormal.z,
-                    floorTriangle2Uvs[1].x, floorTriangle2Uvs[1].y,
-                    floorTriangle2Tangent.x, floorTriangle2Tangent.y, floorTriangle2Tangent.z,
-
-                    floorTriangle2Positions[2].x, floorTriangle2Positions[2].y, floorTriangle2Positions[2].z,
-                    floorNormal.x, floorNormal.y, floorNormal.z,
-                    floorTriangle2Uvs[2].x, floorTriangle2Uvs[2].y,
-                    floorTriangle2Tangent.x, floorTriangle2Tangent.y, floorTriangle2Tangent.z
-                };
-                u32 floorVBO;
-                glGenBuffers(1, &floorVBO);
-                u32 floorVAO;
-                glGenVertexArrays(1, &floorVAO);
-                glBindVertexArray(floorVAO);
-                glBindBuffer(GL_ARRAY_BUFFER, floorVBO);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(floorVertices), floorVertices, GL_STATIC_DRAW);
-                glEnableVertexAttribArray(0);
-                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)0);
-                glEnableVertexAttribArray(1);
-                glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(3 * sizeof(float)));
-                glEnableVertexAttribArray(2);
-                glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(6 * sizeof(float)));
-                glEnableVertexAttribArray(3);
-                glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(8 * sizeof(float)));
-                glBindVertexArray(0);
-
-                // wall with calculated tangents
-                glm::vec3 wallTriangle1Positions[] = {
+                // wall
+                glm::vec3 wallPositions[] = {
                     glm::vec3(-1.0f,  2.0f, 0.0f),
                     glm::vec3(-1.0f,  0.0f, 0.0f),
-                    glm::vec3( 1.0f,  0.0f, 0.0f)
-                };
-                glm::vec3 wallNormal(0.0f, 0.0f, 1.0f);
-                glm::vec2 wallTriangle1Uvs[] = {
-                    glm::vec2(0.0f, 1.0f),
-                    glm::vec2(0.0f, 0.0f),
-                    glm::vec2(1.0f, 0.0f)
-                };
-                glm::vec3 wallTriangle1Tangent = calculateTangentForTriangle(wallTriangle1Positions, wallNormal, wallTriangle1Uvs);
-                glm::vec3 wallTriangle2Positions[] = {
-                    glm::vec3(-1.0f,  2.0f, 0.0f),
                     glm::vec3( 1.0f,  0.0f, 0.0f),
                     glm::vec3( 1.0f,  2.0f, 0.0f)
                 };
-                glm::vec2 wallTriangle2Uvs[] = {
+                glm::vec3 wallNormal(0.0f, 0.0f, 1.0f);
+                glm::vec2 wallUvs[] = {
                     glm::vec2(0.0f, 1.0f),
+                    glm::vec2(0.0f, 0.0f),
                     glm::vec2(1.0f, 0.0f),
                     glm::vec2(1.0f, 1.0f)
                 };
-                glm::vec3 wallTriangle2Tangent = calculateTangentForTriangle(wallTriangle2Positions, wallNormal, wallTriangle2Uvs);
-                float wallVertices[] = {
-                    // triangle 1
-                    wallTriangle1Positions[0].x, wallTriangle1Positions[0].y, wallTriangle1Positions[0].z,
-                    wallNormal.x, wallNormal.y, wallNormal.z,
-                    wallTriangle1Uvs[0].x, wallTriangle1Uvs[0].y,
-                    wallTriangle1Tangent.x, wallTriangle1Tangent.y, wallTriangle1Tangent.z,
-
-                    wallTriangle1Positions[1].x, wallTriangle1Positions[1].y, wallTriangle1Positions[1].z,
-                    wallNormal.x, wallNormal.y, wallNormal.z,
-                    wallTriangle1Uvs[1].x, wallTriangle1Uvs[1].y,
-                    wallTriangle1Tangent.x, wallTriangle1Tangent.y, wallTriangle1Tangent.z,
-
-                    wallTriangle1Positions[2].x, wallTriangle1Positions[2].y, wallTriangle1Positions[2].z,
-                    wallNormal.x, wallNormal.y, wallNormal.z,
-                    wallTriangle1Uvs[2].x, wallTriangle1Uvs[2].y,
-                    wallTriangle1Tangent.x, wallTriangle1Tangent.y, wallTriangle1Tangent.z,
-
-                    // triangle 2
-                    wallTriangle2Positions[0].x, wallTriangle2Positions[0].y, wallTriangle2Positions[0].z,
-                    wallNormal.x, wallNormal.y, wallNormal.z,
-                    wallTriangle2Uvs[0].x, wallTriangle2Uvs[0].y,
-                    wallTriangle2Tangent.x, wallTriangle2Tangent.y, wallTriangle2Tangent.z,
-
-                    wallTriangle2Positions[1].x, wallTriangle2Positions[1].y, wallTriangle2Positions[1].z,
-                    wallNormal.x, wallNormal.y, wallNormal.z,
-                    wallTriangle2Uvs[1].x, wallTriangle2Uvs[1].y,
-                    wallTriangle2Tangent.x, wallTriangle2Tangent.y, wallTriangle2Tangent.z,
-
-                    wallTriangle2Positions[2].x, wallTriangle2Positions[2].y, wallTriangle2Positions[2].z,
-                    wallNormal.x, wallNormal.y, wallNormal.z,
-                    wallTriangle2Uvs[2].x, wallTriangle2Uvs[2].y,
-                    wallTriangle2Tangent.x, wallTriangle2Tangent.y, wallTriangle2Tangent.z
-                };
-                u32 wallVBO;
-                glGenBuffers(1, &wallVBO);
-                u32 wallVAO;
-                glGenVertexArrays(1, &wallVAO);
-                glBindVertexArray(wallVAO);
-                glBindBuffer(GL_ARRAY_BUFFER, wallVBO);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(wallVertices), wallVertices, GL_STATIC_DRAW);
-                glEnableVertexAttribArray(0);
-                glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)0);
-                glEnableVertexAttribArray(1);
-                glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(3 * sizeof(float)));
-                glEnableVertexAttribArray(2);
-                glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(6 * sizeof(float)));
-                glEnableVertexAttribArray(3);
-                glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void*)(8 * sizeof(float)));
-                glBindVertexArray(0);
+                u32 wallVAO = prepareQuadVAO(wallPositions, wallNormal, wallUvs);
 
                 // Load textures
                 int imgFlags = IMG_INIT_JPG | IMG_INIT_PNG;
@@ -675,6 +681,8 @@ int main(int argc, char *argv[])
                     glBindVertexArray(floorVAO);
                     glDrawArrays(GL_TRIANGLES, 0, 6);
                     glBindVertexArray(0);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, 0);
 
                     // cube 1
                     model = glm::mat4(1.0f);
@@ -683,12 +691,16 @@ int main(int argc, char *argv[])
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
                     glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    glBindVertexArray(cubeVAO);
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, containerDiffuseID);
                     glActiveTexture(GL_TEXTURE1);
                     glBindTexture(GL_TEXTURE_2D, containerSpecularID);
-                    glBindVertexArray(cubeVAO);
                     glDrawArrays(GL_TRIANGLES, 0, 36);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    glActiveTexture(GL_TEXTURE1);
+                    glBindTexture(GL_TEXTURE_2D, 0);
                     glBindVertexArray(0);
 
                     // cube 2
@@ -698,14 +710,20 @@ int main(int argc, char *argv[])
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
                     glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    glBindVertexArray(cubeVAO);
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, containerDiffuseID);
                     glActiveTexture(GL_TEXTURE1);
                     glBindTexture(GL_TEXTURE_2D, containerSpecularID);
                     glActiveTexture(GL_TEXTURE2);
                     glBindTexture(GL_TEXTURE_2D, eyeEmissionID);
-                    glBindVertexArray(cubeVAO);
                     glDrawArrays(GL_TRIANGLES, 0, 36);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    glActiveTexture(GL_TEXTURE1);
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    glActiveTexture(GL_TEXTURE2);
+                    glBindTexture(GL_TEXTURE_2D, 0);
                     glBindVertexArray(0);
 
                     // quad wall
@@ -715,26 +733,23 @@ int main(int argc, char *argv[])
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
                     glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    glBindVertexArray(wallVAO);
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, wallDiffuseID);
                     glActiveTexture(GL_TEXTURE3);
                     glBindTexture(GL_TEXTURE_2D, wallNormalTexID);
-                    glBindVertexArray(wallVAO);
                     glDrawArrays(GL_TRIANGLES, 0, 6);
-                    glBindVertexArray(0);
                     // other side of wall (no z-fighting because faces are culled)
                     model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
                     glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, wallDiffuseID);
-                    glActiveTexture(GL_TEXTURE3);
-                    glBindTexture(GL_TEXTURE_2D, wallNormalTexID);
-                    glBindVertexArray(wallVAO);
                     glDrawArrays(GL_TRIANGLES, 0, 6);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    glActiveTexture(GL_TEXTURE3);
+                    glBindTexture(GL_TEXTURE_2D, 0);
                     glBindVertexArray(0);
-
 
                     glUseProgram(0);
 

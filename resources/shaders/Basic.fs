@@ -16,8 +16,16 @@ uniform sampler2D normalMap;
 
 void main()
 {
-    vec3 normal = texture(normalMap, fs_in.TextureCoordinates).rgb;
-    normal = normalize(normal * 2.0 - 1.0);
+    vec3 normalSample = texture(normalMap, fs_in.TextureCoordinates).rgb;
+    vec3 normal;
+    if (normalSample.r > 0.0 || normalSample.g > 0.0 || normal.b > 0.0)
+    {
+        normal = normalize(normalSample * 2.0 - 1.0);
+    }
+    else
+    {
+        normal = vec3(0.0, 0.0, 1.0);
+    }
 
     float fragBrightness = 0.0;
 
