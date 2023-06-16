@@ -3,9 +3,10 @@ out vec4 FragColor;
 
 in VS_OUT
 {
-    vec3 FragPos;
-    vec3 Normal;
-    vec2 TexCoords;
+    vec2 TextureCoordinates;
+    vec3 LightDirectionTangentSpace;
+    vec3 ViewPositionTangentSpace;
+    vec3 FragmentPositionTangentSpace;
 } fs_in;
 
 uniform sampler2D diffuseMap;
@@ -13,14 +14,19 @@ uniform sampler2D specularMap;
 uniform sampler2D emissionMap;
 uniform sampler2D normalMap;
 
-uniform vec3 lightDirection;
-uniform vec3 viewPosition;
-
 void main()
 {
-    vec3 normal = normalize(fs_in.Normal);
-    vec3 fragColor = texture(diffuseMap, fs_in.TexCoords).rgb;
-    vec3 specularColorSample = texture(specularMap, fs_in.TexCoords).rgb;
+    vec3 normalSample = texture(normalMap, fs_in.TextureCoordinates).rgb;
+    vec3 normal;
+    if (normalSample.r > 0.0 || normalSample.g > 0.0 || normal.b > 0.0)
+    {
+        normal = normalize(normalSample * 2.0 - 1.0);
+    }
+    else
+    {
+        normal = vec3(0.0, 0.0, 1.0);
+    }
+
     float fragBrightness = 0.0;
 
     // ambient
@@ -29,20 +35,25 @@ void main()
 
     // diffuse
     // -------
-    vec3 normalizedLightDirection = normalize(-lightDirection);
+    vec3 normalizedLightDirection = normalize(-fs_in.LightDirectionTangentSpace);
     float diffuseBrightness = max(dot(normalizedLightDirection, normal), 0.0);
     fragBrightness += diffuseBrightness;
 
     // specular
     // --------
-    vec3 normalizedViewDirection = normalize(viewPosition - fs_in.FragPos);
+    vec3 normalizedViewDirection = normalize(fs_in.ViewPositionTangentSpace - fs_in.FragmentPositionTangentSpace);
     vec3 halfwayDirection = normalize(normalizedLightDirection + normalizedViewDirection);
     float specularBrightness = pow(max(dot(normal, halfwayDirection), 0.0), 128.0);
+    vec3 specularColorSample = texture(specularMap, fs_in.TextureCoordinates).rgb;
     vec3 specularColor = specularColorSample * specularBrightness;
 
     // emission
     // --------
-    vec3 emissionColor = texture(emissionMap, fs_in.TexCoords).rgb;
+    vec3 emissionColor = texture(emissionMap, fs_in.TextureCoordinates).rgb;
 
+    // combine colors
+    // --------------
+    vec3 fragColor = texture(diffuseMap, fs_in.TextureCoordinates).rgb;
+    
     FragColor = vec4(fragBrightness * fragColor + specularColor + emissionColor, 1.0);
 }

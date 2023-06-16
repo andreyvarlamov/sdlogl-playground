@@ -148,8 +148,11 @@
     <ClInclude Include="src\Common.h" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="resources\textures\brickwall.jpg" />
+    <Image Include="resources\textures\brickwall_normal.jpg" />
     <Image Include="resources\textures\container.png" />
     <Image Include="resources\textures\container_specular.png" />
+    <Image Include="resources\textures\eye_emission.png" />
     <Image Include="resources\textures\grass.jpg" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

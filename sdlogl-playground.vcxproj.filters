@@ -44,5 +44,14 @@
     <Image Include="resources\textures\container_specular.png">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="resources\textures\brickwall.jpg">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\textures\brickwall_normal.jpg">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\textures\eye_emission.png">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>
