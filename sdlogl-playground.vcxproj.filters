@@ -24,7 +24,6 @@
     <None Include="dlls\SDL2.dll" />
     <None Include="resources\shaders\Basic.vs" />
     <None Include="resources\shaders\Basic.fs" />
-    <None Include="dlls\SDL2_image.dll" />
     <None Include=".gitattributes" />
     <None Include=".gitignore" />
     <None Include="README.md" />

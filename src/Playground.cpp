@@ -1,10 +1,11 @@
 #include <glad/glad.h>
 #include <sdl2/SDL.h>
-#include <sdl2/SDL_image.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/string_cast.hpp>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
 #include <assimp/cimport.h>
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
@@ -34,6 +35,7 @@ bool CameraFPSMode = true;
 bool CameraFPSModeButtonPressed = false;
 
 std::string readFile(const char *path);
+u32 loadTexture(const char* path);
 struct Mesh;
 std::vector<Mesh> loadModel(const char *path);
 glm::vec3 calculateTangentForTriangle(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
@@ -170,163 +172,12 @@ int main(int argc, char *argv[])
                 u32 wallVAO = prepareQuadVAO(wallPositions, wallNormal, wallUvs);
 
                 // Load textures
-                int imgFlags = IMG_INIT_JPG | IMG_INIT_PNG;
-                if (!(IMG_Init(imgFlags) & imgFlags))
-                {
-                    std::cerr << "SDL_image could not initialize: " << IMG_GetError() << '\n';
-                    SDL_Quit();
-                    exit(-1);
-                }
-
-                u32 containerDiffuseID = 0;
-                SDL_Surface *containerDiffuse = IMG_Load("resources/textures/container.png");
-                if (containerDiffuse)
-                {
-                    GLenum format = GL_RGB;
-                    if (containerDiffuse->format->BytesPerPixel == 4)
-                    {
-                        format = GL_RGBA;
-                    }
-
-                    glGenTextures(1, &containerDiffuseID);
-                    glBindTexture(GL_TEXTURE_2D, containerDiffuseID);
-                    glTexImage2D(GL_TEXTURE_2D, 0, format, containerDiffuse->w, containerDiffuse->h, 0, format, GL_UNSIGNED_BYTE, containerDiffuse->pixels);
-                    glGenerateMipmap(GL_TEXTURE_2D);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                    glBindTexture(GL_TEXTURE_2D, 0);
-                }
-                else
-                {
-                    std::cerr << "Failed to load texture\n";
-                }
-
-                u32 containerSpecularID = 0;
-                SDL_Surface *containerSpecular = IMG_Load("resources/textures/container_specular.png");
-                if (containerSpecular)
-                {
-                    GLenum format = GL_RGB;
-                    if (containerSpecular->format->BytesPerPixel == 4)
-                    {
-                        format = GL_RGBA;
-                    }
-
-                    glGenTextures(1, &containerSpecularID);
-                    glBindTexture(GL_TEXTURE_2D, containerSpecularID);
-                    glTexImage2D(GL_TEXTURE_2D, 0, format, containerSpecular->w, containerSpecular->h, 0, format, GL_UNSIGNED_BYTE, containerSpecular->pixels);
-                    glGenerateMipmap(GL_TEXTURE_2D);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                    glBindTexture(GL_TEXTURE_2D, 0);
-                }
-                else
-                {
-                    std::cerr << "Failed to load texture\n";
-                }
-
-                u32 eyeEmissionID = 0;
-                SDL_Surface *eyeEmission = IMG_Load("resources/textures/eye_emission.png");
-                if (eyeEmission)
-                {
-                    GLenum format = GL_RGB;
-                    if (eyeEmission->format->BytesPerPixel == 4)
-                    {
-                        format = GL_RGBA;
-                    }
-
-                    glGenTextures(1, &eyeEmissionID);
-                    glBindTexture(GL_TEXTURE_2D, eyeEmissionID);
-                    glTexImage2D(GL_TEXTURE_2D, 0, format, eyeEmission->w, eyeEmission->h, 0, format, GL_UNSIGNED_BYTE, eyeEmission->pixels);
-                    glGenerateMipmap(GL_TEXTURE_2D);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                    glBindTexture(GL_TEXTURE_2D, 0);
-                }
-                else
-                {
-                    std::cerr << "Failed to load texture\n";
-                }
-
-                u32 wallDiffuseID = 0;
-                SDL_Surface *wallDiffuse = IMG_Load("resources/textures/brickwall.jpg");
-                if (wallDiffuse)
-                {
-                    GLenum format = GL_RGB;
-                    if (wallDiffuse->format->BytesPerPixel == 4)
-                    {
-                        format = GL_RGBA;
-                    }
-
-                    glGenTextures(1, &wallDiffuseID);
-                    glBindTexture(GL_TEXTURE_2D, wallDiffuseID);
-                    glTexImage2D(GL_TEXTURE_2D, 0, format, wallDiffuse->w, wallDiffuse->h, 0, format, GL_UNSIGNED_BYTE, wallDiffuse->pixels);
-                    glGenerateMipmap(GL_TEXTURE_2D);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                    glBindTexture(GL_TEXTURE_2D, 0);
-                }
-                else
-                {
-                    std::cerr << "Failed to load texture\n";
-                }
-
-                u32 wallNormalTexID = 0;
-                SDL_Surface *wallNormalTex = IMG_Load("resources/textures/brickwall_normal.jpg");
-                if (wallNormalTex)
-                {
-                    GLenum format = GL_RGB;
-                    if (wallNormalTex->format->BytesPerPixel == 4)
-                    {
-                        format = GL_RGBA;
-                    }
-
-                    glGenTextures(1, &wallNormalTexID);
-                    glBindTexture(GL_TEXTURE_2D, wallNormalTexID);
-                    glTexImage2D(GL_TEXTURE_2D, 0, format, wallNormalTex->w, wallNormalTex->h, 0, format, GL_UNSIGNED_BYTE, wallNormalTex->pixels);
-                    glGenerateMipmap(GL_TEXTURE_2D);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                    glBindTexture(GL_TEXTURE_2D, 0);
-                }
-                else
-                {
-                    std::cerr << "Failed to load texture\n";
-                }
-
-                u32 grassTextureID = 0;
-                SDL_Surface *grassTexture = IMG_Load("resources/textures/grass.jpg");
-                if (grassTexture)
-                {
-                    GLenum format = GL_RGB;
-                    if (grassTexture->format->BytesPerPixel == 4)
-                    {
-                        format = GL_RGBA;
-                    }
-
-                    glGenTextures(1, &grassTextureID);
-                    glBindTexture(GL_TEXTURE_2D, grassTextureID);
-                    glTexImage2D(GL_TEXTURE_2D, 0, format, grassTexture->w, grassTexture->h, 0, format, GL_UNSIGNED_BYTE, grassTexture->pixels);
-                    glGenerateMipmap(GL_TEXTURE_2D);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-                    glBindTexture(GL_TEXTURE_2D, 0);
-                }
-                else
-                {
-                    std::cerr << "Failed to load texture\n";
-                }
+                u32 containerDiffuseID = loadTexture("resources/textures/container.png");
+                u32 containerSpecularID = loadTexture("resources/textures/container_specular.png");
+                u32 eyeEmissionID = loadTexture("resources/textures/eye_emission.png");
+                u32 wallDiffuseID = loadTexture("resources/textures/brickwall.jpg");
+                u32 wallNormalTexID = loadTexture("resources/textures/brickwall_normal.jpg");
+                u32 grassTextureID = loadTexture("resources/textures/grass.jpg");
 
                 // Shader global uniforms
                 // ----------------------
@@ -595,6 +446,53 @@ std::string readFile(const char *path)
     }
 
     return content;
+}
+
+u32 loadTexture(const char* path)
+{
+    int width, height, nrComponents;
+    u8 *data = stbi_load(path, &width, &height, &nrComponents, 0);
+    if (data)
+    {
+        GLenum format;
+        if (nrComponents == 1)
+        {
+            format = GL_RED;
+        }
+        else if(nrComponents == 3)
+        {
+            format = GL_RGB;
+        }
+        else if (nrComponents == 4)
+        {
+            format = GL_RGBA;
+        }
+        else
+        {
+            std::cerr << "Unknown texture format at path: " << path << '\n';
+            stbi_image_free(data);
+            return 0;
+        }
+
+        u32 textureID;
+        glGenTextures(1, &textureID);
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        stbi_image_free(data);
+        return textureID;
+    }
+    else
+    {
+        std::cerr << "Texture failed to load at path: " << path << '\n';
+        return 0;
+    }
 }
 
 struct Mesh
