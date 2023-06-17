@@ -6,11 +6,15 @@
 #include <glm/gtx/string_cast.hpp>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
+#include <assimp/cimport.h>
+#include <assimp/postprocess.h>
+#include <assimp/scene.h>
 
 #include <string>
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <vector>
 
 #include "Common.h"
 
@@ -32,9 +36,11 @@ bool CameraFPSModeButtonPressed = false;
 
 std::string readFile(const char *path);
 u32 loadTexture(const char* path);
+struct Mesh;
+std::vector<Mesh> loadModel(const char *path);
 glm::vec3 calculateTangentForTriangle(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
-void generateTriangleVertexData(float *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
-void generatePlaneVertexData(float *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
+void generateTriangleVertexData(f32 *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
+void generatePlaneVertexData(f32 *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 u32 prepareQuadVAO(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 u32 prepareCubeVAO();
 
@@ -88,6 +94,7 @@ int main(int argc, char *argv[])
                 // ------------
                 u32 vertexShader;
                 vertexShader = glCreateShader(GL_VERTEX_SHADER);
+                // TODO: Implement custom memory alloc
                 std::string vertexShaderSource = readFile("resources/shaders/Basic.vs");
                 const char *vertexShaderSourceCStr = vertexShaderSource.c_str();
                 glShaderSource(vertexShader, 1, &vertexShaderSourceCStr, 0);
@@ -102,6 +109,7 @@ int main(int argc, char *argv[])
                 }
                 u32 fragmentShader;
                 fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+                // TODO: Implement custom memory alloc
                 std::string fragmentShaderSource = readFile("resources/shaders/Basic.fs");
                 const char *fragmentShaderSourceCStr = fragmentShaderSource.c_str();
                 glShaderSource(fragmentShader, 1, &fragmentShaderSourceCStr, 0);
@@ -189,7 +197,7 @@ int main(int argc, char *argv[])
 
                 // Game Loop
                 // ---------
-                float deltaTime = 0.0f;
+                f32 deltaTime = 0.0f;
                 u64 lastFrame = 0;
                 SDL_Event event;
                 bool quit = false;
@@ -208,7 +216,7 @@ int main(int argc, char *argv[])
                     // Timing
                     // ------
                     u64 currentFrame = SDL_GetTicks64();
-                    deltaTime = (float)((double)(currentFrame - lastFrame) / 1000.0);
+                    deltaTime = (f32)((f64)(currentFrame - lastFrame) / 1000.0);
                     lastFrame = currentFrame;
 #if 0
                     std::cout << "DT:" << deltaTime << '\n';
@@ -298,7 +306,7 @@ int main(int argc, char *argv[])
                     glUseProgram(shaderProgram);
 
                     // perspective projection
-                    glm::mat4 projection = glm::perspective(glm::radians(CameraFov / 2.0f), (float)SCREEN_WIDTH / (float)SCREEN_HEIGHT, 0.1f, 100.0f);
+                    glm::mat4 projection = glm::perspective(glm::radians(CameraFov / 2.0f), (f32)SCREEN_WIDTH / (f32)SCREEN_HEIGHT, 0.1f, 100.0f);
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
                     // camera view matrix
@@ -420,6 +428,7 @@ int main(int argc, char *argv[])
 
 std::string readFile(const char *path)
 {
+    // TODO: Implement custom memory alloc
     std::string content;
     std::ifstream fileStream;
     fileStream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
@@ -486,6 +495,70 @@ u32 loadTexture(const char* path)
     }
 }
 
+struct Mesh
+{
+    u32 vao;
+    u32 diffuseMapID;
+    u32 specularMapID;
+    u32 emissionMapID;
+    u32 normalMapID;
+};
+
+std::vector<Mesh> loadModel(const char *path)
+{
+    std::vector<Mesh> meshes;
+    
+    const aiScene *assimpScene = aiImportFile(path,
+                                        aiProcess_CalcTangentSpace |
+                                        aiProcess_Triangulate |
+                                        aiProcess_JoinIdenticalVertices |
+                                        aiProcess_FlipUVs);
+
+    if (!assimpScene || assimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !assimpScene->mRootNode)
+    {
+        std::cerr << "ERROR:ASSIMP::MODEL_NOT_READ: " << " path: " << path << '\n' << aiGetErrorString() << '\n';
+        return meshes;
+    }
+
+    // TODO: Custom memory allocation
+
+    for (u32 meshIndex = 0; meshIndex < assimpScene->mNumMeshes; ++meshIndex)
+    {
+        Mesh mesh;
+
+        aiMesh *assimpMesh = assimpScene->mMeshes[meshIndex];
+
+        f32 *meshVertexData;
+        size_t meshVertexDataSize;
+        u32 *meshIndices;
+        size_t meshIndicesSize;
+        // TODO: Allocate and populate mesh vertex and index data on heap
+        //assimpMesh->mNumVertices; assimpMesh->mVertices;
+        //assimpMesh->mNormals; assimpMesh->mTangents; assimpMesh->mBitangents;
+        //assimpMesh->mTextureCoords[0];
+        //assimpMesh->mNumFaces; assimpMesh->mFaces; // aiFace
+        //mesh.vao = prepareMeshVAO(meshVertexData, meshVertexDataSize, meshIndices, meshIndicesSize);
+        // TODO: Deallocate mesh vertex and index data on heap
+
+        aiMaterial *mat = assimpScene->mMaterials[assimpMesh->mMaterialIndex];
+        u32 textureCount = aiGetMaterialTextureCount(mat, aiTextureType_DIFFUSE);
+        if (textureCount > 1)
+        {
+            aiString texturePath;
+            aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 1), &texturePath);
+            // TODO: load img file
+            //mesh.diffuseMapID = ;
+        }
+        // TODO: specular
+        // TODO: emission
+        // TODO: normal
+
+        meshes.push_back(mesh);
+    }
+
+    return meshes;
+}
+
 glm::vec3 calculateTangentForTriangle(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs)
 {
     glm::vec3 result;
@@ -494,7 +567,7 @@ glm::vec3 calculateTangentForTriangle(const glm::vec3 *positions, glm::vec3 norm
     glm::vec3 edge2 = positions[2] - positions[0];
     glm::vec2 deltaUV1 = uvs[1] - uvs[0];
     glm::vec2 deltaUV2 = uvs[2] - uvs[0];
-    float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+    f32 f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
     result.x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
     result.y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
     result.z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
@@ -502,11 +575,11 @@ glm::vec3 calculateTangentForTriangle(const glm::vec3 *positions, glm::vec3 norm
     return result;
 }
 
-void generateTriangleVertexData(float *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs)
+void generateTriangleVertexData(f32 *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs)
 {
     glm::vec3 tangent = calculateTangentForTriangle(positions, normal, uvs);
 
-    float *vertexDataCursor = vertexData;
+    f32 *vertexDataCursor = vertexData;
     vertexDataCursor[0]  = positions[0].x;
     vertexDataCursor[1]  = positions[0].y;
     vertexDataCursor[2]  = positions[0].z;
@@ -546,10 +619,10 @@ void generateTriangleVertexData(float *vertexData, const glm::vec3 *positions, g
     vertexDataCursor[10] = tangent.z;
 }
 
-void generatePlaneVertexData(float *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs)
+void generatePlaneVertexData(f32 *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs)
 {
     // Triangle 1
-    float *vertexDataCursor = vertexData;
+    f32 *vertexDataCursor = vertexData;
     glm::vec3 triangle1Positions[] = {
         positions[0], positions[1], positions[2]
     };
@@ -572,7 +645,7 @@ void generatePlaneVertexData(float *vertexData, const glm::vec3 *positions, glm:
 u32 prepareQuadVAO(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs)
 {
     // 1 quad - 2 triangles - 6 vertices, 11 floats per vertex (position.xyz,normal.xyz,uv.xy,tangent.xyz) = 66 floats.
-    float vertexData[66] = { 0 };
+    f32 vertexData[66] = { 0 };
 
     generatePlaneVertexData(vertexData, positions, normal, uvs);
 
@@ -584,13 +657,13 @@ u32 prepareQuadVAO(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2
     glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), vertexData, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(f32), (void *)0);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(f32), (void *)(3 * sizeof(f32)));
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)(6 * sizeof(float)));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(f32), (void *)(6 * sizeof(f32)));
     glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)(8 * sizeof(float)));
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(f32), (void *)(8 * sizeof(f32)));
     glBindVertexArray(0);
 
     return quadVAO;
@@ -599,7 +672,7 @@ u32 prepareQuadVAO(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2
 u32 prepareCubeVAO()
 {
     // 66 floats per face; 6 faces
-    float vertexData[396] = { 0 };
+    f32 vertexData[396] = { 0 };
     glm::vec3 facePositions[4];
     glm::vec3 faceNormal;
     glm::vec2 faceUvs[4];
@@ -609,7 +682,7 @@ u32 prepareCubeVAO()
     faceUvs[3] = glm::vec2(0.0f, 1.0f);
 
     // Back face
-    float *vertexDataCursor = vertexData;
+    f32 *vertexDataCursor = vertexData;
     facePositions[0] = glm::vec3( 0.5f, 1.0f, -0.5f);
     facePositions[1] = glm::vec3( 0.5f, 0.0f, -0.5f);
     facePositions[2] = glm::vec3(-0.5f, 0.0f, -0.5f);
@@ -670,14 +743,53 @@ u32 prepareCubeVAO()
     glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertexData), vertexData, GL_STATIC_DRAW);
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(f32), (void *)0);
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(f32), (void *)(3 * sizeof(f32)));
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)(6 * sizeof(float)));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 11 * sizeof(f32), (void *)(6 * sizeof(f32)));
     glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(float), (void *)(8 * sizeof(float)));
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 11 * sizeof(f32), (void *)(8 * sizeof(f32)));
     glBindVertexArray(0);
 
     return quadVAO;
+}
+
+u32 prepareMeshVAO(f32 *vertexData, size_t vertexDataSize, u32 *indices, size_t indicesSize)
+{
+    u32 meshVAO;
+    glGenVertexArrays(1, &meshVAO);
+    u32 meshVBO;
+    glGenBuffers(1, &meshVBO);
+    u32 meshEBO;
+    glGenBuffers(1, &meshEBO);
+
+    glBindVertexArray(meshVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, meshVBO);
+    glBufferData(GL_ARRAY_BUFFER, vertexDataSize, vertexData, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, meshEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicesSize, indices, GL_STATIC_DRAW);
+
+    // Position + Normal + UVs + Tangent + Bitangent
+    size_t vertexSize = (3 + 3 + 2 + 3 + 3) * sizeof(f32);
+
+    // Position
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *)0);
+    // Normal
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *)(3 * sizeof(f32)));
+    // UVs
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, vertexSize, (void *)(6 * sizeof(f32)));
+    // Tangent
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *)(8 * sizeof(f32)));
+    // Bitangent
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *)(11 * sizeof(f32)));
+    
+    glBindVertexArray(0);
+
+    return meshVAO;
 }
