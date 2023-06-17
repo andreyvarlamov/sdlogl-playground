@@ -506,6 +506,8 @@ struct Mesh
 
 std::vector<Mesh> loadModel(const char *path)
 {
+    std::vector<Mesh> meshes;
+    
     const aiScene *assimpScene = aiImportFile(path,
                                         aiProcess_CalcTangentSpace |
                                         aiProcess_Triangulate |
@@ -515,11 +517,10 @@ std::vector<Mesh> loadModel(const char *path)
     if (!assimpScene || assimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !assimpScene->mRootNode)
     {
         std::cerr << "ERROR:ASSIMP::MODEL_NOT_READ: " << " path: " << path << '\n' << aiGetErrorString() << '\n';
-        return;
+        return meshes;
     }
 
     // TODO: Custom memory allocation
-    std::vector<Mesh> meshes;
 
     for (u32 meshIndex = 0; meshIndex < assimpScene->mNumMeshes; ++meshIndex)
     {
