@@ -34,15 +34,25 @@ bool CameraFPSMode = true;
 
 bool CameraFPSModeButtonPressed = false;
 
+struct Mesh
+{
+    u32 vao;
+    u32 indexCount;
+    u32 diffuseMapID;
+    u32 specularMapID;
+    u32 emissionMapID;
+    u32 normalMapID;
+};
+
 std::string readFile(const char *path);
 u32 loadTexture(const char* path);
-struct Mesh;
 std::vector<Mesh> loadModel(const char *path);
 glm::vec3 calculateTangentForTriangle(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 void generateTriangleVertexData(f32 *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 void generatePlaneVertexData(f32 *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 u32 prepareQuadVAO(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 u32 prepareCubeVAO();
+u32 prepareMeshVAO(f32 *vertexData, u32 vertexCount, u32 *indices, u32 indexCount);
 
 int main(int argc, char *argv[])
 {
@@ -94,7 +104,7 @@ int main(int argc, char *argv[])
                 // ------------
                 u32 vertexShader;
                 vertexShader = glCreateShader(GL_VERTEX_SHADER);
-                // TODO: Implement custom memory alloc
+                // TODO: Implement custom memory alloc + custom string
                 std::string vertexShaderSource = readFile("resources/shaders/Basic.vs");
                 const char *vertexShaderSourceCStr = vertexShaderSource.c_str();
                 glShaderSource(vertexShader, 1, &vertexShaderSourceCStr, 0);
@@ -109,7 +119,7 @@ int main(int argc, char *argv[])
                 }
                 u32 fragmentShader;
                 fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-                // TODO: Implement custom memory alloc
+                // TODO: Implement custom memory alloc + custom string
                 std::string fragmentShaderSource = readFile("resources/shaders/Basic.fs");
                 const char *fragmentShaderSourceCStr = fragmentShaderSource.c_str();
                 glShaderSource(fragmentShader, 1, &fragmentShaderSourceCStr, 0);
@@ -172,12 +182,18 @@ int main(int argc, char *argv[])
                 u32 wallVAO = prepareQuadVAO(wallPositions, wallNormal, wallUvs);
 
                 // Load textures
+                // -------------
                 u32 containerDiffuseID = loadTexture("resources/textures/container.png");
                 u32 containerSpecularID = loadTexture("resources/textures/container_specular.png");
                 u32 eyeEmissionID = loadTexture("resources/textures/eye_emission.png");
                 u32 wallDiffuseID = loadTexture("resources/textures/brickwall.jpg");
                 u32 wallNormalTexID = loadTexture("resources/textures/brickwall_normal.jpg");
                 u32 grassTextureID = loadTexture("resources/textures/grass.jpg");
+
+                // Load models
+                // -----------
+                std::vector<Mesh> snowmanMeshes = loadModel("resources/models/snowman/snowman.objm");
+                std::vector<Mesh> backpackMeshes = loadModel("resources/models/backpack/backpack.objm");
 
                 // Shader global uniforms
                 // ----------------------
@@ -400,6 +416,45 @@ int main(int argc, char *argv[])
                     glBindTexture(GL_TEXTURE_2D, 0);
                     glBindVertexArray(0);
 
+                    // snowman
+                    model = glm::mat4(1.0f);
+                    model = glm::translate(model, glm::vec3(5.0f, 0.0f, 0.0f));
+                    model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    for (u32 snowmanMeshIndex = 0; snowmanMeshIndex < snowmanMeshes.size(); ++snowmanMeshIndex)
+                    {
+                        Mesh mesh = snowmanMeshes[snowmanMeshIndex];
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
+                        glBindVertexArray(mesh.vao);
+                        glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
+                        glBindVertexArray(0);
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE0, 0);
+                    }
+
+                    // backpack
+                    model = glm::mat4(1.0f);
+                    model = glm::translate(model, glm::vec3(0.0f, 2.0f, 5.0f));
+                    model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    model = glm::scale(model, glm::vec3(0.5f));
+                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    for (u32 backpackMeshIndex = 0; backpackMeshIndex < backpackMeshes.size(); ++backpackMeshIndex)
+                    {
+                        Mesh mesh = backpackMeshes[backpackMeshIndex];
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
+                        glBindVertexArray(mesh.vao);
+                        glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
+                        glBindVertexArray(0);
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE0, 0);
+                    }
+
                     glUseProgram(0);
 
                     // Swap buffer
@@ -428,7 +483,7 @@ int main(int argc, char *argv[])
 
 std::string readFile(const char *path)
 {
-    // TODO: Implement custom memory alloc
+    // TODO: Implement custom memory alloc + custom string
     std::string content;
     std::ifstream fileStream;
     fileStream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
@@ -448,6 +503,7 @@ std::string readFile(const char *path)
     return content;
 }
 
+// TODO: STBI is too slow; switch back to SDL image
 u32 loadTexture(const char* path)
 {
     int width, height, nrComponents;
@@ -495,17 +551,9 @@ u32 loadTexture(const char* path)
     }
 }
 
-struct Mesh
-{
-    u32 vao;
-    u32 diffuseMapID;
-    u32 specularMapID;
-    u32 emissionMapID;
-    u32 normalMapID;
-};
-
 std::vector<Mesh> loadModel(const char *path)
 {
+    // TODO: Custom memory allocation
     std::vector<Mesh> meshes;
     
     const aiScene *assimpScene = aiImportFile(path,
@@ -516,38 +564,102 @@ std::vector<Mesh> loadModel(const char *path)
 
     if (!assimpScene || assimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !assimpScene->mRootNode)
     {
-        std::cerr << "ERROR:ASSIMP::MODEL_NOT_READ: " << " path: " << path << '\n' << aiGetErrorString() << '\n';
+        std::cerr << "ERROR::LOAD_MODEL::ASSIMP_READ_ERROR: " << " path: " << path << '\n' << aiGetErrorString() << '\n';
         return meshes;
     }
 
-    // TODO: Custom memory allocation
 
     for (u32 meshIndex = 0; meshIndex < assimpScene->mNumMeshes; ++meshIndex)
     {
+        std::cout << "Loading mesh #" << meshIndex << "/" << assimpScene->mNumMeshes << '\n';
         Mesh mesh;
 
         aiMesh *assimpMesh = assimpScene->mMeshes[meshIndex];
 
         f32 *meshVertexData;
-        size_t meshVertexDataSize;
+        size_t meshVertexFloatCount;
         u32 *meshIndices;
-        size_t meshIndicesSize;
-        // TODO: Allocate and populate mesh vertex and index data on heap
-        //assimpMesh->mNumVertices; assimpMesh->mVertices;
-        //assimpMesh->mNormals; assimpMesh->mTangents; assimpMesh->mBitangents;
-        //assimpMesh->mTextureCoords[0];
-        //assimpMesh->mNumFaces; assimpMesh->mFaces; // aiFace
-        //mesh.vao = prepareMeshVAO(meshVertexData, meshVertexDataSize, meshIndices, meshIndicesSize);
-        // TODO: Deallocate mesh vertex and index data on heap
+        size_t meshIndexCount;
+        // Position + Normal + UVs + Tangent + Bitangent
+        size_t perVertexFloatCount = (3 + 3 + 2 + 3 + 3);
+        u32 assimpVertexCount = assimpMesh->mNumVertices;
+        meshVertexFloatCount = perVertexFloatCount * assimpVertexCount;
+        // TODO: Custom memory allocation
+        meshVertexData = (f32 *)calloc(1, meshVertexFloatCount * sizeof(f32));
+        if (!meshVertexData)
+        {
+            std::cerr << "ERROR::LOAD_MODEL::ALLOC_TEMP_HEAP_ERROR: path: " << path << '\n';
+            return meshes;
+        }
+        for (u32 assimpVertexIndex = 0; assimpVertexIndex < assimpVertexCount; ++assimpVertexIndex)
+        {
+            f32 *meshVertexDataCursor = meshVertexData + (assimpVertexIndex * perVertexFloatCount);
+
+            // Positions
+            meshVertexDataCursor[0]  = assimpMesh->mVertices[assimpVertexIndex].x;
+            meshVertexDataCursor[1]  = assimpMesh->mVertices[assimpVertexIndex].y;
+            meshVertexDataCursor[2]  = assimpMesh->mVertices[assimpVertexIndex].z;
+            // Normals               
+            meshVertexDataCursor[3]  = assimpMesh->mNormals[assimpVertexIndex].x;
+            meshVertexDataCursor[4]  = assimpMesh->mNormals[assimpVertexIndex].y;
+            meshVertexDataCursor[5]  = assimpMesh->mNormals[assimpVertexIndex].z;
+            // UVs                   
+            meshVertexDataCursor[6]  = assimpMesh->mTextureCoords[0][assimpVertexIndex].x;
+            meshVertexDataCursor[7]  = assimpMesh->mTextureCoords[0][assimpVertexIndex].y;
+            // Tangent               
+            meshVertexDataCursor[8]  = assimpMesh->mTangents[assimpVertexIndex].x;
+            meshVertexDataCursor[9]  = assimpMesh->mTangents[assimpVertexIndex].y;
+            meshVertexDataCursor[10] = assimpMesh->mTangents[assimpVertexIndex].z;
+            // Bitangent
+            meshVertexDataCursor[11] = assimpMesh->mBitangents[assimpVertexIndex].x;
+            meshVertexDataCursor[12] = assimpMesh->mBitangents[assimpVertexIndex].y;
+            meshVertexDataCursor[13] = assimpMesh->mBitangents[assimpVertexIndex].z;
+        }
+        // TODO: This assumes faces are triangles; might cause problems in the future
+        u32 perFaceIndexCount = 3;
+        u32 assimpFaceCount = assimpMesh->mNumFaces;
+        meshIndexCount = assimpFaceCount * perFaceIndexCount;
+        // TODO: Custom memory allocation
+        meshIndices = (u32 *)calloc(1, meshIndexCount * sizeof(u32));
+        if (!meshIndices)
+        {
+            std::cerr << "ERROR::LOAD_MODEL::ALLOC_TEMP_HEAP_ERROR: path: " << path << '\n';
+            return meshes;
+        }
+        u32 *meshIndicesCursor = meshIndices;
+        for (u32 assimpFaceIndex = 0; assimpFaceIndex < assimpFaceCount; ++assimpFaceIndex)
+        {
+            aiFace assimpFace = assimpMesh->mFaces[assimpFaceIndex];
+            for (u32 assimpIndexIndex = 0; assimpIndexIndex < assimpFace.mNumIndices; ++assimpIndexIndex)
+            {
+                *meshIndicesCursor++ = assimpFace.mIndices[assimpIndexIndex];
+            }
+        }
+        mesh.vao = prepareMeshVAO(meshVertexData, meshVertexFloatCount, meshIndices, meshIndexCount);
+        mesh.indexCount = meshIndexCount;
+        
+        // TODO: Custom memory allocation
+        free(meshVertexData);
+        free(meshIndices);
 
         aiMaterial *mat = assimpScene->mMaterials[assimpMesh->mMaterialIndex];
         u32 textureCount = aiGetMaterialTextureCount(mat, aiTextureType_DIFFUSE);
-        if (textureCount > 1)
+        if (textureCount > 0)
         {
-            aiString texturePath;
-            aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 1), &texturePath);
-            // TODO: load img file
-            //mesh.diffuseMapID = ;
+            aiString assimpTextureFileName;
+            aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 0), &assimpTextureFileName);
+
+            // TODO: custom strings
+            std::string modelPath = std::string(path);
+            std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
+            // TODO: this is using assimp C++ interface
+            std::string textureFileName = std::string(assimpTextureFileName.C_Str());
+            std::string texturePath = modelDirectory + '/' + textureFileName;
+            std::cout << "T Start ... ";
+            // TODO: Need caching
+            // E.g. this is loading the same 5 MB texture 78 times for 78 different meshes....
+            mesh.diffuseMapID = loadTexture(texturePath.c_str());
+            std::cout << "End" << '\n';
         }
         // TODO: specular
         // TODO: emission
@@ -755,7 +867,7 @@ u32 prepareCubeVAO()
     return quadVAO;
 }
 
-u32 prepareMeshVAO(f32 *vertexData, size_t vertexDataSize, u32 *indices, size_t indicesSize)
+u32 prepareMeshVAO(f32 *vertexData, u32 vertexCount, u32 *indices, u32 indexCount)
 {
     u32 meshVAO;
     glGenVertexArrays(1, &meshVAO);
@@ -766,9 +878,9 @@ u32 prepareMeshVAO(f32 *vertexData, size_t vertexDataSize, u32 *indices, size_t 
 
     glBindVertexArray(meshVAO);
     glBindBuffer(GL_ARRAY_BUFFER, meshVBO);
-    glBufferData(GL_ARRAY_BUFFER, vertexDataSize, vertexData, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(f32), vertexData, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, meshEBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicesSize, indices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount * sizeof(u32), indices, GL_STATIC_DRAW);
 
     // Position + Normal + UVs + Tangent + Bitangent
     size_t vertexSize = (3 + 3 + 2 + 3 + 3) * sizeof(f32);
