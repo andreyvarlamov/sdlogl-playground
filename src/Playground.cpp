@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
                 // Load models
                 // -----------
                 std::vector<Mesh> snowmanMeshes = loadModel("resources/models/snowman/snowman.objm");
-                std::vector<Mesh> backpackMeshes = loadModel("resources/models/backpack/backpack.objm");
+                //std::vector<Mesh> backpackMeshes = loadModel("resources/models/backpack/backpack.objm");
 
                 // Shader global uniforms
                 // ----------------------
@@ -418,8 +418,7 @@ int main(int argc, char *argv[])
 
                     // snowman
                     model = glm::mat4(1.0f);
-                    model = glm::translate(model, glm::vec3(5.0f, 0.0f, 0.0f));
-                    model = glm::rotate(model, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    model = glm::translate(model, glm::vec3(0.0f, 0.0f, -5.0f));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
                     glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
@@ -436,24 +435,24 @@ int main(int argc, char *argv[])
                     }
 
                     // backpack
-                    model = glm::mat4(1.0f);
-                    model = glm::translate(model, glm::vec3(0.0f, 2.0f, 5.0f));
-                    model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                    model = glm::scale(model, glm::vec3(0.5f));
-                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
-                    for (u32 backpackMeshIndex = 0; backpackMeshIndex < backpackMeshes.size(); ++backpackMeshIndex)
-                    {
-                        Mesh mesh = backpackMeshes[backpackMeshIndex];
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
-                        glBindVertexArray(mesh.vao);
-                        glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
-                        glBindVertexArray(0);
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE0, 0);
-                    }
+                    //model = glm::mat4(1.0f);
+                    //model = glm::translate(model, glm::vec3(0.0f, 2.0f, 5.0f));
+                    //model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    //model = glm::scale(model, glm::vec3(0.5f));
+                    //glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    //normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+                    //glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    //for (u32 backpackMeshIndex = 0; backpackMeshIndex < backpackMeshes.size(); ++backpackMeshIndex)
+                    //{
+                    //    Mesh mesh = backpackMeshes[backpackMeshIndex];
+                    //    glActiveTexture(GL_TEXTURE0);
+                    //    glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
+                    //    glBindVertexArray(mesh.vao);
+                    //    glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
+                    //    glBindVertexArray(0);
+                    //    glActiveTexture(GL_TEXTURE0);
+                    //    glBindTexture(GL_TEXTURE0, 0);
+                    //}
 
                     glUseProgram(0);
 
