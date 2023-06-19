@@ -15,6 +15,7 @@
 #include <sstream>
 #include <iostream>
 #include <vector>
+#include <unordered_map>
 
 #include "Common.h"
 
@@ -193,7 +194,9 @@ int main(int argc, char *argv[])
                 // Load models
                 // -----------
                 std::vector<Mesh> snowmanMeshes = loadModel("resources/models/snowman/snowman.objm");
-                //std::vector<Mesh> backpackMeshes = loadModel("resources/models/backpack/backpack.objm");
+                stbi_set_flip_vertically_on_load(true);
+                std::vector<Mesh> backpackMeshes = loadModel("resources/models/backpack/backpack.objm");
+                stbi_set_flip_vertically_on_load(false);
 
                 // Shader global uniforms
                 // ----------------------
@@ -419,6 +422,7 @@ int main(int argc, char *argv[])
                     // snowman
                     model = glm::mat4(1.0f);
                     model = glm::translate(model, glm::vec3(0.0f, 0.0f, -5.0f));
+                    model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
                     glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
@@ -435,24 +439,24 @@ int main(int argc, char *argv[])
                     }
 
                     // backpack
-                    //model = glm::mat4(1.0f);
-                    //model = glm::translate(model, glm::vec3(0.0f, 2.0f, 5.0f));
-                    //model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                    //model = glm::scale(model, glm::vec3(0.5f));
-                    //glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                    //normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-                    //glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
-                    //for (u32 backpackMeshIndex = 0; backpackMeshIndex < backpackMeshes.size(); ++backpackMeshIndex)
-                    //{
-                    //    Mesh mesh = backpackMeshes[backpackMeshIndex];
-                    //    glActiveTexture(GL_TEXTURE0);
-                    //    glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
-                    //    glBindVertexArray(mesh.vao);
-                    //    glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
-                    //    glBindVertexArray(0);
-                    //    glActiveTexture(GL_TEXTURE0);
-                    //    glBindTexture(GL_TEXTURE0, 0);
-                    //}
+                    model = glm::mat4(1.0f);
+                    model = glm::translate(model, glm::vec3(0.0f, 1.0f, 5.0f));
+                    model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    model = glm::scale(model, glm::vec3(0.5f));
+                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    for (u32 backpackMeshIndex = 0; backpackMeshIndex < backpackMeshes.size(); ++backpackMeshIndex)
+                    {
+                        Mesh mesh = backpackMeshes[backpackMeshIndex];
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
+                        glBindVertexArray(mesh.vao);
+                        glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
+                        glBindVertexArray(0);
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE0, 0);
+                    }
 
                     glUseProgram(0);
 
@@ -567,6 +571,8 @@ std::vector<Mesh> loadModel(const char *path)
         return meshes;
     }
 
+    // TODO: Stop using STL + custom string implementation
+    std::unordered_map<std::string, u32> loadedTextures { };
 
     for (u32 meshIndex = 0; meshIndex < assimpScene->mNumMeshes; ++meshIndex)
     {
@@ -648,17 +654,21 @@ std::vector<Mesh> loadModel(const char *path)
             aiString assimpTextureFileName;
             aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 0), &assimpTextureFileName);
 
-            // TODO: custom strings
-            std::string modelPath = std::string(path);
-            std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
-            // TODO: this is using assimp C++ interface
             std::string textureFileName = std::string(assimpTextureFileName.C_Str());
-            std::string texturePath = modelDirectory + '/' + textureFileName;
-            std::cout << "T Start ... ";
-            // TODO: Need caching
-            // E.g. this is loading the same 5 MB texture 78 times for 78 different meshes....
-            mesh.diffuseMapID = loadTexture(texturePath.c_str());
-            std::cout << "End" << '\n';
+            if (loadedTextures.find(textureFileName) == loadedTextures.end())
+            {
+                // TODO: custom strings
+                std::string modelPath = std::string(path);
+                std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
+                // TODO: this is using assimp C++ interface
+                std::string texturePath = modelDirectory + '/' + textureFileName;
+                mesh.diffuseMapID = loadTexture(texturePath.c_str());
+                loadedTextures[textureFileName] = mesh.diffuseMapID;
+            }
+            else
+            {
+                mesh.diffuseMapID = loadedTextures[textureFileName];
+            }
         }
         // TODO: specular
         // TODO: emission
