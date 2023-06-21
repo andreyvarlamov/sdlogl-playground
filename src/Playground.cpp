@@ -194,6 +194,8 @@ int main(int argc, char *argv[])
                 // Load models
                 // -----------
                 std::vector<Mesh> snowmanMeshes = loadModel("resources/models/snowman/snowman.objm");
+                std::vector<Mesh> containerMeshes = loadModel("resources/models/container/container.obj");
+
                 stbi_set_flip_vertically_on_load(true);
                 std::vector<Mesh> backpackMeshes = loadModel("resources/models/backpack/backpack.objm");
                 stbi_set_flip_vertically_on_load(false);
@@ -352,48 +354,68 @@ int main(int argc, char *argv[])
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, 0);
 
-                    // cube 1
+                    // container 1
                     model = glm::mat4(1.0f);
                     model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
                     model = glm::scale(model, glm::vec3(1.0f));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
                     glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
-                    glBindVertexArray(cubeVAO);
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, containerDiffuseID);
-                    glActiveTexture(GL_TEXTURE1);
-                    glBindTexture(GL_TEXTURE_2D, containerSpecularID);
-                    glActiveTexture(GL_TEXTURE2);
-                    glBindTexture(GL_TEXTURE_2D, eyeEmissionID);
-                    glDrawArrays(GL_TRIANGLES, 0, 36);
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, 0);
-                    glActiveTexture(GL_TEXTURE1);
-                    glBindTexture(GL_TEXTURE_2D, 0);
-                    glActiveTexture(GL_TEXTURE2);
-                    glBindTexture(GL_TEXTURE_2D, 0);
-                    glBindVertexArray(0);
+                    for (u32 containerMeshIndex = 0; containerMeshIndex < containerMeshes.size(); ++containerMeshIndex)
+                    {
+                        Mesh mesh = containerMeshes[containerMeshIndex];
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
+                        glActiveTexture(GL_TEXTURE1);
+                        glBindTexture(GL_TEXTURE_2D, mesh.specularMapID);
+                        glActiveTexture(GL_TEXTURE2);
+                        glBindTexture(GL_TEXTURE_2D, mesh.emissionMapID);
+                        glActiveTexture(GL_TEXTURE3);
+                        glBindTexture(GL_TEXTURE_2D, mesh.normalMapID);
+                        glBindVertexArray(mesh.vao);
+                        glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
+                        glBindVertexArray(0);
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, 0);
+                        glActiveTexture(GL_TEXTURE1);
+                        glBindTexture(GL_TEXTURE_2D, 0);
+                        glActiveTexture(GL_TEXTURE2);
+                        glBindTexture(GL_TEXTURE_2D, 0);
+                        glActiveTexture(GL_TEXTURE3);
+                        glBindTexture(GL_TEXTURE_2D, 0);
+                    }
 
-                    // cube 2
+                    // container 2
                     model = glm::mat4(1.0f);
                     model = glm::translate(model, glm::vec3(-1.5f, 2.0f, -2.0f));
                     model = glm::scale(model, glm::vec3(0.70f));
                     glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
                     glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
-                    glBindVertexArray(cubeVAO);
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, containerDiffuseID);
-                    glActiveTexture(GL_TEXTURE1);
-                    glBindTexture(GL_TEXTURE_2D, containerSpecularID);
-                    glDrawArrays(GL_TRIANGLES, 0, 36);
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, 0);
-                    glActiveTexture(GL_TEXTURE1);
-                    glBindTexture(GL_TEXTURE_2D, 0);
-                    glBindVertexArray(0);
-
+                    for (u32 containerMeshIndex = 0; containerMeshIndex < containerMeshes.size(); ++containerMeshIndex)
+                    {
+                        Mesh mesh = containerMeshes[containerMeshIndex];
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
+                        glActiveTexture(GL_TEXTURE1);
+                        glBindTexture(GL_TEXTURE_2D, mesh.specularMapID);
+                        glActiveTexture(GL_TEXTURE2);
+                        glBindTexture(GL_TEXTURE_2D, mesh.emissionMapID);
+                        glActiveTexture(GL_TEXTURE3);
+                        glBindTexture(GL_TEXTURE_2D, mesh.normalMapID);
+                        glBindVertexArray(mesh.vao);
+                        glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
+                        glBindVertexArray(0);
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, 0);
+                        glActiveTexture(GL_TEXTURE1);
+                        glBindTexture(GL_TEXTURE_2D, 0);
+                        glActiveTexture(GL_TEXTURE2);
+                        glBindTexture(GL_TEXTURE_2D, 0);
+                        glActiveTexture(GL_TEXTURE3);
+                        glBindTexture(GL_TEXTURE_2D, 0);
+                    }
+                    
                     // quad wall
                     model = glm::mat4(1.0f);
                     model = glm::translate(model, glm::vec3(-5.0f, 0.0f, 0.0f));
@@ -435,7 +457,7 @@ int main(int argc, char *argv[])
                         glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
                         glBindVertexArray(0);
                         glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE0, 0);
+                        glBindTexture(GL_TEXTURE_2D, 0);
                     }
 
                     // backpack
@@ -455,7 +477,7 @@ int main(int argc, char *argv[])
                         glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
                         glBindVertexArray(0);
                         glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE0, 0);
+                        glBindTexture(GL_TEXTURE_2D, 0);
                     }
 
                     glUseProgram(0);
@@ -647,9 +669,10 @@ std::vector<Mesh> loadModel(const char *path)
         free(meshVertexData);
         free(meshIndices);
 
+        // TODO: Refactor this
         aiMaterial *mat = assimpScene->mMaterials[assimpMesh->mMaterialIndex];
-        u32 textureCount = aiGetMaterialTextureCount(mat, aiTextureType_DIFFUSE);
-        if (textureCount > 0)
+        u32 diffuseCount = aiGetMaterialTextureCount(mat, aiTextureType_DIFFUSE);
+        if (diffuseCount > 0)
         {
             aiString assimpTextureFileName;
             aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 0), &assimpTextureFileName);
@@ -670,9 +693,72 @@ std::vector<Mesh> loadModel(const char *path)
                 mesh.diffuseMapID = loadedTextures[textureFileName];
             }
         }
-        // TODO: specular
-        // TODO: emission
-        // TODO: normal
+        u32 specularCount = aiGetMaterialTextureCount(mat, aiTextureType_SPECULAR);
+        if (specularCount > 0)
+        {
+            aiString assimpTextureFileName;
+            aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_SPECULAR, 0), &assimpTextureFileName);
+
+            std::string textureFileName = std::string(assimpTextureFileName.C_Str());
+            if (loadedTextures.find(textureFileName) == loadedTextures.end())
+            {
+                // TODO: custom strings
+                std::string modelPath = std::string(path);
+                std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
+                // TODO: this is using assimp C++ interface
+                std::string texturePath = modelDirectory + '/' + textureFileName;
+                mesh.specularMapID = loadTexture(texturePath.c_str());
+                loadedTextures[textureFileName] = mesh.specularMapID;
+            }
+            else
+            {
+                mesh.specularMapID = loadedTextures[textureFileName];
+            }
+        }
+        u32 emissionCount = aiGetMaterialTextureCount(mat, aiTextureType_EMISSIVE);
+        if (emissionCount > 0)
+        {
+            aiString assimpTextureFileName;
+            aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_EMISSIVE, 0), &assimpTextureFileName);
+
+            std::string textureFileName = std::string(assimpTextureFileName.C_Str());
+            if (loadedTextures.find(textureFileName) == loadedTextures.end())
+            {
+                // TODO: custom strings
+                std::string modelPath = std::string(path);
+                std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
+                // TODO: this is using assimp C++ interface
+                std::string texturePath = modelDirectory + '/' + textureFileName;
+                mesh.emissionMapID = loadTexture(texturePath.c_str());
+                loadedTextures[textureFileName] = mesh.emissionMapID;
+            }
+            else
+            {
+                mesh.emissionMapID = loadedTextures[textureFileName];
+            }
+        }
+        u32 normalCount = aiGetMaterialTextureCount(mat, aiTextureType_HEIGHT);
+        if (normalCount > 0)
+        {
+            aiString assimpTextureFileName;
+            aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_HEIGHT, 0), &assimpTextureFileName);
+
+            std::string textureFileName = std::string(assimpTextureFileName.C_Str());
+            if (loadedTextures.find(textureFileName) == loadedTextures.end())
+            {
+                // TODO: custom strings
+                std::string modelPath = std::string(path);
+                std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
+                // TODO: this is using assimp C++ interface
+                std::string texturePath = modelDirectory + '/' + textureFileName;
+                mesh.normalMapID = loadTexture(texturePath.c_str());
+                loadedTextures[textureFileName] = mesh.normalMapID;
+            }
+            else
+            {
+                mesh.normalMapID = loadedTextures[textureFileName];
+            }
+        }
 
         meshes.push_back(mesh);
     }
