@@ -48,6 +48,7 @@ struct Mesh
 std::string readFile(const char *path);
 u32 loadTexture(const char* path);
 std::vector<Mesh> loadModel(const char *path);
+std::vector<Mesh> debugModelGLTF(const char *path);
 glm::vec3 calculateTangentForTriangle(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 void generateTriangleVertexData(f32 *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 void generatePlaneVertexData(f32 *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
@@ -193,6 +194,8 @@ int main(int argc, char *argv[])
 
                 // Load models
                 // -----------
+                std::vector<Mesh> animtestMeshes = debugModelGLTF("resources/models/animtest/animtest_embedded8.gltf");
+                exit(-1);
                 std::vector<Mesh> snowmanMeshes = loadModel("resources/models/snowman/snowman.objm");
                 std::vector<Mesh> containerMeshes = loadModel("resources/models/container/container.obj");
 
@@ -576,6 +579,74 @@ u32 loadTexture(const char* path)
     }
 }
 
+std::vector<Mesh> debugModelGLTF(const char *path)
+{
+    std::cout << "Loading model at: " << path << '\n';
+
+    // TODO: Custom memory allocation
+    std::vector<Mesh> meshes;
+
+    const aiScene *assimpScene = aiImportFile(path,
+                                              aiProcess_CalcTangentSpace |
+                                              aiProcess_Triangulate |
+                                              aiProcess_JoinIdenticalVertices |
+                                              aiProcess_FlipUVs);
+
+
+    if (!assimpScene || assimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !assimpScene->mRootNode)
+    {
+        std::cerr << "ERROR::LOAD_MODEL::ASSIMP_READ_ERROR: " << " path: " << path << '\n' << aiGetErrorString() << '\n';
+        return meshes;
+    }
+
+    for (u32 meshIndex = 0; meshIndex < assimpScene->mNumMeshes; ++meshIndex)
+    {
+        aiMesh *assimpMesh = assimpScene->mMeshes[meshIndex];
+        std::cout << "\nLoading mesh #" << meshIndex << "/" << assimpScene->mNumMeshes << " " << assimpMesh->mName.C_Str() << '\n';
+        
+        u32 vertexCount = assimpMesh->mNumVertices;
+        u32 faceCount = assimpMesh->mNumFaces;
+        u32 indexCount = assimpMesh->mNumFaces * 3;
+        u32 boneCount = assimpMesh->mNumBones;
+        std::cout << " Vertices: " << vertexCount << " Faces: " << faceCount << " Indices: " << indexCount << " Bones: " << boneCount << '\n';
+        std::cout << "\n  Vertices:\n";
+
+        for (u32 vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
+        {
+            aiVector3D vertex = assimpMesh->mVertices[vertexIndex];
+            std::cout << "  Vertex #" << vertexIndex << "/" << vertexCount << " "
+                << vertex.x << ", " << vertex.y << ", " << vertex.z << '\n';
+        }
+
+        std::cout << "\n  Faces:\n";
+        for (u32 faceIndex = 0; faceIndex < faceCount; ++faceIndex)
+        {
+            aiFace assimpFace = assimpMesh->mFaces[faceIndex];
+            std::cout << "  Face #" << faceIndex << "/" << faceCount << " Indices: "
+                << assimpFace.mIndices[0] << ", " << assimpFace.mIndices[1] << ", " << assimpFace.mIndices[2] << '\n';
+        }
+
+        std::cout << "\n  Bones:\n";
+        for (u32 boneIndex = 0; boneIndex < boneCount; ++boneIndex)
+        {
+            aiBone *assimpBone = assimpMesh->mBones[boneIndex];
+            std::cout << "  Bone #" << boneIndex << "/" << boneCount << " " << assimpBone->mName.C_Str() << '\n';
+
+            int weightCount = assimpBone->mNumWeights;
+            std::cout << "   Vertices affected: " << weightCount << '\n';
+
+            for (u32 weightIndex = 0; weightIndex < weightCount; ++weightIndex)
+            {
+                aiVertexWeight assimpVertexWeight = assimpBone->mWeights[weightIndex];
+                std::cout << "   Weight #" << weightIndex << "/" << weightCount 
+                    << " vertex ID: " << assimpVertexWeight.mVertexId << " weight: " << assimpVertexWeight.mWeight << '\n';
+            }
+        }
+    }
+
+    aiReleaseImport(assimpScene);
+}
+
 std::vector<Mesh> loadModel(const char *path)
 {
     // TODO: Custom memory allocation
@@ -762,6 +833,8 @@ std::vector<Mesh> loadModel(const char *path)
 
         meshes.push_back(mesh);
     }
+
+    aiReleaseImport(assimpScene);
 
     return meshes;
 }
