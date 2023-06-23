@@ -27,6 +27,8 @@
     <None Include=".gitattributes" />
     <None Include=".gitignore" />
     <None Include="README.md" />
+    <None Include="resources\shaders\DebugSkeletal.fs" />
+    <None Include="resources\shaders\DebugSkeletal.vs" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Common.h">

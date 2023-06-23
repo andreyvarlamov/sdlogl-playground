@@ -45,16 +45,24 @@ struct Mesh
     u32 normalMapID;
 };
 
+struct SkinnedMesh
+{
+    u32 vao;
+    u32 indexCount;
+};
+
 std::string readFile(const char *path);
 u32 loadTexture(const char* path);
 std::vector<Mesh> loadModel(const char *path);
-std::vector<Mesh> debugModelGLTF(const char *path);
+std::vector<SkinnedMesh> debugModelGLTF(const char *path);
 glm::vec3 calculateTangentForTriangle(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 void generateTriangleVertexData(f32 *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 void generatePlaneVertexData(f32 *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 u32 prepareQuadVAO(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 u32 prepareCubeVAO();
 u32 prepareMeshVAO(f32 *vertexData, u32 vertexCount, u32 *indices, u32 indexCount);
+u32 prepareSkinnedMeshVAO(f32 *vertexData, u32 vertexCount, u32 *indices, u32 indexCount);
+u32 buildShader(const char *vertexPath, const char *fragmentPath);
 
 int main(int argc, char *argv[])
 {
@@ -104,47 +112,8 @@ int main(int argc, char *argv[])
 
                 // Load shaders
                 // ------------
-                u32 vertexShader;
-                vertexShader = glCreateShader(GL_VERTEX_SHADER);
-                // TODO: Implement custom memory alloc + custom string
-                std::string vertexShaderSource = readFile("resources/shaders/Basic.vs");
-                const char *vertexShaderSourceCStr = vertexShaderSource.c_str();
-                glShaderSource(vertexShader, 1, &vertexShaderSourceCStr, 0);
-                glCompileShader(vertexShader);
-                int success;
-                char infoLog[512];
-                glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-                if (!success)
-                {
-                    glGetShaderInfoLog(vertexShader, 512, 0, infoLog);
-                    std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << '\n';
-                }
-                u32 fragmentShader;
-                fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-                // TODO: Implement custom memory alloc + custom string
-                std::string fragmentShaderSource = readFile("resources/shaders/Basic.fs");
-                const char *fragmentShaderSourceCStr = fragmentShaderSource.c_str();
-                glShaderSource(fragmentShader, 1, &fragmentShaderSourceCStr, 0);
-                glCompileShader(fragmentShader);
-                glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-                if (!success)
-                {
-                    glGetShaderInfoLog(fragmentShader, 512, 0, infoLog);
-                    std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << '\n';
-                }
-                u32 shaderProgram;
-                shaderProgram = glCreateProgram();
-                glAttachShader(shaderProgram, vertexShader);
-                glAttachShader(shaderProgram, fragmentShader);
-                glLinkProgram(shaderProgram);
-                glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-                if (!success)
-                {
-                    glGetProgramInfoLog(shaderProgram, 512, 0, infoLog);
-                    std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << '\n';
-                }
-                glDeleteShader(vertexShader);
-                glDeleteShader(fragmentShader);
+                u32 basicShader = buildShader("resources/shaders/Basic.vs", "resources/shaders/Basic.fs");
+                u32 debugSkeletalShader = buildShader("resources/shaders/DebugSkeletal.vs", "resources/shaders/DebugSkeletal.fs");
 
                 // Vertex data
                 // -----------
@@ -194,30 +163,29 @@ int main(int argc, char *argv[])
 
                 // Load models
                 // -----------
-                std::vector<Mesh> animtestMeshes = debugModelGLTF("resources/models/animtest/animtest_embedded8.gltf");
-                exit(-1);
-                std::vector<Mesh> snowmanMeshes = loadModel("resources/models/snowman/snowman.objm");
-                std::vector<Mesh> containerMeshes = loadModel("resources/models/container/container.obj");
+                std::vector<SkinnedMesh> animtestMeshes = debugModelGLTF("resources/models/animtest/animtest_embedded8.gltf");
+                //std::vector<Mesh> snowmanMeshes = loadModel("resources/models/snowman/snowman.objm");
+                //std::vector<Mesh> containerMeshes = loadModel("resources/models/container/container.obj");
 
-                stbi_set_flip_vertically_on_load(true);
-                std::vector<Mesh> backpackMeshes = loadModel("resources/models/backpack/backpack.objm");
-                stbi_set_flip_vertically_on_load(false);
+                //stbi_set_flip_vertically_on_load(true);
+                //std::vector<Mesh> backpackMeshes = loadModel("resources/models/backpack/backpack.objm");
+                //stbi_set_flip_vertically_on_load(false);
 
                 // Shader global uniforms
                 // ----------------------
-                glUseProgram(shaderProgram);
-                glUniform1i(glGetUniformLocation(shaderProgram, "diffuseMap"), 0);
-                glUseProgram(shaderProgram);
-                glUniform1i(glGetUniformLocation(shaderProgram, "specularMap"), 1);
-                glUseProgram(shaderProgram);
-                glUniform1i(glGetUniformLocation(shaderProgram, "emissionMap"), 2);
-                glUseProgram(shaderProgram);
-                glUniform1i(glGetUniformLocation(shaderProgram, "normalMap"), 3);
+                glUseProgram(basicShader);
+                glUniform1i(glGetUniformLocation(basicShader, "diffuseMap"), 0);
+                glUseProgram(basicShader);
+                glUniform1i(glGetUniformLocation(basicShader, "specularMap"), 1);
+                glUseProgram(basicShader);
+                glUniform1i(glGetUniformLocation(basicShader, "emissionMap"), 2);
+                glUseProgram(basicShader);
+                glUniform1i(glGetUniformLocation(basicShader, "normalMap"), 3);
 
                 // Light configuration
                 // -------------------
                 glm::vec3 lightDir = glm::normalize(glm::vec3(-1.0f, -1.0f, -0.33f));
-                glUniform3fv(glGetUniformLocation(shaderProgram, "lightDirection"), 1, &lightDir[0]);
+                glUniform3fv(glGetUniformLocation(basicShader, "lightDirection"), 1, &lightDir[0]);
 
                 // Game Loop
                 // ---------
@@ -327,28 +295,34 @@ int main(int argc, char *argv[])
                     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
                     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-                    glUseProgram(shaderProgram);
 
                     // perspective projection
                     glm::mat4 projection = glm::perspective(glm::radians(CameraFov / 2.0f), (f32)SCREEN_WIDTH / (f32)SCREEN_HEIGHT, 0.1f, 100.0f);
-                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+                    glUseProgram(basicShader);
+                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
                     // camera view matrix
                     glm::mat4 view = glm::lookAt(CameraPosition, CameraPosition + CameraFront, CameraUp);
-                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "view"), 1, GL_FALSE, glm::value_ptr(view));
+                    glUseProgram(basicShader);
+                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "view"), 1, GL_FALSE, glm::value_ptr(view));
 
                     // view position for light calculation
-                    glUniform3fv(glGetUniformLocation(shaderProgram, "viewPosition"), 1, &CameraPosition[0]);
+                    glUseProgram(basicShader);
+                    glUniform3fv(glGetUniformLocation(basicShader, "viewPosition"), 1, &CameraPosition[0]);
+
+                    glUseProgram(0);
 
                     glm::mat4 model = glm::mat4(1.0f);
                     glm::mat3 normalMatrix = glm::mat3(1.0f);
 
+                    glUseProgram(basicShader);
+
                     // floor
                     model = glm::mat4(1.0f);
                     model = glm::scale(model, glm::vec3(25.0f));
-                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    glUniformMatrix3fv(glGetUniformLocation(basicShader, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, grassTextureID);
                     glBindVertexArray(floorVAO);
@@ -358,74 +332,74 @@ int main(int argc, char *argv[])
                     glBindTexture(GL_TEXTURE_2D, 0);
 
                     // container 1
-                    model = glm::mat4(1.0f);
-                    model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-                    model = glm::scale(model, glm::vec3(1.0f));
-                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
-                    for (u32 containerMeshIndex = 0; containerMeshIndex < containerMeshes.size(); ++containerMeshIndex)
-                    {
-                        Mesh mesh = containerMeshes[containerMeshIndex];
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
-                        glActiveTexture(GL_TEXTURE1);
-                        glBindTexture(GL_TEXTURE_2D, mesh.specularMapID);
-                        glActiveTexture(GL_TEXTURE2);
-                        glBindTexture(GL_TEXTURE_2D, mesh.emissionMapID);
-                        glActiveTexture(GL_TEXTURE3);
-                        glBindTexture(GL_TEXTURE_2D, mesh.normalMapID);
-                        glBindVertexArray(mesh.vao);
-                        glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
-                        glBindVertexArray(0);
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, 0);
-                        glActiveTexture(GL_TEXTURE1);
-                        glBindTexture(GL_TEXTURE_2D, 0);
-                        glActiveTexture(GL_TEXTURE2);
-                        glBindTexture(GL_TEXTURE_2D, 0);
-                        glActiveTexture(GL_TEXTURE3);
-                        glBindTexture(GL_TEXTURE_2D, 0);
-                    }
+                    //model = glm::mat4(1.0f);
+                    //model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+                    //model = glm::scale(model, glm::vec3(1.0f));
+                    //glUniformMatrix4fv(glGetUniformLocation(basicShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    //normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+                    //glUniformMatrix3fv(glGetUniformLocation(basicShader, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    //for (u32 containerMeshIndex = 0; containerMeshIndex < containerMeshes.size(); ++containerMeshIndex)
+                    //{
+                    //    Mesh mesh = containerMeshes[containerMeshIndex];
+                    //    glActiveTexture(GL_TEXTURE0);
+                    //    glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
+                    //    glActiveTexture(GL_TEXTURE1);
+                    //    glBindTexture(GL_TEXTURE_2D, mesh.specularMapID);
+                    //    glActiveTexture(GL_TEXTURE2);
+                    //    glBindTexture(GL_TEXTURE_2D, mesh.emissionMapID);
+                    //    glActiveTexture(GL_TEXTURE3);
+                    //    glBindTexture(GL_TEXTURE_2D, mesh.normalMapID);
+                    //    glBindVertexArray(mesh.vao);
+                    //    glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
+                    //    glBindVertexArray(0);
+                    //    glActiveTexture(GL_TEXTURE0);
+                    //    glBindTexture(GL_TEXTURE_2D, 0);
+                    //    glActiveTexture(GL_TEXTURE1);
+                    //    glBindTexture(GL_TEXTURE_2D, 0);
+                    //    glActiveTexture(GL_TEXTURE2);
+                    //    glBindTexture(GL_TEXTURE_2D, 0);
+                    //    glActiveTexture(GL_TEXTURE3);
+                    //    glBindTexture(GL_TEXTURE_2D, 0);
+                    //}
 
                     // container 2
-                    model = glm::mat4(1.0f);
-                    model = glm::translate(model, glm::vec3(-1.5f, 2.0f, -2.0f));
-                    model = glm::scale(model, glm::vec3(0.70f));
-                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
-                    for (u32 containerMeshIndex = 0; containerMeshIndex < containerMeshes.size(); ++containerMeshIndex)
-                    {
-                        Mesh mesh = containerMeshes[containerMeshIndex];
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
-                        glActiveTexture(GL_TEXTURE1);
-                        glBindTexture(GL_TEXTURE_2D, mesh.specularMapID);
-                        glActiveTexture(GL_TEXTURE2);
-                        glBindTexture(GL_TEXTURE_2D, mesh.emissionMapID);
-                        glActiveTexture(GL_TEXTURE3);
-                        glBindTexture(GL_TEXTURE_2D, mesh.normalMapID);
-                        glBindVertexArray(mesh.vao);
-                        glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
-                        glBindVertexArray(0);
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, 0);
-                        glActiveTexture(GL_TEXTURE1);
-                        glBindTexture(GL_TEXTURE_2D, 0);
-                        glActiveTexture(GL_TEXTURE2);
-                        glBindTexture(GL_TEXTURE_2D, 0);
-                        glActiveTexture(GL_TEXTURE3);
-                        glBindTexture(GL_TEXTURE_2D, 0);
-                    }
+                    //model = glm::mat4(1.0f);
+                    //model = glm::translate(model, glm::vec3(-1.5f, 2.0f, -2.0f));
+                    //model = glm::scale(model, glm::vec3(0.70f));
+                    //glUniformMatrix4fv(glGetUniformLocation(basicShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    //normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+                    //glUniformMatrix3fv(glGetUniformLocation(basicShader, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    //for (u32 containerMeshIndex = 0; containerMeshIndex < containerMeshes.size(); ++containerMeshIndex)
+                    //{
+                    //    Mesh mesh = containerMeshes[containerMeshIndex];
+                    //    glActiveTexture(GL_TEXTURE0);
+                    //    glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
+                    //    glActiveTexture(GL_TEXTURE1);
+                    //    glBindTexture(GL_TEXTURE_2D, mesh.specularMapID);
+                    //    glActiveTexture(GL_TEXTURE2);
+                    //    glBindTexture(GL_TEXTURE_2D, mesh.emissionMapID);
+                    //    glActiveTexture(GL_TEXTURE3);
+                    //    glBindTexture(GL_TEXTURE_2D, mesh.normalMapID);
+                    //    glBindVertexArray(mesh.vao);
+                    //    glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
+                    //    glBindVertexArray(0);
+                    //    glActiveTexture(GL_TEXTURE0);
+                    //    glBindTexture(GL_TEXTURE_2D, 0);
+                    //    glActiveTexture(GL_TEXTURE1);
+                    //    glBindTexture(GL_TEXTURE_2D, 0);
+                    //    glActiveTexture(GL_TEXTURE2);
+                    //    glBindTexture(GL_TEXTURE_2D, 0);
+                    //    glActiveTexture(GL_TEXTURE3);
+                    //    glBindTexture(GL_TEXTURE_2D, 0);
+                    //}
                     
                     // quad wall
                     model = glm::mat4(1.0f);
                     model = glm::translate(model, glm::vec3(-5.0f, 0.0f, 0.0f));
                     model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    glUniformMatrix3fv(glGetUniformLocation(basicShader, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
                     glBindVertexArray(wallVAO);
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, wallDiffuseID);
@@ -434,9 +408,9 @@ int main(int argc, char *argv[])
                     glDrawArrays(GL_TRIANGLES, 0, 6);
                     // other side of wall (no z-fighting because faces are culled)
                     model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    glUniformMatrix3fv(glGetUniformLocation(basicShader, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
                     glDrawArrays(GL_TRIANGLES, 0, 6);
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, 0);
@@ -445,42 +419,59 @@ int main(int argc, char *argv[])
                     glBindVertexArray(0);
 
                     // snowman
-                    model = glm::mat4(1.0f);
-                    model = glm::translate(model, glm::vec3(0.0f, 0.0f, -5.0f));
-                    model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
-                    for (u32 snowmanMeshIndex = 0; snowmanMeshIndex < snowmanMeshes.size(); ++snowmanMeshIndex)
-                    {
-                        Mesh mesh = snowmanMeshes[snowmanMeshIndex];
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
-                        glBindVertexArray(mesh.vao);
-                        glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
-                        glBindVertexArray(0);
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, 0);
-                    }
+                    //model = glm::mat4(1.0f);
+                    //model = glm::translate(model, glm::vec3(0.0f, 0.0f, -5.0f));
+                    //model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+                    //glUniformMatrix4fv(glGetUniformLocation(basicShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    //normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+                    //glUniformMatrix3fv(glGetUniformLocation(basicShader, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    //for (u32 snowmanMeshIndex = 0; snowmanMeshIndex < snowmanMeshes.size(); ++snowmanMeshIndex)
+                    //{
+                    //    Mesh mesh = snowmanMeshes[snowmanMeshIndex];
+                    //    glActiveTexture(GL_TEXTURE0);
+                    //    glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
+                    //    glBindVertexArray(mesh.vao);
+                    //    glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
+                    //    glBindVertexArray(0);
+                    //    glActiveTexture(GL_TEXTURE0);
+                    //    glBindTexture(GL_TEXTURE_2D, 0);
+                    //}
 
                     // backpack
+                    //model = glm::mat4(1.0f);
+                    //model = glm::translate(model, glm::vec3(0.0f, 1.0f, 5.0f));
+                    //model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    //model = glm::scale(model, glm::vec3(0.5f));
+                    //glUniformMatrix4fv(glGetUniformLocation(basicShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    //normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+                    //glUniformMatrix3fv(glGetUniformLocation(basicShader, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    //for (u32 backpackMeshIndex = 0; backpackMeshIndex < backpackMeshes.size(); ++backpackMeshIndex)
+                    //{
+                    //    Mesh mesh = backpackMeshes[backpackMeshIndex];
+                    //    glActiveTexture(GL_TEXTURE0);
+                    //    glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
+                    //    glBindVertexArray(mesh.vao);
+                    //    glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
+                    //    glBindVertexArray(0);
+                    //    glActiveTexture(GL_TEXTURE0);
+                    //    glBindTexture(GL_TEXTURE_2D, 0);
+                    //}
+
+                    // animtest
+                    glUseProgram(debugSkeletalShader);
+                    glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "view"), 1, GL_FALSE, glm::value_ptr(view));
+                    glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
                     model = glm::mat4(1.0f);
-                    model = glm::translate(model, glm::vec3(0.0f, 1.0f, 5.0f));
-                    model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    model = glm::translate(model, glm::vec3(0.0f, 0.0f, 5.0f));
+                    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
                     model = glm::scale(model, glm::vec3(0.5f));
-                    glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-                    glUniformMatrix3fv(glGetUniformLocation(shaderProgram, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
-                    for (u32 backpackMeshIndex = 0; backpackMeshIndex < backpackMeshes.size(); ++backpackMeshIndex)
+                    glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    for (u32 animtestMeshIndex = 0; animtestMeshIndex < animtestMeshes.size(); ++animtestMeshIndex)
                     {
-                        Mesh mesh = backpackMeshes[backpackMeshIndex];
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
+                        SkinnedMesh mesh = animtestMeshes[animtestMeshIndex];
                         glBindVertexArray(mesh.vao);
                         glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
                         glBindVertexArray(0);
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, 0);
                     }
 
                     glUseProgram(0);
@@ -579,19 +570,24 @@ u32 loadTexture(const char* path)
     }
 }
 
-std::vector<Mesh> debugModelGLTF(const char *path)
+struct VertexBoneInfo
+{
+    u32 boneId[4];
+    f32 boneWeight[4];
+    size_t nextUnusedSlot;
+};
+
+std::vector<SkinnedMesh> debugModelGLTF(const char *path)
 {
     std::cout << "Loading model at: " << path << '\n';
 
-    // TODO: Custom memory allocation
-    std::vector<Mesh> meshes;
+    std::vector<SkinnedMesh> meshes;
 
     const aiScene *assimpScene = aiImportFile(path,
                                               aiProcess_CalcTangentSpace |
                                               aiProcess_Triangulate |
                                               aiProcess_JoinIdenticalVertices |
                                               aiProcess_FlipUVs);
-
 
     if (!assimpScene || assimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !assimpScene->mRootNode)
     {
@@ -609,42 +605,87 @@ std::vector<Mesh> debugModelGLTF(const char *path)
         u32 indexCount = assimpMesh->mNumFaces * 3;
         u32 boneCount = assimpMesh->mNumBones;
         std::cout << " Vertices: " << vertexCount << " Faces: " << faceCount << " Indices: " << indexCount << " Bones: " << boneCount << '\n';
-        std::cout << "\n  Vertices:\n";
+        
+        VertexBoneInfo *vertexBones = (VertexBoneInfo *)calloc(1, vertexCount * sizeof(VertexBoneInfo));
 
-        for (u32 vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
-        {
-            aiVector3D vertex = assimpMesh->mVertices[vertexIndex];
-            std::cout << "  Vertex #" << vertexIndex << "/" << vertexCount << " "
-                << vertex.x << ", " << vertex.y << ", " << vertex.z << '\n';
-        }
-
-        std::cout << "\n  Faces:\n";
-        for (u32 faceIndex = 0; faceIndex < faceCount; ++faceIndex)
-        {
-            aiFace assimpFace = assimpMesh->mFaces[faceIndex];
-            std::cout << "  Face #" << faceIndex << "/" << faceCount << " Indices: "
-                << assimpFace.mIndices[0] << ", " << assimpFace.mIndices[1] << ", " << assimpFace.mIndices[2] << '\n';
-        }
-
-        std::cout << "\n  Bones:\n";
+        //std::cout << "\n  Bones:\n";
         for (u32 boneIndex = 0; boneIndex < boneCount; ++boneIndex)
         {
             aiBone *assimpBone = assimpMesh->mBones[boneIndex];
-            std::cout << "  Bone #" << boneIndex << "/" << boneCount << " " << assimpBone->mName.C_Str() << '\n';
+            //std::cout << "  Bone #" << boneIndex << "/" << boneCount << " " << assimpBone->mName.C_Str() << '\n';
 
             int weightCount = assimpBone->mNumWeights;
-            std::cout << "   Vertices affected: " << weightCount << '\n';
+            //std::cout << "   Vertices affected: " << weightCount << '\n';
 
             for (u32 weightIndex = 0; weightIndex < weightCount; ++weightIndex)
             {
                 aiVertexWeight assimpVertexWeight = assimpBone->mWeights[weightIndex];
-                std::cout << "   Weight #" << weightIndex << "/" << weightCount 
-                    << " vertex ID: " << assimpVertexWeight.mVertexId << " weight: " << assimpVertexWeight.mWeight << '\n';
+                //std::cout << "   Weight #" << weightIndex << "/" << weightCount << " vertex ID: " << assimpVertexWeight.mVertexId << " weight: " << assimpVertexWeight.mWeight << '\n';
+
+                VertexBoneInfo *vertexBone = &vertexBones[assimpVertexWeight.mVertexId];
+                if (vertexBone->nextUnusedSlot < 4)
+                {
+                    vertexBone->boneId[vertexBone->nextUnusedSlot] = boneIndex + 1;
+                    vertexBone->boneWeight[vertexBone->nextUnusedSlot++] = assimpVertexWeight.mWeight;
+                }
+                else
+                {
+                    std::cerr << "ERROR::LOAD_GLTF::MAX_BONE_PER_VERTEX_EXCEEDED" << '\n';
+                }
             }
         }
+
+        // Position + 4 bone ids + 4 bone weights
+        f32 *meshVertexData = (f32 *)calloc(1, 11 * vertexCount * sizeof(f32));
+
+        //std::cout << "\n  Vertices:\n";
+        for (u32 vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
+        {
+            aiVector3D vertex = assimpMesh->mVertices[vertexIndex];
+            //std::cout << "  Vertex #" << vertexIndex << "/" << vertexCount << " " << vertex.x << ", " << vertex.y << ", " << vertex.z << '\n';
+
+            f32 *meshVertexDataCursor = meshVertexData + (vertexIndex * 11);
+
+            meshVertexDataCursor[0]  = vertex.x;
+            meshVertexDataCursor[1]  = vertex.y;
+            meshVertexDataCursor[2]  = vertex.z;
+                                     
+            meshVertexDataCursor[3]  = *((f32 *)&vertexBones[vertexIndex].boneId[0]);
+            meshVertexDataCursor[4]  = *((f32 *)&vertexBones[vertexIndex].boneId[1]);
+            meshVertexDataCursor[5]  = *((f32 *)&vertexBones[vertexIndex].boneId[2]);
+            meshVertexDataCursor[6]  = *((f32 *)&vertexBones[vertexIndex].boneId[3]);
+                                     
+            meshVertexDataCursor[7]  = vertexBones[vertexIndex].boneWeight[0];
+            meshVertexDataCursor[8]  = vertexBones[vertexIndex].boneWeight[1];
+            meshVertexDataCursor[9]  = vertexBones[vertexIndex].boneWeight[2];
+            meshVertexDataCursor[10] = vertexBones[vertexIndex].boneWeight[3];
+        }
+
+        u32 *meshIndices = (u32 *)calloc(1, indexCount * sizeof(u32));
+        
+        //std::cout << "\n  Faces:\n";
+        u32 *meshIndicesCursor = meshIndices;
+        for (u32 faceIndex = 0; faceIndex < faceCount; ++faceIndex)
+        {
+            aiFace assimpFace = assimpMesh->mFaces[faceIndex];
+            //std::cout << "  Face #" << faceIndex << "/" << faceCount << " Indices: " << assimpFace.mIndices[0] << ", " << assimpFace.mIndices[1] << ", " << assimpFace.mIndices[2] << '\n';
+
+            for (u32 assimpIndexIndex = 0; assimpIndexIndex < assimpFace.mNumIndices; ++assimpIndexIndex)
+            {
+                *meshIndicesCursor++ = assimpFace.mIndices[assimpIndexIndex];
+            }
+        }
+
+        SkinnedMesh mesh;
+        mesh.vao = prepareSkinnedMeshVAO(meshVertexData, 11 * vertexCount, meshIndices, indexCount);
+        mesh.indexCount = indexCount;
+
+        meshes.push_back(mesh);
     }
 
     aiReleaseImport(assimpScene);
+
+    return meshes;
 }
 
 std::vector<Mesh> loadModel(const char *path)
@@ -1035,7 +1076,7 @@ u32 prepareCubeVAO()
     return quadVAO;
 }
 
-u32 prepareMeshVAO(f32 *vertexData, u32 vertexCount, u32 *indices, u32 indexCount)
+u32 prepareMeshVAO(f32 *vertexData, u32 vertexAttribCount, u32 *indices, u32 indexCount)
 {
     u32 meshVAO;
     glGenVertexArrays(1, &meshVAO);
@@ -1046,7 +1087,7 @@ u32 prepareMeshVAO(f32 *vertexData, u32 vertexCount, u32 *indices, u32 indexCoun
 
     glBindVertexArray(meshVAO);
     glBindBuffer(GL_ARRAY_BUFFER, meshVBO);
-    glBufferData(GL_ARRAY_BUFFER, vertexCount * sizeof(f32), vertexData, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertexAttribCount * sizeof(f32), vertexData, GL_STATIC_DRAW);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, meshEBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount * sizeof(u32), indices, GL_STATIC_DRAW);
 
@@ -1072,4 +1113,84 @@ u32 prepareMeshVAO(f32 *vertexData, u32 vertexCount, u32 *indices, u32 indexCoun
     glBindVertexArray(0);
 
     return meshVAO;
+}
+
+u32 prepareSkinnedMeshVAO(f32 *vertexData, u32 vertexAttribCount, u32 *indices, u32 indexCount)
+{
+    u32 meshVAO;
+    glGenVertexArrays(1, &meshVAO);
+    u32 meshVBO;
+    glGenBuffers(1, &meshVBO);
+    u32 meshEBO;
+    glGenBuffers(1, &meshEBO);
+
+    glBindVertexArray(meshVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, meshVBO);
+    glBufferData(GL_ARRAY_BUFFER, vertexAttribCount * sizeof(f32), vertexData, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, meshEBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount * sizeof(u32), indices, GL_STATIC_DRAW);
+
+    // Position + 4 bone ids + 4 bone weights
+    size_t vertexSize = 11 * sizeof(f32);
+
+    // Position
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *)0);
+    // Bone IDs
+    glEnableVertexAttribArray(1);
+    glVertexAttribIPointer(1, 4, GL_UNSIGNED_INT, vertexSize, (void *)(3 * sizeof(f32)));
+    // Bone weights
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, vertexSize, (void *)(7 * sizeof(f32)));
+    
+    glBindVertexArray(0);
+
+    return meshVAO;
+}
+
+u32 buildShader(const char *vertexPath, const char *fragmentPath)
+{
+    u32 vertexShader;
+    vertexShader = glCreateShader(GL_VERTEX_SHADER);
+    // TODO: Implement custom memory alloc + custom string
+    std::string vertexShaderSource = readFile(vertexPath);
+    const char *vertexShaderSourceCStr = vertexShaderSource.c_str();
+    glShaderSource(vertexShader, 1, &vertexShaderSourceCStr, 0);
+    glCompileShader(vertexShader);
+    int success;
+    char infoLog[512];
+    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        glGetShaderInfoLog(vertexShader, 512, 0, infoLog);
+        std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << '\n';
+    }
+    u32 fragmentShader;
+    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    // TODO: Implement custom memory alloc + custom string
+    std::string fragmentShaderSource = readFile(fragmentPath);
+    const char *fragmentShaderSourceCStr = fragmentShaderSource.c_str();
+    glShaderSource(fragmentShader, 1, &fragmentShaderSourceCStr, 0);
+    glCompileShader(fragmentShader);
+    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
+    if (!success)
+    {
+        glGetShaderInfoLog(fragmentShader, 512, 0, infoLog);
+        std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << '\n';
+    }
+    u32 shaderProgram;
+    shaderProgram = glCreateProgram();
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
+    if (!success)
+    {
+        glGetProgramInfoLog(shaderProgram, 512, 0, infoLog);
+        std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << '\n';
+    }
+    glDeleteShader(vertexShader);
+    glDeleteShader(fragmentShader);
+
+    return shaderProgram;
 }
