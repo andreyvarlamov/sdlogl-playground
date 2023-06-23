@@ -612,7 +612,7 @@ std::vector<SkinnedMesh> debugModelGLTF(const char *path)
         for (u32 boneIndex = 0; boneIndex < boneCount; ++boneIndex)
         {
             aiBone *assimpBone = assimpMesh->mBones[boneIndex];
-            //std::cout << "  Bone #" << boneIndex << "/" << boneCount << " " << assimpBone->mName.C_Str() << '\n';
+            std::cout << "  Bone #" << boneIndex + 1 << "/" << boneCount << " " << assimpBone->mName.C_Str() << '\n';
 
             int weightCount = assimpBone->mNumWeights;
             //std::cout << "   Vertices affected: " << weightCount << '\n';
