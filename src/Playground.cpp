@@ -15,6 +15,8 @@
 #include <sstream>
 #include <iostream>
 #include <vector>
+#include <queue>
+#include <stack>
 #include <unordered_map>
 
 #include "Common.h"
@@ -163,7 +165,7 @@ int main(int argc, char *argv[])
 
                 // Load models
                 // -----------
-                std::vector<SkinnedMesh> animtestMeshes = debugModelGLTF("resources/models/animtest/animtest_embedded8.gltf");
+                std::vector<SkinnedMesh> animtestMeshes = debugModelGLTF("resources/models/animtest/bonetree00.gltf");
                 //std::vector<Mesh> snowmanMeshes = loadModel("resources/models/snowman/snowman.objm");
                 //std::vector<Mesh> containerMeshes = loadModel("resources/models/container/container.obj");
 
@@ -502,7 +504,6 @@ int main(int argc, char *argv[])
 
 std::string readFile(const char *path)
 {
-    // TODO: Implement custom memory alloc + custom string
     std::string content;
     std::ifstream fileStream;
     fileStream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
@@ -572,10 +573,32 @@ u32 loadTexture(const char* path)
 
 struct VertexBoneInfo
 {
-    u32 boneId[4];
+    i32 boneId[4];
     f32 boneWeight[4];
     size_t nextUnusedSlot;
 };
+
+#define MAX_BONE_DEPTH 16
+struct BoneInfo
+{
+    std::string name;
+    i32 pathToRoot[MAX_BONE_DEPTH];
+    i32 pathNodes;
+    glm::mat4 transformToParent;
+    glm::mat4 inverseBindTransform;
+};
+
+glm::mat4 assimpMatToGlmMat(aiMatrix4x4 assimpMat)
+{
+    glm::mat4 result { };
+
+    result[0][0] = assimpMat.a1; result[0][1] = assimpMat.a2; result[0][2] = assimpMat.a3; result[0][3] = assimpMat.a4;
+    result[1][0] = assimpMat.b1; result[1][1] = assimpMat.b2; result[1][2] = assimpMat.b3; result[1][3] = assimpMat.b4;
+    result[2][0] = assimpMat.c1; result[2][1] = assimpMat.c2; result[2][2] = assimpMat.c3; result[2][3] = assimpMat.c4;
+    result[3][0] = assimpMat.d1; result[3][1] = assimpMat.d2; result[3][2] = assimpMat.d3; result[3][3] = assimpMat.d4;
+
+    return result;
+}
 
 std::vector<SkinnedMesh> debugModelGLTF(const char *path)
 {
@@ -583,17 +606,128 @@ std::vector<SkinnedMesh> debugModelGLTF(const char *path)
 
     std::vector<SkinnedMesh> meshes;
 
+    // Load assimp scene
+    // -----------------
     const aiScene *assimpScene = aiImportFile(path,
                                               aiProcess_CalcTangentSpace |
                                               aiProcess_Triangulate |
                                               aiProcess_JoinIdenticalVertices |
                                               aiProcess_FlipUVs);
 
-    if (!assimpScene || assimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !assimpScene->mRootNode)
+    //if (!assimpScene || assimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !assimpScene->mRootNode)
+    //{
+    //    std::cerr << "ERROR::LOAD_MODEL::ASSIMP_READ_ERROR: " << " path: " << path << '\n' << aiGetErrorString() << '\n';
+    //    return meshes;
+    //}
+
+    // Parse bone data
+    // ---------------
+    // 1. Find armature node
+    std::cout << "Looking for armature node... ";
+    aiNode *armatureNode = 0;
+    bool hasArmature = false;
+    std::queue<aiNode *> nodeQueue;
+    nodeQueue.push(assimpScene->mRootNode);
+    while (!nodeQueue.empty() && !hasArmature)
     {
-        std::cerr << "ERROR::LOAD_MODEL::ASSIMP_READ_ERROR: " << " path: " << path << '\n' << aiGetErrorString() << '\n';
-        return meshes;
+        aiNode *frontNode = nodeQueue.front();
+        nodeQueue.pop();
+
+        if (strcmp(frontNode->mName.C_Str(), "Armature") == 0)
+        {
+            armatureNode = frontNode;
+            hasArmature = true;
+        }
+
+        for (u32 i = 0; i < frontNode->mNumChildren; ++i)
+        {
+            nodeQueue.push(frontNode->mChildren[i]);
+        }
     }
+
+    // 2. Get bone tree and transform to parent data
+    std::vector<BoneInfo> bones { }; // Bone storage that will be used for rendering later
+    if (hasArmature)
+    {
+        u32 bonesParsed = 0;
+        std::vector<aiNode *> nodes { }; // Temp aiNode storage in the same order as bones 
+        std::stack<u32> tempNodeStack { }; // Temp tree-DFS-stack that stores bone IDs for 'bones' and 'nodes' vectors
+        bool isFirstIteration = true;
+        while (isFirstIteration || !tempNodeStack.empty())
+        {
+            if (isFirstIteration)
+            {
+                for (u32 i = 0; i < armatureNode->mNumChildren; ++i)
+                {
+                    aiNode *rootBoneNode = armatureNode->mChildren[i];
+                    nodes.push_back(rootBoneNode);
+
+                    BoneInfo rootBone { };
+                    rootBone.name = rootBoneNode->mName.C_Str();
+                    rootBone.transformToParent = assimpMatToGlmMat(rootBoneNode->mTransformation);
+                    bones.push_back(rootBone);
+
+                    tempNodeStack.push(bonesParsed); // bonesParsed acting as ID of the bone that was just added
+                    ++bonesParsed;
+                }
+
+                isFirstIteration = false;
+            }
+            else
+            {
+                u32 parentIndex = tempNodeStack.top();
+                tempNodeStack.pop();
+
+                aiNode *parentNode = nodes[parentIndex];
+                BoneInfo *parentBone = &bones[parentIndex];
+
+                for (u32 i = 0; i < parentNode->mNumChildren; ++i)
+                {
+                    aiNode *childNode = parentNode->mChildren[i];
+                    nodes.push_back(childNode);
+
+                    BoneInfo childBone { };
+                    childBone.name = childNode->mName.C_Str();
+                    memcpy(childBone.pathToRoot, parentBone->pathToRoot, parentBone->pathNodes * sizeof(i32));
+                    childBone.pathNodes = parentBone->pathNodes;
+                    childBone.pathToRoot[childBone.pathNodes] = parentIndex;
+                    ++childBone.pathNodes;
+                    childBone.transformToParent = assimpMatToGlmMat(childNode->mTransformation);
+                    bones.push_back(childBone);
+                    // reassign because push back could've invalidated that pointer
+                    parentBone = &bones[parentIndex];
+
+                    tempNodeStack.push(bonesParsed);
+                    ++bonesParsed;
+                }
+            }
+        }
+
+        std::cout << "Armature found. " << bones.size() << " bones:\n";
+
+        for (u32 i = 0; i < bones.size(); ++i)
+        {
+            std::cout << "Bone #" << i << "/" << bones.size() << ": " << bones[i].name << ". Path to root: ";
+
+            for (u32 pathIndex = 0; pathIndex < bones[i].pathNodes; ++pathIndex)
+            {
+                std::cout << bones[i].pathToRoot[pathIndex];
+
+                if (pathIndex != bones[i].pathNodes - 1)
+                {
+                    std::cout << ", ";
+                }
+            }
+
+            std::cout << '\n';
+        }
+    }
+    else
+    {
+        std::cout << "Not found.\n";
+    }
+
+    std::cout << '\n';
 
     for (u32 meshIndex = 0; meshIndex < assimpScene->mNumMeshes; ++meshIndex)
     {
@@ -608,14 +742,14 @@ std::vector<SkinnedMesh> debugModelGLTF(const char *path)
         
         VertexBoneInfo *vertexBones = (VertexBoneInfo *)calloc(1, vertexCount * sizeof(VertexBoneInfo));
 
-        //std::cout << "\n  Bones:\n";
+        std::cout << "\n  Bones:\n";
         for (u32 boneIndex = 0; boneIndex < boneCount; ++boneIndex)
         {
             aiBone *assimpBone = assimpMesh->mBones[boneIndex];
             std::cout << "  Bone #" << boneIndex + 1 << "/" << boneCount << " " << assimpBone->mName.C_Str() << '\n';
 
             int weightCount = assimpBone->mNumWeights;
-            //std::cout << "   Vertices affected: " << weightCount << '\n';
+            std::cout << "   Vertices affected: " << weightCount << '\n';
 
             for (u32 weightIndex = 0; weightIndex < weightCount; ++weightIndex)
             {
@@ -633,6 +767,14 @@ std::vector<SkinnedMesh> debugModelGLTF(const char *path)
                     std::cerr << "ERROR::LOAD_GLTF::MAX_BONE_PER_VERTEX_EXCEEDED" << '\n';
                 }
             }
+
+            // Inverse Bind Matrix: from mesh space to bone's bind pose space
+            std::cout << "   Offset (Inverse-Bind) Matrix:\n";
+            aiMatrix4x4 mat = assimpBone->mOffsetMatrix;
+            std::cout << "    " << mat.a1 << ", " << mat.a2 << ", " << mat.a3 << ", " << mat.a4 << '\n';
+            std::cout << "    " << mat.b1 << ", " << mat.b2 << ", " << mat.b3 << ", " << mat.b4 << '\n';
+            std::cout << "    " << mat.c1 << ", " << mat.c2 << ", " << mat.c3 << ", " << mat.c4 << '\n';
+            std::cout << "    " << mat.d1 << ", " << mat.d2 << ", " << mat.d3 << ", " << mat.d4 << '\n';
         }
 
         // Position + 4 bone ids + 4 bone weights
@@ -690,7 +832,6 @@ std::vector<SkinnedMesh> debugModelGLTF(const char *path)
 
 std::vector<Mesh> loadModel(const char *path)
 {
-    // TODO: Custom memory allocation
     std::vector<Mesh> meshes;
     
     const aiScene *assimpScene = aiImportFile(path,
@@ -705,7 +846,6 @@ std::vector<Mesh> loadModel(const char *path)
         return meshes;
     }
 
-    // TODO: Stop using STL + custom string implementation
     std::unordered_map<std::string, u32> loadedTextures { };
 
     for (u32 meshIndex = 0; meshIndex < assimpScene->mNumMeshes; ++meshIndex)
@@ -723,7 +863,6 @@ std::vector<Mesh> loadModel(const char *path)
         size_t perVertexFloatCount = (3 + 3 + 2 + 3 + 3);
         u32 assimpVertexCount = assimpMesh->mNumVertices;
         meshVertexFloatCount = perVertexFloatCount * assimpVertexCount;
-        // TODO: Custom memory allocation
         meshVertexData = (f32 *)calloc(1, meshVertexFloatCount * sizeof(f32));
         if (!meshVertexData)
         {
@@ -777,7 +916,6 @@ std::vector<Mesh> loadModel(const char *path)
         mesh.vao = prepareMeshVAO(meshVertexData, meshVertexFloatCount, meshIndices, meshIndexCount);
         mesh.indexCount = meshIndexCount;
         
-        // TODO: Custom memory allocation
         free(meshVertexData);
         free(meshIndices);
 
@@ -792,10 +930,8 @@ std::vector<Mesh> loadModel(const char *path)
             std::string textureFileName = std::string(assimpTextureFileName.C_Str());
             if (loadedTextures.find(textureFileName) == loadedTextures.end())
             {
-                // TODO: custom strings
                 std::string modelPath = std::string(path);
                 std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
-                // TODO: this is using assimp C++ interface
                 std::string texturePath = modelDirectory + '/' + textureFileName;
                 mesh.diffuseMapID = loadTexture(texturePath.c_str());
                 loadedTextures[textureFileName] = mesh.diffuseMapID;
@@ -814,10 +950,8 @@ std::vector<Mesh> loadModel(const char *path)
             std::string textureFileName = std::string(assimpTextureFileName.C_Str());
             if (loadedTextures.find(textureFileName) == loadedTextures.end())
             {
-                // TODO: custom strings
                 std::string modelPath = std::string(path);
                 std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
-                // TODO: this is using assimp C++ interface
                 std::string texturePath = modelDirectory + '/' + textureFileName;
                 mesh.specularMapID = loadTexture(texturePath.c_str());
                 loadedTextures[textureFileName] = mesh.specularMapID;
@@ -836,10 +970,8 @@ std::vector<Mesh> loadModel(const char *path)
             std::string textureFileName = std::string(assimpTextureFileName.C_Str());
             if (loadedTextures.find(textureFileName) == loadedTextures.end())
             {
-                // TODO: custom strings
                 std::string modelPath = std::string(path);
                 std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
-                // TODO: this is using assimp C++ interface
                 std::string texturePath = modelDirectory + '/' + textureFileName;
                 mesh.emissionMapID = loadTexture(texturePath.c_str());
                 loadedTextures[textureFileName] = mesh.emissionMapID;
@@ -858,10 +990,8 @@ std::vector<Mesh> loadModel(const char *path)
             std::string textureFileName = std::string(assimpTextureFileName.C_Str());
             if (loadedTextures.find(textureFileName) == loadedTextures.end())
             {
-                // TODO: custom strings
                 std::string modelPath = std::string(path);
                 std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
-                // TODO: this is using assimp C++ interface
                 std::string texturePath = modelDirectory + '/' + textureFileName;
                 mesh.normalMapID = loadTexture(texturePath.c_str());
                 loadedTextures[textureFileName] = mesh.normalMapID;
@@ -1152,7 +1282,6 @@ u32 buildShader(const char *vertexPath, const char *fragmentPath)
 {
     u32 vertexShader;
     vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    // TODO: Implement custom memory alloc + custom string
     std::string vertexShaderSource = readFile(vertexPath);
     const char *vertexShaderSourceCStr = vertexShaderSource.c_str();
     glShaderSource(vertexShader, 1, &vertexShaderSourceCStr, 0);
@@ -1167,7 +1296,6 @@ u32 buildShader(const char *vertexPath, const char *fragmentPath)
     }
     u32 fragmentShader;
     fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    // TODO: Implement custom memory alloc + custom string
     std::string fragmentShaderSource = readFile(fragmentPath);
     const char *fragmentShaderSourceCStr = fragmentShaderSource.c_str();
     glShaderSource(fragmentShader, 1, &fragmentShaderSourceCStr, 0);

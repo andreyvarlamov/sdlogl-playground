@@ -1,0 +1,211 @@
+{
+    "asset" : {
+        "generator" : "Khronos glTF Blender I/O v3.4.50",
+        "version" : "2.0"
+    },
+    "scene" : 0,
+    "scenes" : [
+        {
+            "name" : "Scene",
+            "nodes" : [
+                10
+            ]
+        }
+    ],
+    "nodes" : [
+        {
+            "name" : "E",
+            "translation" : [
+                0,
+                1,
+                0
+            ]
+        },
+        {
+            "name" : "H",
+            "rotation" : [
+                0,
+                3.197442310920451e-14,
+                0,
+                1
+            ],
+            "scale" : [
+                1,
+                0.9999998807907104,
+                1
+            ],
+            "translation" : [
+                1.4210854715202004e-14,
+                1.4142135381698608,
+                -5.960464477539063e-08
+            ]
+        },
+        {
+            "name" : "I",
+            "rotation" : [
+                -0.7071068286895752,
+                1.5072888615952178e-14,
+                -1.6858737694747106e-07,
+                0.7071068286895752
+            ],
+            "scale" : [
+                1,
+                0.9999999403953552,
+                0.9999998807907104
+            ],
+            "translation" : [
+                1.4210854715202004e-14,
+                1.4142135381698608,
+                -5.960464477539063e-08
+            ]
+        },
+        {
+            "children" : [
+                1,
+                2
+            ],
+            "name" : "D",
+            "rotation" : [
+                0.3826834559440613,
+                1.1013499801038051e-07,
+                4.5619408695074526e-08,
+                0.9238795638084412
+            ],
+            "scale" : [
+                1,
+                0.9999999403953552,
+                1
+            ],
+            "translation" : [
+                0,
+                1,
+                0
+            ]
+        },
+        {
+            "name" : "J",
+            "rotation" : [
+                0.3826834559440613,
+                1.724944856967935e-18,
+                -8.086764499013184e-17,
+                0.9238795638084412
+            ],
+            "scale" : [
+                1,
+                1,
+                0.9999999403953552
+            ],
+            "translation" : [
+                0,
+                1.4142135381698608,
+                5.960464477539063e-08
+            ]
+        },
+        {
+            "children" : [
+                4
+            ],
+            "name" : "F",
+            "rotation" : [
+                -0.3826834559440613,
+                -6.012672640507512e-17,
+                -6.012672640507512e-17,
+                0.9238795638084412
+            ],
+            "scale" : [
+                1,
+                0.9999999403953552,
+                1
+            ],
+            "translation" : [
+                0,
+                1,
+                0
+            ]
+        },
+        {
+            "children" : [
+                0,
+                3,
+                5
+            ],
+            "name" : "B"
+        },
+        {
+            "name" : "K",
+            "translation" : [
+                0,
+                1,
+                0
+            ]
+        },
+        {
+            "children" : [
+                7
+            ],
+            "name" : "G",
+            "translation" : [
+                0,
+                1,
+                0
+            ]
+        },
+        {
+            "children" : [
+                8
+            ],
+            "name" : "C",
+            "translation" : [
+                0,
+                0,
+                -2
+            ]
+        },
+        {
+            "children" : [
+                6,
+                9
+            ],
+            "name" : "Armature"
+        }
+    ],
+    "skins" : [
+        {
+            "inverseBindMatrices" : 0,
+            "joints" : [
+                6,
+                0,
+                3,
+                1,
+                2,
+                5,
+                4,
+                9,
+                8,
+                7
+            ],
+            "name" : "Armature"
+        }
+    ],
+    "accessors" : [
+        {
+            "bufferView" : 0,
+            "componentType" : 5126,
+            "count" : 10,
+            "type" : "MAT4"
+        }
+    ],
+    "bufferViews" : [
+        {
+            "buffer" : 0,
+            "byteLength" : 640,
+            "byteOffset" : 0
+        }
+    ],
+    "buffers" : [
+        {
+            "byteLength" : 640,
+            "uri" : "data:application/octet-stream;base64,AACAPwAAAIAAAAAAAAAAgAAAAIAAAIA/AAAAgAAAAAAAAAAAAAAAgAAAgD8AAACAAAAAgAAAAAAAAACAAACAPwAAgD8AAACAAAAAAAAAAIAAAACAAACAPwAAAIAAAAAAAAAAAAAAAIAAAIA/AAAAgAAAAIAAAIC/AAAAgAAAgD8AAIA/AACAqPv/fzQAAACA8AQ1NPQENT/zBDW/AAAAAPAENbTzBDU/8wQ1PwAAAIDwBDW09AQ1v/MENT8AAIA/AACAPwEAgKgBAIA0AAAAgPMENTT1BDU/8wQ1vwAAAADzBDW09AQ1P/MENT8AAACA9AQ1tLfDB8D0BDU/AACAPwAAgD8CAMAo/f9/NAAAAIDzBDW09AQ1P/QENT8AAAAA8wQ1tPIENb/0BDU/AAAAgLbDBzX3BDW/t8MHwAAAgD8AAIA/QCU1JdwQlqQAAACA3BCWpPQENT/zBDU/AAAAAEElNSXzBDW/8wQ1PwAAAIDcEJYk9AQ1v/MENb8AAIA/AACAPz7UeCU+1HilAAAAgD7UeKUAAIA/6NtxCwAAAAA+1HglAAAAswAAgD8AAACAhif1JQAAAMD//38/AACAPwAAgD8AAACAAAAAAAAAAIAAAACAAACAPwAAAIAAAAAAAAAAAAAAAIAAAIA/AAAAgAAAAIAAAAAAAAAAQAAAgD8AAIA/AAAAgAAAAAAAAACAAAAAgAAAgD8AAACAAAAAAAAAAAAAAACAAACAPwAAAIAAAACAAACAvwAAAEAAAIA/AACAPwAAAIAAAAAAAAAAgAAAAIAAAIA/AAAAgAAAAAAAAAAAAAAAgAAAgD8AAACAAAAAgAAAAMAAAABAAACAPw=="
+        }
+    ]
+}
