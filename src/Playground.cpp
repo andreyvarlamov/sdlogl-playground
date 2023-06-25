@@ -47,16 +47,26 @@ struct Mesh
     u32 normalMapID;
 };
 
-struct SkinnedMesh
+#define MAX_BONE_DEPTH 16
+struct Bone
 {
-    u32 vao;
-    u32 indexCount;
+    std::string name;
+    i32 pathToRoot[MAX_BONE_DEPTH];
+    i32 pathNodes;
+    glm::mat4 transformToParent;
+    glm::mat4 inverseBindTransform;
+};
+
+struct SkinnedModel
+{
+    std::vector<Mesh> meshes;
+    std::vector<Bone> bones;
 };
 
 std::string readFile(const char *path);
 u32 loadTexture(const char* path);
 std::vector<Mesh> loadModel(const char *path);
-std::vector<SkinnedMesh> debugModelGLTF(const char *path);
+SkinnedModel debugModelGLTF(const char *path);
 glm::vec3 calculateTangentForTriangle(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 void generateTriangleVertexData(f32 *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 void generatePlaneVertexData(f32 *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
@@ -165,7 +175,10 @@ int main(int argc, char *argv[])
 
                 // Load models
                 // -----------
-                std::vector<SkinnedMesh> animtestMeshes = debugModelGLTF("resources/models/animtest/bonetree00.gltf");
+                SkinnedModel atlbetaModel = debugModelGLTF("resources/models/animtest/atlbeta00.gltf");
+                i32 selectedBone = 0;
+                bool incBoneButtonPressed = false;
+                bool decBoneButtonPressed = false;
                 //std::vector<Mesh> snowmanMeshes = loadModel("resources/models/snowman/snowman.objm");
                 //std::vector<Mesh> containerMeshes = loadModel("resources/models/container/container.obj");
 
@@ -231,6 +244,34 @@ int main(int argc, char *argv[])
                     else if (!currentKeyStates[SDL_SCANCODE_GRAVE])
                     {
                         CameraFPSModeButtonPressed = false;
+                    }
+                    if (currentKeyStates[SDL_SCANCODE_LEFT] && !decBoneButtonPressed)
+                    {
+                        --selectedBone;
+                        if (selectedBone < 0)
+                        {
+                            selectedBone = (i32) atlbetaModel.bones.size();
+                        }
+                        std::cout << ((selectedBone == 0) ? "None" : atlbetaModel.bones[selectedBone - 1].name) << '\n';
+                        decBoneButtonPressed = !decBoneButtonPressed;
+                    }
+                    else if (!currentKeyStates[SDL_SCANCODE_LEFT])
+                    {
+                        decBoneButtonPressed = false;
+                    }
+                    if (currentKeyStates[SDL_SCANCODE_RIGHT] && !incBoneButtonPressed)
+                    {
+                        ++selectedBone;
+                        if (selectedBone > (i32) atlbetaModel.bones.size())
+                        {
+                            selectedBone = 0;
+                        }
+                        std::cout << ((selectedBone == 0) ? "None" : atlbetaModel.bones[selectedBone - 1].name) << '\n';
+                        incBoneButtonPressed = !incBoneButtonPressed;
+                    }
+                    else if (!currentKeyStates[SDL_SCANCODE_RIGHT])
+                    {
+                        incBoneButtonPressed = false;
                     }
                     i32 mouseDeltaX, mouseDeltaY;
                     u32 mouseButtons = SDL_GetRelativeMouseState(&mouseDeltaX, &mouseDeltaY);
@@ -465,12 +506,13 @@ int main(int argc, char *argv[])
                     glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
                     model = glm::mat4(1.0f);
                     model = glm::translate(model, glm::vec3(0.0f, 0.0f, 5.0f));
-                    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                    model = glm::scale(model, glm::vec3(0.5f));
+                    model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    model = glm::scale(model, glm::vec3(1.0f));
                     glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                    for (u32 animtestMeshIndex = 0; animtestMeshIndex < animtestMeshes.size(); ++animtestMeshIndex)
+                    glUniform1i(glGetUniformLocation(debugSkeletalShader, "selectedBone"), selectedBone);
+                    for (u32 atlbetaMeshIndex = 0; atlbetaMeshIndex < atlbetaModel.meshes.size(); ++atlbetaMeshIndex)
                     {
-                        SkinnedMesh mesh = animtestMeshes[animtestMeshIndex];
+                        Mesh mesh = atlbetaModel.meshes[atlbetaMeshIndex];
                         glBindVertexArray(mesh.vao);
                         glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
                         glBindVertexArray(0);
@@ -571,22 +613,7 @@ u32 loadTexture(const char* path)
     }
 }
 
-struct VertexBoneInfo
-{
-    i32 boneId[4];
-    f32 boneWeight[4];
-    size_t nextUnusedSlot;
-};
 
-#define MAX_BONE_DEPTH 16
-struct BoneInfo
-{
-    std::string name;
-    i32 pathToRoot[MAX_BONE_DEPTH];
-    i32 pathNodes;
-    glm::mat4 transformToParent;
-    glm::mat4 inverseBindTransform;
-};
 
 glm::mat4 assimpMatToGlmMat(aiMatrix4x4 assimpMat)
 {
@@ -600,11 +627,11 @@ glm::mat4 assimpMatToGlmMat(aiMatrix4x4 assimpMat)
     return result;
 }
 
-std::vector<SkinnedMesh> debugModelGLTF(const char *path)
+SkinnedModel debugModelGLTF(const char *path)
 {
     std::cout << "Loading model at: " << path << '\n';
 
-    std::vector<SkinnedMesh> meshes;
+    SkinnedModel model { };
 
     // Load assimp scene
     // -----------------
@@ -614,11 +641,11 @@ std::vector<SkinnedMesh> debugModelGLTF(const char *path)
                                               aiProcess_JoinIdenticalVertices |
                                               aiProcess_FlipUVs);
 
-    //if (!assimpScene || assimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !assimpScene->mRootNode)
-    //{
-    //    std::cerr << "ERROR::LOAD_MODEL::ASSIMP_READ_ERROR: " << " path: " << path << '\n' << aiGetErrorString() << '\n';
-    //    return meshes;
-    //}
+    if (!assimpScene || assimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !assimpScene->mRootNode)
+    {
+        std::cerr << "ERROR::LOAD_MODEL::ASSIMP_READ_ERROR: " << " path: " << path << '\n' << aiGetErrorString() << '\n';
+        return model;
+    }
 
     // Parse bone data
     // ---------------
@@ -639,30 +666,31 @@ std::vector<SkinnedMesh> debugModelGLTF(const char *path)
             hasArmature = true;
         }
 
-        for (u32 i = 0; i < frontNode->mNumChildren; ++i)
+        for (i32 i = 0; i < (i32) frontNode->mNumChildren; ++i)
         {
             nodeQueue.push(frontNode->mChildren[i]);
         }
     }
 
     // 2. Get bone tree and transform to parent data
-    std::vector<BoneInfo> bones { }; // Bone storage that will be used for rendering later
+    std::vector<Bone> bones { }; // Bone storage that will be used for rendering later
     if (hasArmature)
     {
-        u32 bonesParsed = 0;
+        i32 bonesParsed = 0;
         std::vector<aiNode *> nodes { }; // Temp aiNode storage in the same order as bones 
-        std::stack<u32> tempNodeStack { }; // Temp tree-DFS-stack that stores bone IDs for 'bones' and 'nodes' vectors
+        std::stack<i32> tempNodeStack { }; // Temp tree-DFS-stack that stores bone IDs for 'bones' and 'nodes' vectors
         bool isFirstIteration = true;
         while (isFirstIteration || !tempNodeStack.empty())
         {
             if (isFirstIteration)
             {
-                for (u32 i = 0; i < armatureNode->mNumChildren; ++i)
+
+                for (i32 i = 0; i < (i32) armatureNode->mNumChildren; ++i)
                 {
                     aiNode *rootBoneNode = armatureNode->mChildren[i];
                     nodes.push_back(rootBoneNode);
 
-                    BoneInfo rootBone { };
+                    Bone rootBone { };
                     rootBone.name = rootBoneNode->mName.C_Str();
                     rootBone.transformToParent = assimpMatToGlmMat(rootBoneNode->mTransformation);
                     bones.push_back(rootBone);
@@ -675,18 +703,18 @@ std::vector<SkinnedMesh> debugModelGLTF(const char *path)
             }
             else
             {
-                u32 parentIndex = tempNodeStack.top();
+                i32 parentIndex = tempNodeStack.top();
                 tempNodeStack.pop();
 
                 aiNode *parentNode = nodes[parentIndex];
-                BoneInfo *parentBone = &bones[parentIndex];
+                Bone *parentBone = &bones[parentIndex];
 
-                for (u32 i = 0; i < parentNode->mNumChildren; ++i)
+                for (i32 i = 0; i < (i32) parentNode->mNumChildren; ++i)
                 {
                     aiNode *childNode = parentNode->mChildren[i];
                     nodes.push_back(childNode);
 
-                    BoneInfo childBone { };
+                    Bone childBone { };
                     childBone.name = childNode->mName.C_Str();
                     memcpy(childBone.pathToRoot, parentBone->pathToRoot, parentBone->pathNodes * sizeof(i32));
                     childBone.pathNodes = parentBone->pathNodes;
@@ -705,11 +733,11 @@ std::vector<SkinnedMesh> debugModelGLTF(const char *path)
 
         std::cout << "Armature found. " << bones.size() << " bones:\n";
 
-        for (u32 i = 0; i < bones.size(); ++i)
+        for (i32 i = 0; i < bones.size(); ++i)
         {
             std::cout << "Bone #" << i << "/" << bones.size() << ": " << bones[i].name << ". Path to root: ";
 
-            for (u32 pathIndex = 0; pathIndex < bones[i].pathNodes; ++pathIndex)
+            for (i32 pathIndex = 0; pathIndex < bones[i].pathNodes; ++pathIndex)
             {
                 std::cout << bones[i].pathToRoot[pathIndex];
 
@@ -727,61 +755,77 @@ std::vector<SkinnedMesh> debugModelGLTF(const char *path)
         std::cout << "Not found.\n";
     }
 
+    model.bones = bones;
+
     std::cout << '\n';
 
-    for (u32 meshIndex = 0; meshIndex < assimpScene->mNumMeshes; ++meshIndex)
+    for (i32 meshIndex = 0; meshIndex < (i32) assimpScene->mNumMeshes; ++meshIndex)
     {
         aiMesh *assimpMesh = assimpScene->mMeshes[meshIndex];
         std::cout << "\nLoading mesh #" << meshIndex << "/" << assimpScene->mNumMeshes << " " << assimpMesh->mName.C_Str() << '\n';
         
-        u32 vertexCount = assimpMesh->mNumVertices;
-        u32 faceCount = assimpMesh->mNumFaces;
-        u32 indexCount = assimpMesh->mNumFaces * 3;
-        u32 boneCount = assimpMesh->mNumBones;
+        i32 vertexCount = assimpMesh->mNumVertices;
+        i32 faceCount = assimpMesh->mNumFaces;
+        i32 indexCount = assimpMesh->mNumFaces * 3;
+        i32 boneCount = assimpMesh->mNumBones;
         std::cout << " Vertices: " << vertexCount << " Faces: " << faceCount << " Indices: " << indexCount << " Bones: " << boneCount << '\n';
         
+        struct VertexBoneInfo
+        {
+            i32 boneID[4];
+            f32 boneWeight[4];
+            i32 nextUnusedSlot;
+        };
+
         VertexBoneInfo *vertexBones = (VertexBoneInfo *)calloc(1, vertexCount * sizeof(VertexBoneInfo));
 
-        std::cout << "\n  Bones:\n";
-        for (u32 boneIndex = 0; boneIndex < boneCount; ++boneIndex)
+        //std::cout << "\n  Bones:\n";
+        for (i32 boneIndex = 0; boneIndex < boneCount; ++boneIndex)
         {
             aiBone *assimpBone = assimpMesh->mBones[boneIndex];
-            std::cout << "  Bone #" << boneIndex + 1 << "/" << boneCount << " " << assimpBone->mName.C_Str() << '\n';
+            i32 boneID;
+            for (i32 i = 0; i < bones.size(); ++i)
+            {
+                if (strcmp(bones[i].name.c_str(), assimpBone->mName.C_Str()) == 0)
+                {
+                    boneID = i + 1;
+                    break;
+                }
+            }
+            //std::cout << "  Bone #" << boneIndex + 1 << "/" << boneCount << " " << assimpBone->mName.C_Str() << " -> BoneID: " << boneID << '\n';
 
-            int weightCount = assimpBone->mNumWeights;
-            std::cout << "   Vertices affected: " << weightCount << '\n';
+            i32 weightCount = assimpBone->mNumWeights;
+            //std::cout << "   Vertices affected: " << weightCount << '\n';
 
-            for (u32 weightIndex = 0; weightIndex < weightCount; ++weightIndex)
+            for (i32 weightIndex = 0; weightIndex < weightCount; ++weightIndex)
             {
                 aiVertexWeight assimpVertexWeight = assimpBone->mWeights[weightIndex];
-                //std::cout << "   Weight #" << weightIndex << "/" << weightCount << " vertex ID: " << assimpVertexWeight.mVertexId << " weight: " << assimpVertexWeight.mWeight << '\n';
+                if (assimpVertexWeight.mWeight > 0.0f)
+                {
+                    //std::cout << "   Weight #" << weightIndex << "/" << weightCount << " vertex ID: " << assimpVertexWeight.mVertexId << " weight: " << assimpVertexWeight.mWeight << '\n';
 
-                VertexBoneInfo *vertexBone = &vertexBones[assimpVertexWeight.mVertexId];
-                if (vertexBone->nextUnusedSlot < 4)
-                {
-                    vertexBone->boneId[vertexBone->nextUnusedSlot] = boneIndex + 1;
-                    vertexBone->boneWeight[vertexBone->nextUnusedSlot++] = assimpVertexWeight.mWeight;
-                }
-                else
-                {
-                    std::cerr << "ERROR::LOAD_GLTF::MAX_BONE_PER_VERTEX_EXCEEDED" << '\n';
+                    VertexBoneInfo *vertexBone = &vertexBones[assimpVertexWeight.mVertexId];
+                    if (vertexBone->nextUnusedSlot < 4)
+                    {
+                        vertexBone->boneID[vertexBone->nextUnusedSlot] = boneID;
+                        vertexBone->boneWeight[vertexBone->nextUnusedSlot++] = assimpVertexWeight.mWeight;
+                    }
+                    else
+                    {
+                        std::cerr << "ERROR::LOAD_GLTF::MAX_BONE_PER_VERTEX_EXCEEDED" << '\n';
+                    }
+
                 }
             }
 
-            // Inverse Bind Matrix: from mesh space to bone's bind pose space
-            std::cout << "   Offset (Inverse-Bind) Matrix:\n";
-            aiMatrix4x4 mat = assimpBone->mOffsetMatrix;
-            std::cout << "    " << mat.a1 << ", " << mat.a2 << ", " << mat.a3 << ", " << mat.a4 << '\n';
-            std::cout << "    " << mat.b1 << ", " << mat.b2 << ", " << mat.b3 << ", " << mat.b4 << '\n';
-            std::cout << "    " << mat.c1 << ", " << mat.c2 << ", " << mat.c3 << ", " << mat.c4 << '\n';
-            std::cout << "    " << mat.d1 << ", " << mat.d2 << ", " << mat.d3 << ", " << mat.d4 << '\n';
+            bones[boneID - 1].inverseBindTransform = assimpMatToGlmMat(assimpBone->mOffsetMatrix);
         }
 
         // Position + 4 bone ids + 4 bone weights
         f32 *meshVertexData = (f32 *)calloc(1, 11 * vertexCount * sizeof(f32));
 
         //std::cout << "\n  Vertices:\n";
-        for (u32 vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
+        for (i32 vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
         {
             aiVector3D vertex = assimpMesh->mVertices[vertexIndex];
             //std::cout << "  Vertex #" << vertexIndex << "/" << vertexCount << " " << vertex.x << ", " << vertex.y << ", " << vertex.z << '\n';
@@ -792,10 +836,10 @@ std::vector<SkinnedMesh> debugModelGLTF(const char *path)
             meshVertexDataCursor[1]  = vertex.y;
             meshVertexDataCursor[2]  = vertex.z;
                                      
-            meshVertexDataCursor[3]  = *((f32 *)&vertexBones[vertexIndex].boneId[0]);
-            meshVertexDataCursor[4]  = *((f32 *)&vertexBones[vertexIndex].boneId[1]);
-            meshVertexDataCursor[5]  = *((f32 *)&vertexBones[vertexIndex].boneId[2]);
-            meshVertexDataCursor[6]  = *((f32 *)&vertexBones[vertexIndex].boneId[3]);
+            meshVertexDataCursor[3]  = *((f32 *)&vertexBones[vertexIndex].boneID[0]);
+            meshVertexDataCursor[4]  = *((f32 *)&vertexBones[vertexIndex].boneID[1]);
+            meshVertexDataCursor[5]  = *((f32 *)&vertexBones[vertexIndex].boneID[2]);
+            meshVertexDataCursor[6]  = *((f32 *)&vertexBones[vertexIndex].boneID[3]);
                                      
             meshVertexDataCursor[7]  = vertexBones[vertexIndex].boneWeight[0];
             meshVertexDataCursor[8]  = vertexBones[vertexIndex].boneWeight[1];
@@ -807,7 +851,7 @@ std::vector<SkinnedMesh> debugModelGLTF(const char *path)
         
         //std::cout << "\n  Faces:\n";
         u32 *meshIndicesCursor = meshIndices;
-        for (u32 faceIndex = 0; faceIndex < faceCount; ++faceIndex)
+        for (i32 faceIndex = 0; faceIndex < faceCount; ++faceIndex)
         {
             aiFace assimpFace = assimpMesh->mFaces[faceIndex];
             //std::cout << "  Face #" << faceIndex << "/" << faceCount << " Indices: " << assimpFace.mIndices[0] << ", " << assimpFace.mIndices[1] << ", " << assimpFace.mIndices[2] << '\n';
@@ -818,16 +862,16 @@ std::vector<SkinnedMesh> debugModelGLTF(const char *path)
             }
         }
 
-        SkinnedMesh mesh;
+        Mesh mesh;
         mesh.vao = prepareSkinnedMeshVAO(meshVertexData, 11 * vertexCount, meshIndices, indexCount);
         mesh.indexCount = indexCount;
 
-        meshes.push_back(mesh);
+        model.meshes.push_back(mesh);
     }
 
     aiReleaseImport(assimpScene);
 
-    return meshes;
+    return model;
 }
 
 std::vector<Mesh> loadModel(const char *path)
@@ -856,11 +900,11 @@ std::vector<Mesh> loadModel(const char *path)
         aiMesh *assimpMesh = assimpScene->mMeshes[meshIndex];
 
         f32 *meshVertexData;
-        size_t meshVertexFloatCount;
+        i32 meshVertexFloatCount;
         u32 *meshIndices;
-        size_t meshIndexCount;
+        i32 meshIndexCount;
         // Position + Normal + UVs + Tangent + Bitangent
-        size_t perVertexFloatCount = (3 + 3 + 2 + 3 + 3);
+        i32 perVertexFloatCount = (3 + 3 + 2 + 3 + 3);
         u32 assimpVertexCount = assimpMesh->mNumVertices;
         meshVertexFloatCount = perVertexFloatCount * assimpVertexCount;
         meshVertexData = (f32 *)calloc(1, meshVertexFloatCount * sizeof(f32));
@@ -1222,7 +1266,7 @@ u32 prepareMeshVAO(f32 *vertexData, u32 vertexAttribCount, u32 *indices, u32 ind
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount * sizeof(u32), indices, GL_STATIC_DRAW);
 
     // Position + Normal + UVs + Tangent + Bitangent
-    size_t vertexSize = (3 + 3 + 2 + 3 + 3) * sizeof(f32);
+    i32 vertexSize = (3 + 3 + 2 + 3 + 3) * sizeof(f32);
 
     // Position
     glEnableVertexAttribArray(0);
@@ -1261,14 +1305,14 @@ u32 prepareSkinnedMeshVAO(f32 *vertexData, u32 vertexAttribCount, u32 *indices, 
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount * sizeof(u32), indices, GL_STATIC_DRAW);
 
     // Position + 4 bone ids + 4 bone weights
-    size_t vertexSize = 11 * sizeof(f32);
+    i32 vertexSize = 11 * sizeof(f32);
 
     // Position
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *)0);
     // Bone IDs
     glEnableVertexAttribArray(1);
-    glVertexAttribIPointer(1, 4, GL_UNSIGNED_INT, vertexSize, (void *)(3 * sizeof(f32)));
+    glVertexAttribIPointer(1, 4, GL_INT, vertexSize, (void *)(3 * sizeof(f32)));
     // Bone weights
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, vertexSize, (void *)(7 * sizeof(f32)));

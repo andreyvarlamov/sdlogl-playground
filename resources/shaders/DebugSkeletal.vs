@@ -9,13 +9,15 @@ uniform mat4 projection;
 uniform mat4 view;
 uniform mat4 model;
 
+uniform int selectedBone;
+
 void main()
 {
     gl_Position = projection * view * model * vec4(aPosition, 1.0f);
 
     for (int i = 0; i < 4; ++i)
     {
-        if (aBoneIDs[i] == 3)
+        if (aBoneIDs[i] == selectedBone)
         {
             BoneInfluence = aBoneWeights[i];
         }
