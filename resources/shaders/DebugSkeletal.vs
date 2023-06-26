@@ -11,15 +11,20 @@ uniform mat4 model;
 
 uniform int selectedBone;
 
+uniform mat4 boneTransforms[10];
+
 void main()
 {
-    gl_Position = projection * view * model * vec4(aPosition, 1.0f);
-
+    mat4 boneTransform = mat4(0.0);
     for (int i = 0; i < 4; ++i)
     {
+        boneTransform += boneTransforms[aBoneIDs[i]] * aBoneWeights[i];
+
         if (aBoneIDs[i] == selectedBone)
         {
             BoneInfluence = aBoneWeights[i];
         }
     }
+ 
+    gl_Position = projection * view * model * boneTransform * vec4(aPosition, 1.0f);
 }

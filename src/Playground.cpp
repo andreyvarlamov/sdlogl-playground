@@ -4,6 +4,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include <glm/gtc/quaternion.hpp>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 #include <assimp/cimport.h>
@@ -47,6 +48,24 @@ struct Mesh
     u32 normalMapID;
 };
 
+struct PositionKey
+{
+    f32 time;
+    glm::vec3 position;
+};
+
+struct ScalingKey
+{
+    f32 time;
+    glm::vec3 scale;
+};
+
+struct RotationKey
+{
+    f32 time;
+    glm::quat rotation;
+};
+
 #define MAX_BONE_DEPTH 16
 struct Bone
 {
@@ -55,12 +74,24 @@ struct Bone
     i32 pathNodes;
     glm::mat4 transformToParent;
     glm::mat4 inverseBindTransform;
+
+    std::vector<PositionKey> positionKeys;
+    std::vector<ScalingKey> scalingKeys;
+    std::vector<RotationKey> rotationKeys;
+};
+
+struct AnimationData
+{
+    f32 ticksDuration;
+    f32 ticksPerSecond;
 };
 
 struct SkinnedModel
 {
     std::vector<Mesh> meshes;
     std::vector<Bone> bones;
+
+    AnimationData animation;
 };
 
 std::string readFile(const char *path);
@@ -175,7 +206,7 @@ int main(int argc, char *argv[])
 
                 // Load models
                 // -----------
-                SkinnedModel atlbetaModel = debugModelGLTF("resources/models/animtest/atlbeta00.gltf");
+                SkinnedModel atlbetaModel = debugModelGLTF("resources/models/animtest/atlbeta02.gltf");
                 i32 selectedBone = 0;
                 bool incBoneButtonPressed = false;
                 bool decBoneButtonPressed = false;
@@ -673,7 +704,6 @@ SkinnedModel debugModelGLTF(const char *path)
     }
 
     // 2. Get bone tree and transform to parent data
-    std::vector<Bone> bones { }; // Bone storage that will be used for rendering later
     if (hasArmature)
     {
         i32 bonesParsed = 0;
@@ -693,7 +723,7 @@ SkinnedModel debugModelGLTF(const char *path)
                     Bone rootBone { };
                     rootBone.name = rootBoneNode->mName.C_Str();
                     rootBone.transformToParent = assimpMatToGlmMat(rootBoneNode->mTransformation);
-                    bones.push_back(rootBone);
+                    model.bones.push_back(rootBone);
 
                     tempNodeStack.push(bonesParsed); // bonesParsed acting as ID of the bone that was just added
                     ++bonesParsed;
@@ -707,7 +737,7 @@ SkinnedModel debugModelGLTF(const char *path)
                 tempNodeStack.pop();
 
                 aiNode *parentNode = nodes[parentIndex];
-                Bone *parentBone = &bones[parentIndex];
+                Bone *parentBone = &model.bones[parentIndex];
 
                 for (i32 i = 0; i < (i32) parentNode->mNumChildren; ++i)
                 {
@@ -721,9 +751,9 @@ SkinnedModel debugModelGLTF(const char *path)
                     childBone.pathToRoot[childBone.pathNodes] = parentIndex;
                     ++childBone.pathNodes;
                     childBone.transformToParent = assimpMatToGlmMat(childNode->mTransformation);
-                    bones.push_back(childBone);
+                    model.bones.push_back(childBone);
                     // reassign because push back could've invalidated that pointer
-                    parentBone = &bones[parentIndex];
+                    parentBone = &model.bones[parentIndex];
 
                     tempNodeStack.push(bonesParsed);
                     ++bonesParsed;
@@ -731,17 +761,17 @@ SkinnedModel debugModelGLTF(const char *path)
             }
         }
 
-        std::cout << "Armature found. " << bones.size() << " bones:\n";
+        std::cout << "Armature found. " << model.bones.size() << " bones:\n";
 
-        for (i32 i = 0; i < bones.size(); ++i)
+        for (i32 i = 0; i < model.bones.size(); ++i)
         {
-            std::cout << "Bone #" << i << "/" << bones.size() << ": " << bones[i].name << ". Path to root: ";
+            std::cout << "Bone #" << i << "/" << model.bones.size() << ": " << model.bones[i].name << ". Path to root: ";
 
-            for (i32 pathIndex = 0; pathIndex < bones[i].pathNodes; ++pathIndex)
+            for (i32 pathIndex = 0; pathIndex < model.bones[i].pathNodes; ++pathIndex)
             {
-                std::cout << bones[i].pathToRoot[pathIndex];
+                std::cout << model.bones[i].pathToRoot[pathIndex];
 
-                if (pathIndex != bones[i].pathNodes - 1)
+                if (pathIndex != model.bones[i].pathNodes - 1)
                 {
                     std::cout << ", ";
                 }
@@ -755,14 +785,12 @@ SkinnedModel debugModelGLTF(const char *path)
         std::cout << "Not found.\n";
     }
 
-    model.bones = bones;
-
     std::cout << '\n';
 
     for (i32 meshIndex = 0; meshIndex < (i32) assimpScene->mNumMeshes; ++meshIndex)
     {
         aiMesh *assimpMesh = assimpScene->mMeshes[meshIndex];
-        std::cout << "\nLoading mesh #" << meshIndex << "/" << assimpScene->mNumMeshes << " " << assimpMesh->mName.C_Str() << '\n';
+        std::cout << "Loading mesh #" << meshIndex << "/" << assimpScene->mNumMeshes << " " << assimpMesh->mName.C_Str() << '\n';
         
         i32 vertexCount = assimpMesh->mNumVertices;
         i32 faceCount = assimpMesh->mNumFaces;
@@ -784,9 +812,9 @@ SkinnedModel debugModelGLTF(const char *path)
         {
             aiBone *assimpBone = assimpMesh->mBones[boneIndex];
             i32 boneID;
-            for (i32 i = 0; i < bones.size(); ++i)
+            for (i32 i = 0; i < model.bones.size(); ++i)
             {
-                if (strcmp(bones[i].name.c_str(), assimpBone->mName.C_Str()) == 0)
+                if (strcmp(model.bones[i].name.c_str(), assimpBone->mName.C_Str()) == 0)
                 {
                     boneID = i + 1;
                     break;
@@ -818,7 +846,7 @@ SkinnedModel debugModelGLTF(const char *path)
                 }
             }
 
-            bones[boneID - 1].inverseBindTransform = assimpMatToGlmMat(assimpBone->mOffsetMatrix);
+            model.bones[boneID - 1].inverseBindTransform = assimpMatToGlmMat(assimpBone->mOffsetMatrix);
         }
 
         // Position + 4 bone ids + 4 bone weights
@@ -867,6 +895,76 @@ SkinnedModel debugModelGLTF(const char *path)
         mesh.indexCount = indexCount;
 
         model.meshes.push_back(mesh);
+    }
+
+    if (assimpScene->mNumAnimations > 0)
+    {
+        aiAnimation *animation = assimpScene->mAnimations[0];
+        i32 channelCount = (i32) animation->mNumChannels;
+        std::cout << "\nFound animation: " << animation->mName.C_Str() << ". " << channelCount << " channels" << '\n';
+
+        model.animation.ticksDuration = (f32) animation->mDuration;
+        model.animation.ticksPerSecond = (f32) animation->mTicksPerSecond;
+
+        for (i32 channelIndex = 0; channelIndex < channelCount; ++channelIndex)
+        {
+            aiNodeAnim *channel = animation->mChannels[channelIndex];
+
+            Bone *bone = 0;
+            i32 boneID = 0;
+
+            for (i32 boneIndex = 0; boneIndex < model.bones.size(); ++boneIndex)
+            {
+                if (strcmp(model.bones[boneIndex].name.c_str(), channel->mNodeName.C_Str()) == 0)
+                {
+                    bone = &model.bones[boneIndex];
+                    boneID = boneIndex + 1;
+                }
+            }
+
+            if (bone)
+            {
+                i32 positionKeyCount = channel->mNumPositionKeys;
+                i32 scalingKeyCount = channel->mNumScalingKeys;
+                i32 rotationKeyCount = channel->mNumRotationKeys;
+
+                std::cout << "  Channel #" << channelIndex << "/" << channelCount 
+                    << " for bone " << bone->name << "(" << boneID << "). " 
+                    << "Position keys: " << positionKeyCount 
+                    << "; scaling keys: " <<  scalingKeyCount
+                    << "; rotation keys: " << rotationKeyCount << '\n';
+
+                bone->positionKeys.resize(positionKeyCount);
+                for (i32 i = 0; i < positionKeyCount; ++i)
+                {
+                    aiVectorKey *assimpPos = &channel->mPositionKeys[i];
+                    PositionKey positionKey { };
+                    positionKey.time = (f32) assimpPos->mTime;
+                    positionKey.position = glm::vec3(assimpPos->mValue.x, assimpPos->mValue.y, assimpPos->mValue.z);
+                    bone->positionKeys[i] = positionKey;
+                }
+
+                bone->scalingKeys.resize(scalingKeyCount);
+                for (i32 i = 0; i < scalingKeyCount; ++i)
+                {
+                    aiVectorKey *assimpScale = &channel->mScalingKeys[i];
+                    ScalingKey scalingKey { };
+                    scalingKey.time = (f32) assimpScale->mTime;
+                    scalingKey.scale = glm::vec3(assimpScale->mValue.x, assimpScale->mValue.y, assimpScale->mValue.z);
+                    bone->scalingKeys[i] = scalingKey;
+                }
+
+                bone->rotationKeys.resize(rotationKeyCount);
+                for (i32 i = 0; i < rotationKeyCount; ++i)
+                {
+                    aiQuatKey *assimpRotation = &channel->mRotationKeys[i];
+                    RotationKey rotationKey { };
+                    rotationKey.time = (f32) assimpRotation->mTime;
+                    rotationKey.rotation = glm::quat(assimpRotation->mValue.w, assimpRotation->mValue.x, assimpRotation->mValue.y, assimpRotation->mValue.z);
+                    bone->rotationKeys[i] = rotationKey;
+                }
+            }
+        }
     }
 
     aiReleaseImport(assimpScene);
