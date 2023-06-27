@@ -208,7 +208,7 @@ int main(int argc, char *argv[])
 
                 // Load models
                 // -----------
-                SkinnedModel atlbetaModel = debugModelGLTF("resources/models/animtest/atlbeta02.gltf");
+                SkinnedModel atlbetaModel = debugModelGLTF("resources/models/animtest/atlbeta08.gltf");
                 i32 selectedBone = 0;
                 bool incBoneButtonPressed = false;
                 bool decBoneButtonPressed = false;
@@ -550,6 +550,8 @@ int main(int argc, char *argv[])
                         atlbetaModel.animation.currentTicks -= atlbetaModel.animation.ticksDuration;
                     }
 
+                    //std::cout << atlbetaModel.animation.currentTicks << '\n';
+
                     for (i32 atlbetaBoneIndex = 0; atlbetaBoneIndex < (i32) atlbetaModel.bones.size(); ++atlbetaBoneIndex)
                     //for (i32 atlbetaBoneIndex = 7; atlbetaBoneIndex < 8; ++atlbetaBoneIndex)
                     {
@@ -589,9 +591,9 @@ int main(int argc, char *argv[])
                                 f32 timeAfterPreviousFrame = atlbetaModel.animation.currentTicks - bone.rotationKeys[i].time;
                                 f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
 
-                                glm::quat interpolatedRotation = 
-                                    (bone.rotationKeys[i].rotation * (1 - percentNextFrame) +
-                                     bone.rotationKeys[i + 1].rotation * percentNextFrame);
+                                glm::quat interpolatedRotation = glm::slerp(bone.rotationKeys[i].rotation,
+                                                                            bone.rotationKeys[i + 1].rotation,
+                                                                            percentNextFrame);
 
                                 rotationTransform = glm::mat4_cast(interpolatedRotation);
                                 break;
@@ -652,9 +654,9 @@ int main(int argc, char *argv[])
                                     f32 timeAfterPreviousFrame = atlbetaModel.animation.currentTicks - parentBone.rotationKeys[i].time;
                                     f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
 
-                                    glm::quat interpolatedRotation = 
-                                        (parentBone.rotationKeys[i].rotation * (1 - percentNextFrame) +
-                                         parentBone.rotationKeys[i + 1].rotation * percentNextFrame);
+                                    glm::quat interpolatedRotation = glm::slerp(parentBone.rotationKeys[i].rotation,
+                                                                                parentBone.rotationKeys[i + 1].rotation,
+                                                                                percentNextFrame);
 
                                     parentRotationTransform = glm::mat4_cast(interpolatedRotation);
                                     break;
