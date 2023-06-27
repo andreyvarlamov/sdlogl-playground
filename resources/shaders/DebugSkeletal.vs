@@ -16,15 +16,25 @@ uniform mat4 boneTransforms[10];
 void main()
 {
     mat4 boneTransform = mat4(0.0);
+    bool boneTransformToApply = false;
     for (int i = 0; i < 4; ++i)
     {
-        boneTransform += boneTransforms[aBoneIDs[i]] * aBoneWeights[i];
+        if (aBoneIDs[i] > 0)
+        {
+            boneTransform += boneTransforms[aBoneIDs[i] - 1] * aBoneWeights[i];
+            boneTransformToApply = true;
+        }
 
         if (aBoneIDs[i] == selectedBone)
         {
             BoneInfluence = aBoneWeights[i];
         }
     }
+
+    if (!boneTransformToApply)
+    {
+        boneTransform = mat4(1.0);
+    }
  
-    gl_Position = projection * view * model * boneTransform * vec4(aPosition, 1.0f);
+    gl_Position = projection * view * model * boneTransform * vec4(aPosition, 1.0);
 }

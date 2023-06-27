@@ -84,6 +84,8 @@ struct AnimationData
 {
     f32 ticksDuration;
     f32 ticksPerSecond;
+
+    f32 currentTicks;
 };
 
 struct SkinnedModel
@@ -541,7 +543,154 @@ int main(int argc, char *argv[])
                     model = glm::scale(model, glm::vec3(1.0f));
                     glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     glUniform1i(glGetUniformLocation(debugSkeletalShader, "selectedBone"), selectedBone);
-                    for (u32 atlbetaMeshIndex = 0; atlbetaMeshIndex < atlbetaModel.meshes.size(); ++atlbetaMeshIndex)
+
+                    atlbetaModel.animation.currentTicks += deltaTime * atlbetaModel.animation.ticksPerSecond;
+                    if (atlbetaModel.animation.currentTicks > atlbetaModel.animation.ticksDuration)
+                    {
+                        atlbetaModel.animation.currentTicks -= atlbetaModel.animation.ticksDuration;
+                    }
+
+                    for (i32 atlbetaBoneIndex = 0; atlbetaBoneIndex < (i32) atlbetaModel.bones.size(); ++atlbetaBoneIndex)
+                    //for (i32 atlbetaBoneIndex = 7; atlbetaBoneIndex < 8; ++atlbetaBoneIndex)
+                    {
+                        Bone bone = atlbetaModel.bones[atlbetaBoneIndex];
+
+                        glm::mat4 boneTransform = bone.inverseBindTransform;
+
+                        //boneTransform = bone.transformToParent * boneTransform;
+
+                        glm::mat4 scalingTransform(1.0f);
+                        glm::mat4 rotationTransform(1.0f);
+                        glm::mat4 translationTransform(1.0f);
+
+                        for (i32 i = 0; i < (i32) bone.positionKeys.size() - 1; ++i)
+                        {
+                            if (atlbetaModel.animation.currentTicks > bone.positionKeys[i].time &&
+                                atlbetaModel.animation.currentTicks < bone.positionKeys[i + 1].time)
+                            {
+                                f32 timeBetweenFrames = bone.positionKeys[i + 1].time - bone.positionKeys[i].time;
+                                f32 timeAfterPreviousFrame = atlbetaModel.animation.currentTicks - bone.positionKeys[i].time;
+                                f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
+
+                                glm::vec3 interpolatedPosition = 
+                                    (bone.positionKeys[i].position * (1 - percentNextFrame) +
+                                     bone.positionKeys[i + 1].position * percentNextFrame);
+
+                                translationTransform = glm::translate(glm::mat4(1.0f), interpolatedPosition);
+                                break;
+                            }
+                        }
+                        for (i32 i = 0; i < (i32) bone.rotationKeys.size() - 1; ++i)
+                        {
+                            if (atlbetaModel.animation.currentTicks > bone.rotationKeys[i].time &&
+                                atlbetaModel.animation.currentTicks < bone.rotationKeys[i + 1].time)
+                            {
+                                f32 timeBetweenFrames = bone.rotationKeys[i + 1].time - bone.rotationKeys[i].time;
+                                f32 timeAfterPreviousFrame = atlbetaModel.animation.currentTicks - bone.rotationKeys[i].time;
+                                f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
+
+                                glm::quat interpolatedRotation = 
+                                    (bone.rotationKeys[i].rotation * (1 - percentNextFrame) +
+                                     bone.rotationKeys[i + 1].rotation * percentNextFrame);
+
+                                rotationTransform = glm::mat4_cast(interpolatedRotation);
+                                break;
+                            }
+                        }
+                        for (i32 i = 0; i < (i32) bone.scalingKeys.size() - 1; ++i)
+                        {
+                            if (atlbetaModel.animation.currentTicks > bone.scalingKeys[i].time &&
+                                atlbetaModel.animation.currentTicks < bone.scalingKeys[i + 1].time)
+                            {
+                                f32 timeBetweenFrames = bone.scalingKeys[i + 1].time - bone.scalingKeys[i].time;
+                                f32 timeAfterPreviousFrame = atlbetaModel.animation.currentTicks - bone.scalingKeys[i].time;
+                                f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
+
+                                glm::vec3 scale = 
+                                    (bone.scalingKeys[i].scale * (1 - percentNextFrame) +
+                                     bone.scalingKeys[i + 1].scale * percentNextFrame);
+
+                                scalingTransform = glm::scale(glm::mat4(1.0f), scale);
+                                break;
+                            }
+                        }
+
+                        boneTransform = translationTransform * rotationTransform * scalingTransform * boneTransform;
+
+                        for (i32 parentIndex = bone.pathNodes - 1; parentIndex >= 0; --parentIndex)
+                        {
+                            Bone parentBone = atlbetaModel.bones[bone.pathToRoot[parentIndex]];
+                            //boneTransform = parentBone.transformToParent * boneTransform;
+
+                            glm::mat4 parentScalingTransform(1.0f);
+                            glm::mat4 parentRotationTransform(1.0f);
+                            glm::mat4 parentTranslationTransform(1.0f);
+
+                            for (i32 i = 0; i < (i32) parentBone.positionKeys.size() - 1; ++i)
+                            {
+                                if (atlbetaModel.animation.currentTicks > parentBone.positionKeys[i].time &&
+                                    atlbetaModel.animation.currentTicks < parentBone.positionKeys[i + 1].time)
+                                {
+                                    f32 timeBetweenFrames = parentBone.positionKeys[i + 1].time - parentBone.positionKeys[i].time;
+                                    f32 timeAfterPreviousFrame = atlbetaModel.animation.currentTicks - parentBone.positionKeys[i].time;
+                                    f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
+
+                                    glm::vec3 interpolatedPosition = 
+                                        (parentBone.positionKeys[i].position * (1 - percentNextFrame) +
+                                         parentBone.positionKeys[i + 1].position * percentNextFrame);
+
+                                    parentTranslationTransform = glm::translate(glm::mat4(1.0f), interpolatedPosition);
+                                    break;
+                                }
+                            }
+                            for (i32 i = 0; i < (i32) parentBone.rotationKeys.size() - 1; ++i)
+                            {
+                                if (atlbetaModel.animation.currentTicks > parentBone.rotationKeys[i].time &&
+                                    atlbetaModel.animation.currentTicks < parentBone.rotationKeys[i + 1].time)
+                                {
+                                    f32 timeBetweenFrames = parentBone.rotationKeys[i + 1].time - parentBone.rotationKeys[i].time;
+                                    f32 timeAfterPreviousFrame = atlbetaModel.animation.currentTicks - parentBone.rotationKeys[i].time;
+                                    f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
+
+                                    glm::quat interpolatedRotation = 
+                                        (parentBone.rotationKeys[i].rotation * (1 - percentNextFrame) +
+                                         parentBone.rotationKeys[i + 1].rotation * percentNextFrame);
+
+                                    parentRotationTransform = glm::mat4_cast(interpolatedRotation);
+                                    break;
+                                }
+                            }
+                            for (i32 i = 0; i < (i32) parentBone.scalingKeys.size() - 1; ++i)
+                            {
+                                if (atlbetaModel.animation.currentTicks > parentBone.scalingKeys[i].time &&
+                                    atlbetaModel.animation.currentTicks < parentBone.scalingKeys[i + 1].time)
+                                {
+                                    f32 timeBetweenFrames = parentBone.scalingKeys[i + 1].time - parentBone.scalingKeys[i].time;
+                                    f32 timeAfterPreviousFrame = atlbetaModel.animation.currentTicks - parentBone.scalingKeys[i].time;
+                                    f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
+
+                                    glm::vec3 scale = 
+                                        (parentBone.scalingKeys[i].scale * (1 - percentNextFrame) +
+                                         parentBone.scalingKeys[i + 1].scale * percentNextFrame);
+
+                                    parentScalingTransform = glm::scale(glm::mat4(1.0f), scale);
+                                    break;
+                                }
+                            }
+
+                            boneTransform = parentTranslationTransform * parentRotationTransform * parentScalingTransform * boneTransform;
+                        }
+
+                        std::string location = "boneTransforms[" + std::to_string(atlbetaBoneIndex) + "]";
+                        glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, location.c_str()), 1, GL_FALSE, glm::value_ptr(boneTransform));
+                    }
+
+                    //Mesh mesh = atlbetaModel.meshes[3];
+                    //glBindVertexArray(mesh.vao);
+                    //glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
+                    //glBindVertexArray(0);
+
+                    for (i32 atlbetaMeshIndex = 0; atlbetaMeshIndex < (i32) atlbetaModel.meshes.size(); ++atlbetaMeshIndex)
                     {
                         Mesh mesh = atlbetaModel.meshes[atlbetaMeshIndex];
                         glBindVertexArray(mesh.vao);
@@ -650,10 +799,10 @@ glm::mat4 assimpMatToGlmMat(aiMatrix4x4 assimpMat)
 {
     glm::mat4 result { };
 
-    result[0][0] = assimpMat.a1; result[0][1] = assimpMat.a2; result[0][2] = assimpMat.a3; result[0][3] = assimpMat.a4;
-    result[1][0] = assimpMat.b1; result[1][1] = assimpMat.b2; result[1][2] = assimpMat.b3; result[1][3] = assimpMat.b4;
-    result[2][0] = assimpMat.c1; result[2][1] = assimpMat.c2; result[2][2] = assimpMat.c3; result[2][3] = assimpMat.c4;
-    result[3][0] = assimpMat.d1; result[3][1] = assimpMat.d2; result[3][2] = assimpMat.d3; result[3][3] = assimpMat.d4;
+    result[0][0] = assimpMat.a1; result[0][1] = assimpMat.b1; result[0][2] = assimpMat.c1; result[0][3] = assimpMat.d1;
+    result[1][0] = assimpMat.a2; result[1][1] = assimpMat.b2; result[1][2] = assimpMat.c2; result[1][3] = assimpMat.d2;
+    result[2][0] = assimpMat.a3; result[2][1] = assimpMat.b3; result[2][2] = assimpMat.c3; result[2][3] = assimpMat.d3;
+    result[3][0] = assimpMat.a4; result[3][1] = assimpMat.b4; result[3][2] = assimpMat.c4; result[3][3] = assimpMat.d4;
 
     return result;
 }
