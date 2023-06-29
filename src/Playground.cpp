@@ -139,7 +139,7 @@ int main(int argc, char *argv[])
 
                 // Load models
                 // -----------
-                SkinnedModel atlbetaModel = debugModelGLTF("resources/models/animtest/atlbeta09.gltf");
+                skinned_model AtlbetaModel = LoadSkinnedModel("resources/models/animtest/atlbeta09.gltf");
                 i32 selectedBone = 0;
                 bool incBoneButtonPressed = false;
                 bool decBoneButtonPressed = false;
@@ -209,41 +209,41 @@ int main(int argc, char *argv[])
                     {
                         CameraFPSModeButtonPressed = false;
                     }
-                    if (currentKeyStates[SDL_SCANCODE_LEFT] && !decBoneButtonPressed)
-                    {
-                        --selectedBone;
-                        if (selectedBone < 0)
-                        {
-                            selectedBone = (i32) atlbetaModel.bones.size();
-                        }
-                        std::cout << ((selectedBone == 0) ? "None" : atlbetaModel.bones[selectedBone - 1].name) << '\n';
-                        decBoneButtonPressed = !decBoneButtonPressed;
-                    }
-                    else if (!currentKeyStates[SDL_SCANCODE_LEFT])
-                    {
-                        decBoneButtonPressed = false;
-                    }
-                    if (currentKeyStates[SDL_SCANCODE_RIGHT] && !incBoneButtonPressed)
-                    {
-                        ++selectedBone;
-                        if (selectedBone > (i32) atlbetaModel.bones.size())
-                        {
-                            selectedBone = 0;
-                        }
-                        std::cout << ((selectedBone == 0) ? "None" : atlbetaModel.bones[selectedBone - 1].name) << '\n';
-                        incBoneButtonPressed = !incBoneButtonPressed;
-                    }
-                    else if (!currentKeyStates[SDL_SCANCODE_RIGHT])
-                    {
-                        incBoneButtonPressed = false;
-                    }
+                    //if (currentKeyStates[SDL_SCANCODE_LEFT] && !decBoneButtonPressed)
+                    //{
+                    //    --selectedBone;
+                    //    if (selectedBone < 0)
+                    //    {
+                    //        selectedBone = (i32) AtlbetaModel.Bones.size();
+                    //    }
+                    //    std::cout << ((selectedBone == 0) ? "None" : AtlbetaModel.Bones[selectedBone - 1].Name) << '\n';
+                    //    decBoneButtonPressed = !decBoneButtonPressed;
+                    //}
+                    //else if (!currentKeyStates[SDL_SCANCODE_LEFT])
+                    //{
+                    //    decBoneButtonPressed = false;
+                    //}
+                    //if (currentKeyStates[SDL_SCANCODE_RIGHT] && !incBoneButtonPressed)
+                    //{
+                    //    ++selectedBone;
+                    //    if (selectedBone > (i32) AtlbetaModel.Bones.size())
+                    //    {
+                    //        selectedBone = 0;
+                    //    }
+                    //    std::cout << ((selectedBone == 0) ? "None" : AtlbetaModel.Bones[selectedBone - 1].Name) << '\n';
+                    //    incBoneButtonPressed = !incBoneButtonPressed;
+                    //}
+                    //else if (!currentKeyStates[SDL_SCANCODE_RIGHT])
+                    //{
+                    //    incBoneButtonPressed = false;
+                    //}
                     if (currentKeyStates[SDL_SCANCODE_F] && !AnimationStartButtonPressed)
                     {
-                        atlbetaModel.animation.isRunning = !atlbetaModel.animation.isRunning;
-                        atlbetaModel.animation.isPaused = false;
-                        if (atlbetaModel.animation.isRunning)
+                        AtlbetaModel.Animation.isRunning = !AtlbetaModel.Animation.isRunning;
+                        AtlbetaModel.Animation.isPaused = false;
+                        if (AtlbetaModel.Animation.isRunning)
                         {
-                            atlbetaModel.animation.currentTicks = 0.0f;
+                            AtlbetaModel.Animation.currentTicks = 0.0f;
                         }
                         AnimationStartButtonPressed = !AnimationStartButtonPressed;
                     }
@@ -253,7 +253,7 @@ int main(int argc, char *argv[])
                     }
                     if (currentKeyStates[SDL_SCANCODE_G] && !AnimationLoopButtonPressed)
                     {
-                        atlbetaModel.animation.isLooped = !atlbetaModel.animation.isLooped;
+                        AtlbetaModel.Animation.isLooped = !AtlbetaModel.Animation.isLooped;
                         AnimationLoopButtonPressed = !AnimationLoopButtonPressed;
                     }
                     else if (!currentKeyStates[SDL_SCANCODE_G])
@@ -262,7 +262,7 @@ int main(int argc, char *argv[])
                     }
                     if (currentKeyStates[SDL_SCANCODE_H] && !AnimationPauseButtonPressed)
                     {
-                        atlbetaModel.animation.isPaused = !atlbetaModel.animation.isPaused;
+                        AtlbetaModel.Animation.isPaused = !AtlbetaModel.Animation.isPaused;
                         AnimationPauseButtonPressed = !AnimationPauseButtonPressed;
                     }
                     else if (!currentKeyStates[SDL_SCANCODE_H])
@@ -271,9 +271,9 @@ int main(int argc, char *argv[])
                     }
                     if (currentKeyStates[SDL_SCANCODE_J] && !AnimationRetriggerButtonPressed)
                     {
-                        atlbetaModel.animation.isRunning = true;
-                        atlbetaModel.animation.isPaused = false;
-                        atlbetaModel.animation.currentTicks = 0.0f;
+                        AtlbetaModel.Animation.isRunning = true;
+                        AtlbetaModel.Animation.isPaused = false;
+                        AtlbetaModel.Animation.currentTicks = 0.0f;
                         AnimationRetriggerButtonPressed = !AnimationRetriggerButtonPressed;
                     }
                     else if (!currentKeyStates[SDL_SCANCODE_J])
@@ -517,7 +517,7 @@ int main(int argc, char *argv[])
                     model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
                     model = glm::scale(model, glm::vec3(1.0f));
                     glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                    render(&atlbetaModel, debugSkeletalShader, deltaTime);
+                    Render(&AtlbetaModel, debugSkeletalShader, deltaTime);
 
                     // Swap buffer
                     // -----------
