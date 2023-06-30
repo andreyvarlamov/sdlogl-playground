@@ -35,6 +35,7 @@
     <None Include="README.md" />
     <None Include="resources\shaders\DebugSkeletal.fs" />
     <None Include="resources\shaders\DebugSkeletal.vs" />
+    <None Include=".editorconfig" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Common.h">

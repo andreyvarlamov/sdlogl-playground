@@ -209,77 +209,77 @@ int main(int argc, char *argv[])
                     {
                         CameraFPSModeButtonPressed = false;
                     }
-                    //if (currentKeyStates[SDL_SCANCODE_LEFT] && !decBoneButtonPressed)
-                    //{
-                    //    --selectedBone;
-                    //    if (selectedBone < 0)
-                    //    {
-                    //        selectedBone = (i32) AtlbetaModel.Bones.size();
-                    //    }
-                    //    std::cout << ((selectedBone == 0) ? "None" : AtlbetaModel.Bones[selectedBone - 1].Name) << '\n';
-                    //    decBoneButtonPressed = !decBoneButtonPressed;
-                    //}
-                    //else if (!currentKeyStates[SDL_SCANCODE_LEFT])
-                    //{
-                    //    decBoneButtonPressed = false;
-                    //}
-                    //if (currentKeyStates[SDL_SCANCODE_RIGHT] && !incBoneButtonPressed)
-                    //{
-                    //    ++selectedBone;
-                    //    if (selectedBone > (i32) AtlbetaModel.Bones.size())
-                    //    {
-                    //        selectedBone = 0;
-                    //    }
-                    //    std::cout << ((selectedBone == 0) ? "None" : AtlbetaModel.Bones[selectedBone - 1].Name) << '\n';
-                    //    incBoneButtonPressed = !incBoneButtonPressed;
-                    //}
-                    //else if (!currentKeyStates[SDL_SCANCODE_RIGHT])
-                    //{
-                    //    incBoneButtonPressed = false;
-                    //}
-                    if (currentKeyStates[SDL_SCANCODE_F] && !AnimationStartButtonPressed)
+                    if (currentKeyStates[SDL_SCANCODE_LEFT] && !decBoneButtonPressed)
                     {
-                        AtlbetaModel.Animation.isRunning = !AtlbetaModel.Animation.isRunning;
-                        AtlbetaModel.Animation.isPaused = false;
-                        if (AtlbetaModel.Animation.isRunning)
+                        --selectedBone;
+                        if (selectedBone < 0)
                         {
-                            AtlbetaModel.Animation.currentTicks = 0.0f;
+                            selectedBone = AtlbetaModel.BoneCount - 1;
                         }
-                        AnimationStartButtonPressed = !AnimationStartButtonPressed;
+                        std::cout << AtlbetaModel.Bones[selectedBone].Name << '\n';
+                        decBoneButtonPressed = !decBoneButtonPressed;
                     }
-                    else if (!currentKeyStates[SDL_SCANCODE_F])
+                    else if (!currentKeyStates[SDL_SCANCODE_LEFT])
                     {
-                        AnimationStartButtonPressed = false;
+                        decBoneButtonPressed = false;
                     }
-                    if (currentKeyStates[SDL_SCANCODE_G] && !AnimationLoopButtonPressed)
+                    if (currentKeyStates[SDL_SCANCODE_RIGHT] && !incBoneButtonPressed)
                     {
-                        AtlbetaModel.Animation.isLooped = !AtlbetaModel.Animation.isLooped;
-                        AnimationLoopButtonPressed = !AnimationLoopButtonPressed;
+                        ++selectedBone;
+                        if (selectedBone >= AtlbetaModel.BoneCount)
+                        {
+                            selectedBone = 0;
+                        }
+                        std::cout << AtlbetaModel.Bones[selectedBone].Name << '\n';
+                        incBoneButtonPressed = !incBoneButtonPressed;
                     }
-                    else if (!currentKeyStates[SDL_SCANCODE_G])
+                    else if (!currentKeyStates[SDL_SCANCODE_RIGHT])
                     {
-                        AnimationLoopButtonPressed = false;
+                        incBoneButtonPressed = false;
                     }
-                    if (currentKeyStates[SDL_SCANCODE_H] && !AnimationPauseButtonPressed)
-                    {
-                        AtlbetaModel.Animation.isPaused = !AtlbetaModel.Animation.isPaused;
-                        AnimationPauseButtonPressed = !AnimationPauseButtonPressed;
-                    }
-                    else if (!currentKeyStates[SDL_SCANCODE_H])
-                    {
-                        AnimationPauseButtonPressed = false;
-                    }
-                    if (currentKeyStates[SDL_SCANCODE_J] && !AnimationRetriggerButtonPressed)
-                    {
-                        AtlbetaModel.Animation.isRunning = true;
-                        AtlbetaModel.Animation.isPaused = false;
-                        AtlbetaModel.Animation.currentTicks = 0.0f;
-                        AnimationRetriggerButtonPressed = !AnimationRetriggerButtonPressed;
-                    }
-                    else if (!currentKeyStates[SDL_SCANCODE_J])
-                    {
-                        AnimationRetriggerButtonPressed = false;
-                    }
+                    //if (currentKeyStates[SDL_SCANCODE_F] && !AnimationStartButtonPressed)
+                    //{
+                    //    AtlbetaModel.Animation.isRunning = !AtlbetaModel.Animation.isRunning;
+                    //    AtlbetaModel.Animation.isPaused = false;
+                    //    if (AtlbetaModel.Animation.isRunning)
+                    //    {
+                    //        AtlbetaModel.Animation.currentTicks = 0.0f;
+                    //    }
+                    //    AnimationStartButtonPressed = !AnimationStartButtonPressed;
+                    //}
+                    //else if (!currentKeyStates[SDL_SCANCODE_F])
+                    //{
+                    //    AnimationStartButtonPressed = false;
+                    //}
+                    //if (currentKeyStates[SDL_SCANCODE_G] && !AnimationLoopButtonPressed)
+                    //{
+                    //    AtlbetaModel.Animation.isLooped = !AtlbetaModel.Animation.isLooped;
+                    //    AnimationLoopButtonPressed = !AnimationLoopButtonPressed;
+                    //}
+                    //else if (!currentKeyStates[SDL_SCANCODE_G])
+                    //{
+                    //    AnimationLoopButtonPressed = false;
+                    //}
+                    //if (currentKeyStates[SDL_SCANCODE_H] && !AnimationPauseButtonPressed)
+                    //{
+                    //    AtlbetaModel.Animation.isPaused = !AtlbetaModel.Animation.isPaused;
+                    //    AnimationPauseButtonPressed = !AnimationPauseButtonPressed;
+                    //}
+                    //else if (!currentKeyStates[SDL_SCANCODE_H])
+                    //{
+                    //    AnimationPauseButtonPressed = false;
+                    //}
+                    //if (currentKeyStates[SDL_SCANCODE_J] && !AnimationRetriggerButtonPressed)
+                    //{
+                    //    AtlbetaModel.Animation.isRunning = true;
+                    //    AtlbetaModel.Animation.isPaused = false;
+                    //    AtlbetaModel.Animation.currentTicks = 0.0f;
+                    //    AnimationRetriggerButtonPressed = !AnimationRetriggerButtonPressed;
+                    //}
+                    //else if (!currentKeyStates[SDL_SCANCODE_J])
+                    //{
+                    //    AnimationRetriggerButtonPressed = false;
+                    //}
                     i32 mouseDeltaX, mouseDeltaY;
                     u32 mouseButtons = SDL_GetRelativeMouseState(&mouseDeltaX, &mouseDeltaY);
                     // Process camera mouse control

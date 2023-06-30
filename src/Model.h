@@ -51,23 +51,38 @@ struct bone
     //std::vector<RotationKey> rotationKeys;
 };
 
+struct animation_key
+{
+    glm::vec3 Position;
+    glm::quat Rotation;
+    glm::vec3 Scale;
+};
+
 struct animation_data
 {
-    f32 ticksDuration;
-    f32 ticksPerSecond;
+    f32 TicksDuration;
+    f32 TicksPerSecond;
 
-    f32 currentTicks;
-    bool isRunning = true;
-    bool isPaused = false;
-    bool isLooped = true;
+    f32 CurrentTicks;
+    bool IsRunning = true;
+    bool IsPaused = false;
+    bool IsLooped = true;
+
+    i32 KeyCount;
+    i32 ChannelCount;
+    f32 *KeyTimes;
+    animation_key *Keys;
 };
 
 struct skinned_model
 {
-    std::vector<mesh> Meshes;
-    std::vector<bone> Bones;
+    i32 MeshCount;
+    mesh *Meshes;
 
-    animation_data Animation;
+    i32 BoneCount;
+    bone *Bones;
+
+    animation_data AnimationData;
 };
 
 struct vertex_data
@@ -104,10 +119,9 @@ struct mesh_internal_data
 
     i32 *Indices;
 };
-mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount);
-void FreeMeshInternalData(mesh_internal_data *MeshData);
 
-std::vector<mesh> loadModel(const char *Path);
+
+//std::vector<mesh> loadModel(const char *Path);
 skinned_model LoadSkinnedModel(const char *Path);
 void Render(skinned_model *Model, u32 Shader, f32 DeltaTime);
 

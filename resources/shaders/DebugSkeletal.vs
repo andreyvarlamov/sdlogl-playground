@@ -1,7 +1,11 @@
 #version 330 core
 layout (location = 0) in vec3 aPosition;
-layout (location = 1) in ivec4 aBoneIDs;
-layout (location = 2) in vec4 aBoneWeights;
+layout (location = 1) in vec2 aUV;
+layout (location = 2) in vec3 aNormals;
+layout (location = 3) in vec3 aTangents;
+layout (location = 4) in vec3 aBitangents;
+layout (location = 5) in ivec4 aBoneIDs;
+layout (location = 6) in vec4 aBoneWeights;
 
 out float BoneInfluence;
 
@@ -36,5 +40,6 @@ void main()
         boneTransform = mat4(1.0);
     }
  
-    gl_Position = projection * view * model * boneTransform * vec4(aPosition, 1.0);
+//    gl_Position = projection * view * model * boneTransform * vec4(aPosition, 1.0);
+    gl_Position = projection * view * model * vec4(aPosition, 1.0);
 }

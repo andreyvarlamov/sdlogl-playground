@@ -16,9 +16,13 @@
 
 #include "Util.h"
 
-glm::mat4 ASSIMP_Mat4ToGLM(aiMatrix4x4 assimpMat);
+glm::mat4 ASSIMP_Mat4ToGLM(aiMatrix4x4 AssimpMat);
+glm::vec3 ASSIMP_Vec3ToGLM(aiVector3D AssimpVector);
+glm::quat ASSIMP_QuatToGLM(aiQuaternion AssimpQuat);
 u32 prepareMeshVAO(f32 *vertexData, u32 vertexCount, u32 *indices, u32 indexCount);
-u32 prepareSkinnedMeshVAO(f32 *vertexData, u32 vertexCount, u32 *indices, u32 indexCount);
+void PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh);
+mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount);
+void FreeMeshInternalData(mesh_internal_data *MeshInternalData);
 
 void ASSIMP_ParseBonesHelper(aiNode *Node, bone **Bones, i32 *CurrentIndex, i32 BoneCount)
 {
@@ -26,7 +30,7 @@ void ASSIMP_ParseBonesHelper(aiNode *Node, bone **Bones, i32 *CurrentIndex, i32 
 
     i32 ParentIndex = *CurrentIndex;
 
-    for (i32 Index = 0; Index < (i32)Node->mNumChildren; ++Index)
+    for (i32 Index = 0; Index < (i32) Node->mNumChildren; ++Index)
     {
         aiNode *ChildNode = Node->mChildren[Index];
         ++(*CurrentIndex);
@@ -70,7 +74,7 @@ void ASSIMP_GetArmatureInfoHelper(aiNode *Node, aiNode **Out_ArmatureNode, i32 *
 
     std::cout << *Out_BoneCount << '\n';
 
-    for (i32 Index = 0; Index < (i32)Node->mNumChildren; ++Index)
+    for (i32 Index = 0; Index < (i32) Node->mNumChildren; ++Index)
     {
         ASSIMP_GetArmatureInfoHelper(Node->mChildren[Index], Out_ArmatureNode, Out_BoneCount);
     }
@@ -78,7 +82,9 @@ void ASSIMP_GetArmatureInfoHelper(aiNode *Node, aiNode **Out_ArmatureNode, i32 *
 
 void ASSIMP_GetArmatureInfo(aiNode *RootNode, aiNode **Out_ArmatureNode, i32 *Out_BoneCount)
 {
-    *Out_BoneCount = 0;
+    // Allocate for one extra bone, so the bone indexed 0 can count as no bone
+    // TODO: Deal with assimp's "neutral_bone" for some models
+    *Out_BoneCount = 1;
     *Out_ArmatureNode = 0;
 
     ASSIMP_GetArmatureInfoHelper(RootNode, Out_ArmatureNode, Out_BoneCount);
@@ -97,21 +103,21 @@ mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount)
                                             MAX_BONES_PER_VERTEX * sizeof(i32) +
                                             IndexCount * sizeof(i32));
 
-    u8 *Data = (u8 *)calloc(1, BytesToAllocate);
+    u8 *Data = (u8 *) calloc(1, BytesToAllocate);
 
     if (Data)
     {
         Result.Data = Data;
         Result.VertexCount = VertexCount;
         Result.IndexCount = IndexCount;
-        Result.Positions = (f32 *)(Data);
-        Result.UVs = (f32 *)(Result.Positions + VertexCount * POSITIONS_PER_VERTEX);
-        Result.Normals = (f32 *)(Result.UVs + VertexCount * UVS_PER_VERTEX);
-        Result.Tangents = (f32 *)(Result.Normals + VertexCount * NORMALS_PER_VERTEX);
-        Result.Bitangents = (f32 *)(Result.Tangents + VertexCount * TANGENTS_PER_VERTEX);
-        Result.BoneIDs = (i32 *)(Result.Bitangents + VertexCount * BITANGENTS_PER_VERTEX);
-        Result.BoneWeights = (f32 *)(Result.BoneIDs + VertexCount * MAX_BONES_PER_VERTEX);
-        Result.Indices = (i32 *)(Result.BoneWeights + VertexCount * MAX_BONES_PER_VERTEX);
+        Result.Positions = (f32 *) (Data);
+        Result.UVs = (f32 *) (Result.Positions + VertexCount * POSITIONS_PER_VERTEX);
+        Result.Normals = (f32 *) (Result.UVs + VertexCount * UVS_PER_VERTEX);
+        Result.Tangents = (f32 *) (Result.Normals + VertexCount * NORMALS_PER_VERTEX);
+        Result.Bitangents = (f32 *) (Result.Tangents + VertexCount * TANGENTS_PER_VERTEX);
+        Result.BoneIDs = (i32 *) (Result.Bitangents + VertexCount * BITANGENTS_PER_VERTEX);
+        Result.BoneWeights = (f32 *) (Result.BoneIDs + VertexCount * MAX_BONES_PER_VERTEX);
+        Result.Indices = (i32 *) (Result.BoneWeights + VertexCount * MAX_BONES_PER_VERTEX);
     }
     else
     {
@@ -121,16 +127,18 @@ mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount)
     return Result;
 }
 
-void FreeMeshInternalData(mesh_internal_data *MeshData)
+void FreeMeshInternalData(mesh_internal_data *MeshInternalData)
 {
-    free(MeshData->Data);
-    memset(MeshData, 0, sizeof(mesh_internal_data));
+    free(MeshInternalData->Data);
+    memset(MeshInternalData, 0, sizeof(mesh_internal_data));
 }
 
 skinned_model LoadSkinnedModel(const char *Path)
 {
     std::cout << "Loading model at: " << Path << '\n';
 
+    // Result
+    // ------
     skinned_model Model{ };
 
     // Load assimp scene
@@ -148,27 +156,26 @@ skinned_model LoadSkinnedModel(const char *Path)
         return Model;
     }
 
-    // Parse node structure: find armature node and count the number of bones
+    // Scene armature data
+    // -------------------
     aiNode *ArmatureNode = 0;
-    i32 BoneCount;
-    bone *Bones = 0;
+    i32 BoneCount = 0;
     ASSIMP_GetArmatureInfo(AssimpScene->mRootNode, &ArmatureNode, &BoneCount);
-
-    // Assimp node tree structure -> custom bone tree structure
     if (ArmatureNode)
     {
         Assert(BoneCount > 0);
 
-        // Allocate for one extra bone, so the bone indexed 0 can count as no bone
-        // TODO: Deal with assimp's "neutral_bone" for some models
         // TODO: LEAK
-        Bones = (bone *)calloc(1, (BoneCount + 1) * sizeof(bone));
+        bone *Bones = (bone *) calloc(1, (BoneCount) * sizeof(bone));
 
         if (Bones)
         {
             std::cout << BoneCount * sizeof(bone) << " bytes allocated for bones array" << "\n";
 
             ASSIMP_ParseBones(ArmatureNode, &Bones, BoneCount);
+
+            Model.BoneCount = BoneCount;
+            Model.Bones = Bones;
         }
         else
         {
@@ -176,10 +183,18 @@ skinned_model LoadSkinnedModel(const char *Path)
         }
     }
 
-    i32 MeshCount = AssimpScene->mNumMeshes;
-
-    // Parse meshes
-    for (i32 MeshIndex = 0; MeshIndex < MeshCount; ++MeshIndex)
+    // Scene mesh data
+    // ---------------
+    Model.MeshCount = AssimpScene->mNumMeshes;
+    Model.Meshes = (mesh *) calloc(1, Model.MeshCount * sizeof(mesh));
+    if (!Model.Meshes)
+    {
+        std::cerr << "ERROR::LOAD_MODEL: Could not allocate space for meshes" << '\n';
+        free(Model.Bones);
+        Model.Bones = 0;
+        return Model;
+    }
+    for (i32 MeshIndex = 0; MeshIndex < Model.MeshCount; ++MeshIndex)
     {
         aiMesh *AssimpMesh = AssimpScene->mMeshes[MeshIndex];
 
@@ -188,6 +203,8 @@ skinned_model LoadSkinnedModel(const char *Path)
 
         mesh_internal_data InternalData = InitializeMeshInternalData(VertexCount, IndexCount);
 
+        // Mesh vertex data
+        // ----------------
         for (i32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
         {
             for (i32 Index = 0; Index < POSITIONS_PER_VERTEX; ++Index)
@@ -221,10 +238,12 @@ skinned_model LoadSkinnedModel(const char *Path)
             }
         }
 
+        // Mesh index data
+        // ---------------
+        i32 *IndexCursor = InternalData.Indices;
         for (i32 FaceIndex = 0; FaceIndex < (i32) AssimpMesh->mNumFaces; ++FaceIndex)
         {
             aiFace *AssimpFace = &AssimpMesh->mFaces[FaceIndex];
-            i32 *IndexCursor = InternalData.Indices;
             for (i32 Index = 0; Index < (i32) AssimpFace->mNumIndices; ++Index)
             {
                 Assert(IndexCursor < InternalData.Indices + InternalData.IndexCount);
@@ -233,7 +252,9 @@ skinned_model LoadSkinnedModel(const char *Path)
             }
         }
 
-        if (Bones)
+        // Mesh bone data
+        // --------------
+        if (Model.Bones)
         {
             for (i32 AssimpBoneIndex = 0; AssimpBoneIndex < (i32) AssimpMesh->mNumBones; ++AssimpBoneIndex)
             {
@@ -243,7 +264,7 @@ skinned_model LoadSkinnedModel(const char *Path)
 
                 for (i32 SearchBoneIndex = 0; SearchBoneIndex < BoneCount; ++SearchBoneIndex)
                 {
-                    if (strcmp(Bones[SearchBoneIndex].Name, AssimpBone->mName.C_Str()) == 0)
+                    if (strcmp(Model.Bones[SearchBoneIndex].Name, AssimpBone->mName.C_Str()) == 0)
                     {
                         InternalBoneID = SearchBoneIndex;
                     }
@@ -271,306 +292,107 @@ skinned_model LoadSkinnedModel(const char *Path)
                         }
                         Assert(SpaceForBoneFound);
                     }
-
                 }
             }
         }
+
+        mesh Mesh{ };
+        PrepareSkinnedMeshRenderData(InternalData, &Mesh);
 
         FreeMeshInternalData(&InternalData);
 
-        std::cout << ".\n";
+        // Load textures
+        // -------------
+        // TODO
+
+        // Save mesh into model
+        // --------------------
+        Model.Meshes[MeshIndex] = Mesh;
     }
 
-#if 0
-    // Parse bone data
-    // ---------------
-    // 1. Find armature node
-    std::cout << "Looking for armature node... ";
-    aiNode *armatureNode = 0;
-    bool hasArmature = false;
-    std::queue<aiNode *> nodeQueue;
-    nodeQueue.push(AssimpScene->mRootNode);
-    while (!nodeQueue.empty() && !hasArmature)
+    // Scene animation data
+    // --------------------
+    aiAnimation *AssimpAnimation = AssimpScene->mAnimations[0];
+    i32 KeyCount = 0;
+    i32 ChannelCount = AssimpAnimation->mNumChannels;
+    f32 *AnimationKeyTimes = 0;
+    animation_key *AnimationKeys = 0;
+    bool firstChannel = true;
+    for (i32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
     {
-        aiNode *frontNode = nodeQueue.front();
-        nodeQueue.pop();
+        aiNodeAnim *AssimpAnimationChannel = AssimpAnimation->mChannels[ChannelIndex];
 
-        if (strcmp(frontNode->mName.C_Str(), "Armature") == 0)
+        // Find the bone ID corresponding to this node
+        // So that the animation nodes are in the same
+        // order as bones.
+        // -------------------------------------------
+        i32 BoneID = 0;
+        for (i32 BoneIndex = 0; BoneIndex < Model.BoneCount; ++BoneIndex)
         {
-            armatureNode = frontNode;
-            hasArmature = true;
-        }
-
-        for (i32 i = 0; i < (i32)frontNode->mNumChildren; ++i)
-        {
-            nodeQueue.push(frontNode->mChildren[i]);
-        }
-    }
-
-    // 2. Get bone tree and transform to parent data
-    if (hasArmature)
-    {
-        i32 bonesParsed = 0;
-        std::vector<aiNode *> nodes{ }; // Temp aiNode storage in the same order as bones 
-        std::stack<i32> tempNodeStack{ }; // Temp tree-DFS-stack that stores bone IDs for 'bones' and 'nodes' vectors
-        bool isFirstIteration = true;
-        while (isFirstIteration || !tempNodeStack.empty())
-        {
-            if (isFirstIteration)
+            if (strcmp(Model.Bones[BoneIndex].Name, AssimpAnimationChannel->mNodeName.C_Str()) == 0)
             {
-
-                for (i32 i = 0; i < (i32)armatureNode->mNumChildren; ++i)
-                {
-                    aiNode *rootBoneNode = armatureNode->mChildren[i];
-                    nodes.push_back(rootBoneNode);
-
-                    Bone rootBone{ };
-                    rootBone.name = rootBoneNode->mName.C_Str();
-                    rootBone.transformToParent = ASSIMP_Mat4ToGLM(rootBoneNode->mTransformation);
-                    Model.bones.push_back(rootBone);
-
-                    tempNodeStack.push(bonesParsed); // bonesParsed acting as ID of the bone that was just added
-                    ++bonesParsed;
-                }
-
-                isFirstIteration = false;
-            }
-            else
-            {
-                i32 parentIndex = tempNodeStack.top();
-                tempNodeStack.pop();
-
-                aiNode *parentNode = nodes[parentIndex];
-                Bone *parentBone = &Model.bones[parentIndex];
-
-                for (i32 i = 0; i < (i32)parentNode->mNumChildren; ++i)
-                {
-                    aiNode *childNode = parentNode->mChildren[i];
-                    nodes.push_back(childNode);
-
-                    Bone childBone{ };
-                    childBone.name = childNode->mName.C_Str();
-                    memcpy(childBone.pathToRoot, parentBone->pathToRoot, parentBone->pathNodes * sizeof(i32));
-                    childBone.pathNodes = parentBone->pathNodes;
-                    childBone.pathToRoot[childBone.pathNodes] = parentIndex;
-                    ++childBone.pathNodes;
-                    childBone.transformToParent = ASSIMP_Mat4ToGLM(childNode->mTransformation);
-                    Model.bones.push_back(childBone);
-                    // reassign because push back could've invalidated that pointer
-                    parentBone = &Model.bones[parentIndex];
-
-                    tempNodeStack.push(bonesParsed);
-                    ++bonesParsed;
-                }
+                BoneID = BoneIndex;
             }
         }
+        Assert(BoneID > 0);
 
-        std::cout << "Armature found. " << Model.bones.size() << " bones:\n";
-
-        for (i32 i = 0; i < Model.bones.size(); ++i)
+        // Initialize key data structures on the first loop
+        // ------------------------------------------------
+        if (firstChannel)
         {
-            std::cout << "Bone #" << i << "/" << Model.bones.size() << ": " << Model.bones[i].name << ". Path to root: ";
-
-            for (i32 pathIndex = 0; pathIndex < Model.bones[i].pathNodes; ++pathIndex)
+            KeyCount = AssimpAnimationChannel->mNumPositionKeys;
+            // TODO: LEAK
+            AnimationKeyTimes = (f32 *) calloc(1, KeyCount * sizeof(f32));
+            Assert(AnimationKeyTimes);
+            // TODO: LEAK
+            AnimationKeys = (animation_key *) calloc(1, KeyCount * ChannelCount * sizeof(animation_key));
+            Assert(AnimationKeys);
+            for (i32 KeyIndex = 0; KeyIndex < KeyCount; ++KeyIndex)
             {
-                std::cout << Model.bones[i].pathToRoot[pathIndex];
-
-                if (pathIndex != Model.bones[i].pathNodes - 1)
-                {
-                    std::cout << ", ";
-                }
+                AnimationKeyTimes[KeyIndex] = (f32) AssimpAnimationChannel->mPositionKeys[KeyIndex].mTime;
             }
+            firstChannel = false;
+        }
 
-            std::cout << '\n';
+        // Assuming positions, rotations and scaling have the same number of keys for all channels
+        Assert(KeyCount == AssimpAnimationChannel->mNumPositionKeys);
+        Assert(KeyCount == AssimpAnimationChannel->mNumRotationKeys);
+        Assert(KeyCount == AssimpAnimationChannel->mNumScalingKeys);
+
+        // Process transformation data for each key of the channel
+        // -------------------------------------------------------
+        for (i32 KeyIndex = 0; KeyIndex < KeyCount; ++KeyIndex)
+        {
+            aiVectorKey *AssimpPosKey = &AssimpAnimationChannel->mPositionKeys[KeyIndex];
+            aiQuatKey *AssimpRotKey = &AssimpAnimationChannel->mRotationKeys[KeyIndex];
+            aiVectorKey *AssimpScaKey = &AssimpAnimationChannel->mScalingKeys[KeyIndex];
+
+            // Assuming all channels have the same exact timing info
+            Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpPosKey->mTime);
+            Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpRotKey->mTime);
+            Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpScaKey->mTime);
+
+            animation_key Key{ };
+            Key.Position = ASSIMP_Vec3ToGLM(AssimpPosKey->mValue);
+            Key.Rotation = ASSIMP_QuatToGLM(AssimpRotKey->mValue);
+            Key.Scale = ASSIMP_Vec3ToGLM(AssimpScaKey->mValue);
+
+            // All animation channels should have the same order as bones for easy access
+            // But BoneID = 0 is the DummyBone, no need to save animation for that
+            i32 ChannelPosition = BoneID - 1;
+
+            // TODO: Profile vs de-intereleaved
+            // Interleaved A0A1B0B1C0C1...; A - Key; 0 - Channel
+            AnimationKeys[KeyIndex * ChannelCount + ChannelPosition] = Key;
         }
     }
-    else
-    {
-        std::cout << "Not found.\n";
-    }
 
-    std::cout << '\n';
-
-    for (i32 meshIndex = 0; meshIndex < (i32)assimpScene->mNumMeshes; ++meshIndex)
-    {
-        aiMesh *assimpMesh = assimpScene->mMeshes[meshIndex];
-        std::cout << "Loading mesh #" << meshIndex << "/" << assimpScene->mNumMeshes << " " << assimpMesh->mName.C_Str() << '\n';
-
-        i32 vertexCount = assimpMesh->mNumVertices;
-        i32 faceCount = assimpMesh->mNumFaces;
-        i32 indexCount = assimpMesh->mNumFaces * 3;
-        i32 boneCount = assimpMesh->mNumBones;
-        std::cout << " Vertices: " << vertexCount << " Faces: " << faceCount << " Indices: " << indexCount << " Bones: " << boneCount << '\n';
-
-        struct VertexBoneInfo
-        {
-            i32 boneID[4];
-            f32 boneWeight[4];
-            i32 nextUnusedSlot;
-        };
-
-        VertexBoneInfo *vertexBones = (VertexBoneInfo *)calloc(1, vertexCount * sizeof(VertexBoneInfo));
-
-        //std::cout << "\n  Bones:\n";
-        for (i32 boneIndex = 0; boneIndex < boneCount; ++boneIndex)
-        {
-            aiBone *assimpBone = assimpMesh->mBones[boneIndex];
-            i32 boneID;
-            for (i32 i = 0; i < Model.bones.size(); ++i)
-            {
-                if (strcmp(Model.bones[i].name.c_str(), assimpBone->mName.C_Str()) == 0)
-                {
-                    boneID = i + 1;
-                    break;
-                }
-            }
-            //std::cout << "  Bone #" << boneIndex + 1 << "/" << boneCount << " " << assimpBone->mName.C_Str() << " -> BoneID: " << boneID << '\n';
-
-            i32 weightCount = assimpBone->mNumWeights;
-            //std::cout << "   Vertices affected: " << weightCount << '\n';
-
-            for (i32 weightIndex = 0; weightIndex < weightCount; ++weightIndex)
-            {
-                aiVertexWeight assimpVertexWeight = assimpBone->mWeights[weightIndex];
-                if (assimpVertexWeight.mWeight > 0.0f)
-                {
-                    //std::cout << "   Weight #" << weightIndex << "/" << weightCount << " vertex ID: " << assimpVertexWeight.mVertexId << " weight: " << assimpVertexWeight.mWeight << '\n';
-
-                    VertexBoneInfo *vertexBone = &vertexBones[assimpVertexWeight.mVertexId];
-                    if (vertexBone->nextUnusedSlot < 4)
-                    {
-                        vertexBone->boneID[vertexBone->nextUnusedSlot] = boneID;
-                        vertexBone->boneWeight[vertexBone->nextUnusedSlot++] = assimpVertexWeight.mWeight;
-                    }
-                    else
-                    {
-                        std::cerr << "ERROR::LOAD_GLTF::MAX_BONE_PER_VERTEX_EXCEEDED" << '\n';
-                    }
-
-                }
-            }
-
-            Model.bones[boneID - 1].inverseBindTransform = ASSIMP_Mat4ToGLM(assimpBone->mOffsetMatrix);
-        }
-
-        // Position + 4 bone ids + 4 bone weights
-        f32 *meshVertexData = (f32 *)calloc(1, 11 * vertexCount * sizeof(f32));
-
-        //std::cout << "\n  Vertices:\n";
-        for (i32 vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex)
-        {
-            aiVector3D vertex = assimpMesh->mVertices[vertexIndex];
-            //std::cout << "  Vertex #" << vertexIndex << "/" << vertexCount << " " << vertex.x << ", " << vertex.y << ", " << vertex.z << '\n';
-
-            f32 *meshVertexDataCursor = meshVertexData + (vertexIndex * 11);
-
-            meshVertexDataCursor[0] = vertex.x;
-            meshVertexDataCursor[1] = vertex.y;
-            meshVertexDataCursor[2] = vertex.z;
-
-            meshVertexDataCursor[3] = *((f32 *)&vertexBones[vertexIndex].boneID[0]);
-            meshVertexDataCursor[4] = *((f32 *)&vertexBones[vertexIndex].boneID[1]);
-            meshVertexDataCursor[5] = *((f32 *)&vertexBones[vertexIndex].boneID[2]);
-            meshVertexDataCursor[6] = *((f32 *)&vertexBones[vertexIndex].boneID[3]);
-
-            meshVertexDataCursor[7] = vertexBones[vertexIndex].boneWeight[0];
-            meshVertexDataCursor[8] = vertexBones[vertexIndex].boneWeight[1];
-            meshVertexDataCursor[9] = vertexBones[vertexIndex].boneWeight[2];
-            meshVertexDataCursor[10] = vertexBones[vertexIndex].boneWeight[3];
-        }
-
-        u32 *meshIndices = (u32 *)calloc(1, indexCount * sizeof(u32));
-
-        //std::cout << "\n  Faces:\n";
-        u32 *meshIndicesCursor = meshIndices;
-        for (i32 faceIndex = 0; faceIndex < faceCount; ++faceIndex)
-        {
-            aiFace assimpFace = assimpMesh->mFaces[faceIndex];
-            //std::cout << "  Face #" << faceIndex << "/" << faceCount << " Indices: " << assimpFace.mIndices[0] << ", " << assimpFace.mIndices[1] << ", " << assimpFace.mIndices[2] << '\n';
-
-            for (u32 assimpIndexIndex = 0; assimpIndexIndex < assimpFace.mNumIndices; ++assimpIndexIndex)
-            {
-                *meshIndicesCursor++ = assimpFace.mIndices[assimpIndexIndex];
-            }
-        }
-
-        Mesh mesh;
-        mesh.vao = prepareSkinnedMeshVAO(meshVertexData, 11 * vertexCount, meshIndices, indexCount);
-        mesh.indexCount = indexCount;
-
-        Model.meshes.push_back(mesh);
-    }
-
-    if (assimpScene->mNumAnimations > 0)
-    {
-        aiAnimation *animation = assimpScene->mAnimations[0];
-        i32 channelCount = (i32)animation->mNumChannels;
-        std::cout << "\nFound animation: " << animation->mName.C_Str() << ". " << channelCount << " channels" << '\n';
-
-        Model.animation.ticksDuration = (f32)animation->mDuration;
-        Model.animation.ticksPerSecond = (f32)animation->mTicksPerSecond;
-
-        for (i32 channelIndex = 0; channelIndex < channelCount; ++channelIndex)
-        {
-            aiNodeAnim *channel = animation->mChannels[channelIndex];
-
-            Bone *Bone = 0;
-            i32 boneID = 0;
-
-            for (i32 boneIndex = 0; boneIndex < Model.bones.size(); ++boneIndex)
-            {
-                if (strcmp(Model.bones[boneIndex].name.c_str(), channel->mNodeName.C_Str()) == 0)
-                {
-                    Bone = &Model.bones[boneIndex];
-                    boneID = boneIndex + 1;
-                }
-            }
-
-            if (Bone)
-            {
-                i32 positionKeyCount = channel->mNumPositionKeys;
-                i32 scalingKeyCount = channel->mNumScalingKeys;
-                i32 rotationKeyCount = channel->mNumRotationKeys;
-
-                std::cout << "  Channel #" << channelIndex << "/" << channelCount
-                    << " for bone " << Bone->name << "(" << boneID << "). "
-                    << "Position keys: " << positionKeyCount
-                    << "; scaling keys: " << scalingKeyCount
-                    << "; rotation keys: " << rotationKeyCount << '\n';
-
-                Bone->positionKeys.resize(positionKeyCount);
-                for (i32 i = 0; i < positionKeyCount; ++i)
-                {
-                    aiVectorKey *assimpPos = &channel->mPositionKeys[i];
-                    PositionKey positionKey{ };
-                    positionKey.time = (f32)assimpPos->mTime;
-                    positionKey.position = glm::vec3(assimpPos->mValue.x, assimpPos->mValue.y, assimpPos->mValue.z);
-                    Bone->positionKeys[i] = positionKey;
-                    }
-
-                Bone->scalingKeys.resize(scalingKeyCount);
-                for (i32 i = 0; i < scalingKeyCount; ++i)
-                {
-                    aiVectorKey *assimpScale = &channel->mScalingKeys[i];
-                    ScalingKey scalingKey{ };
-                    scalingKey.time = (f32)assimpScale->mTime;
-                    scalingKey.scale = glm::vec3(assimpScale->mValue.x, assimpScale->mValue.y, assimpScale->mValue.z);
-                    Bone->scalingKeys[i] = scalingKey;
-                }
-
-                Bone->rotationKeys.resize(rotationKeyCount);
-                for (i32 i = 0; i < rotationKeyCount; ++i)
-                {
-                    aiQuatKey *assimpRotation = &channel->mRotationKeys[i];
-                    RotationKey rotationKey{ };
-                    rotationKey.time = (f32)assimpRotation->mTime;
-                    rotationKey.rotation = glm::quat(assimpRotation->mValue.w, assimpRotation->mValue.x, assimpRotation->mValue.y, assimpRotation->mValue.z);
-                    Bone->rotationKeys[i] = rotationKey;
-                }
-            }
-        }
-    }
-#endif
+    Model.AnimationData.TicksDuration = (f32) AssimpAnimation->mDuration;
+    Model.AnimationData.TicksPerSecond = (f32) AssimpAnimation->mTicksPerSecond;
+    Model.AnimationData.KeyCount = KeyCount;
+    Model.AnimationData.ChannelCount = ChannelCount;
+    Model.AnimationData.KeyTimes = AnimationKeyTimes;
+    Model.AnimationData.Keys = AnimationKeys;
 
     aiReleaseImport(AssimpScene);
 
@@ -611,7 +433,7 @@ std::vector<Mesh> loadModel(const char *path)
         i32 perVertexFloatCount = (3 + 3 + 2 + 3 + 3);
         u32 assimpVertexCount = assimpMesh->mNumVertices;
         meshVertexFloatCount = perVertexFloatCount * assimpVertexCount;
-        meshVertexData = (f32 *)calloc(1, meshVertexFloatCount * sizeof(f32));
+        meshVertexData = (f32 *) calloc(1, meshVertexFloatCount * sizeof(f32));
         if (!meshVertexData)
         {
             std::cerr << "ERROR::LOAD_MODEL::ALLOC_TEMP_HEAP_ERROR: path: " << path << '\n';
@@ -646,7 +468,7 @@ std::vector<Mesh> loadModel(const char *path)
         u32 assimpFaceCount = assimpMesh->mNumFaces;
         meshIndexCount = assimpFaceCount * perFaceIndexCount;
         // TODO: Custom memory allocation
-        meshIndices = (u32 *)calloc(1, meshIndexCount * sizeof(u32));
+        meshIndices = (u32 *) calloc(1, meshIndexCount * sizeof(u32));
         if (!meshIndices)
         {
             std::cerr << "ERROR::LOAD_MODEL::ALLOC_TEMP_HEAP_ERROR: path: " << path << '\n';
@@ -748,27 +570,50 @@ std::vector<Mesh> loadModel(const char *path)
             {
                 mesh.normalMapID = loadedTextures[textureFileName];
             }
-                }
+        }
 
         meshes.push_back(mesh);
-                }
+    }
 
     aiReleaseImport(assimpScene);
 
     return meshes;
-            }
+}
 #endif
 
-glm::mat4 ASSIMP_Mat4ToGLM(aiMatrix4x4 assimpMat)
+glm::mat4 ASSIMP_Mat4ToGLM(aiMatrix4x4 AssimpMat)
 {
-    glm::mat4 result{ };
+    glm::mat4 Result{ };
 
-    result[0][0] = assimpMat.a1; result[0][1] = assimpMat.b1; result[0][2] = assimpMat.c1; result[0][3] = assimpMat.d1;
-    result[1][0] = assimpMat.a2; result[1][1] = assimpMat.b2; result[1][2] = assimpMat.c2; result[1][3] = assimpMat.d2;
-    result[2][0] = assimpMat.a3; result[2][1] = assimpMat.b3; result[2][2] = assimpMat.c3; result[2][3] = assimpMat.d3;
-    result[3][0] = assimpMat.a4; result[3][1] = assimpMat.b4; result[3][2] = assimpMat.c4; result[3][3] = assimpMat.d4;
+    Result[0][0] = AssimpMat.a1; Result[0][1] = AssimpMat.b1; Result[0][2] = AssimpMat.c1; Result[0][3] = AssimpMat.d1;
+    Result[1][0] = AssimpMat.a2; Result[1][1] = AssimpMat.b2; Result[1][2] = AssimpMat.c2; Result[1][3] = AssimpMat.d2;
+    Result[2][0] = AssimpMat.a3; Result[2][1] = AssimpMat.b3; Result[2][2] = AssimpMat.c3; Result[2][3] = AssimpMat.d3;
+    Result[3][0] = AssimpMat.a4; Result[3][1] = AssimpMat.b4; Result[3][2] = AssimpMat.c4; Result[3][3] = AssimpMat.d4;
 
-    return result;
+    return Result;
+}
+
+glm::vec3 ASSIMP_Vec3ToGLM(aiVector3D AssimpVector)
+{
+    glm::vec3 Result{ };
+
+    Result.x = AssimpVector.x;
+    Result.y = AssimpVector.y;
+    Result.z = AssimpVector.z;
+
+    return Result;
+}
+
+glm::quat ASSIMP_QuatToGLM(aiQuaternion AssimpQuat)
+{
+    glm::quat Result{ };
+
+    Result.w = AssimpQuat.w;
+    Result.x = AssimpQuat.x;
+    Result.y = AssimpQuat.y;
+    Result.z = AssimpQuat.z;
+
+    return Result;
 }
 
 u32 prepareMeshVAO(f32 *vertexData, u32 vertexAttribCount, u32 *indices, u32 indexCount)
@@ -791,61 +636,120 @@ u32 prepareMeshVAO(f32 *vertexData, u32 vertexAttribCount, u32 *indices, u32 ind
 
     // Position
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *) 0);
     // Normal
     glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *)(3 * sizeof(f32)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *) (3 * sizeof(f32)));
     // UVs
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, vertexSize, (void *)(6 * sizeof(f32)));
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, vertexSize, (void *) (6 * sizeof(f32)));
     // Tangent
     glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *)(8 * sizeof(f32)));
+    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *) (8 * sizeof(f32)));
     // Bitangent
     glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *)(11 * sizeof(f32)));
+    glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *) (11 * sizeof(f32)));
 
     glBindVertexArray(0);
 
     return meshVAO;
 }
 
-u32 prepareSkinnedMeshVAO(f32 *vertexData, u32 vertexAttribCount, u32 *indices, u32 indexCount)
+void PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh)
 {
-    u32 meshVAO;
-    glGenVertexArrays(1, &meshVAO);
-    u32 meshVBO;
-    glGenBuffers(1, &meshVBO);
-    u32 meshEBO;
-    glGenBuffers(1, &meshEBO);
+    u32 VAO;
+    glGenVertexArrays(1, &VAO);
+    u32 VBO;
+    glGenBuffers(1, &VBO);
+    u32 EBO;
+    glGenBuffers(1, &EBO);
 
-    glBindVertexArray(meshVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, meshVBO);
-    glBufferData(GL_ARRAY_BUFFER, vertexAttribCount * sizeof(f32), vertexData, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, meshEBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount * sizeof(u32), indices, GL_STATIC_DRAW);
-
-    // Position + 4 bone ids + 4 bone weights
-    i32 vertexSize = 11 * sizeof(f32);
-
-    // Position
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    size_t BufferSize = MeshInternalData.VertexCount * (POSITIONS_PER_VERTEX * sizeof(f32) +
+                                                        UVS_PER_VERTEX * sizeof(f32) +
+                                                        NORMALS_PER_VERTEX * sizeof(f32) +
+                                                        TANGENTS_PER_VERTEX * sizeof(f32) +
+                                                        BITANGENTS_PER_VERTEX * sizeof(f32) +
+                                                        MAX_BONES_PER_VERTEX * sizeof(i32) +
+                                                        MAX_BONES_PER_VERTEX * sizeof(f32));
+    glBufferData(GL_ARRAY_BUFFER, BufferSize, MeshInternalData.Data, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, MeshInternalData.IndexCount * sizeof(i32), MeshInternalData.Indices, GL_STATIC_DRAW);
+    
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *)0);
-    // Bone IDs
+    glVertexAttribPointer(0, POSITIONS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          POSITIONS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.Positions - MeshInternalData.Data));
     glEnableVertexAttribArray(1);
-    glVertexAttribIPointer(1, 4, GL_INT, vertexSize, (void *)(3 * sizeof(f32)));
-    // Bone weights
+    glVertexAttribPointer(1, UVS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          UVS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.UVs - MeshInternalData.Data));
     glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, vertexSize, (void *)(7 * sizeof(f32)));
+    glVertexAttribPointer(2, NORMALS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          NORMALS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.Normals - MeshInternalData.Data));
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, TANGENTS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          TANGENTS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.Tangents - MeshInternalData.Data));
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, BITANGENTS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          BITANGENTS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.Bitangents - MeshInternalData.Data));
+    glEnableVertexAttribArray(5);
+    glVertexAttribIPointer(5, MAX_BONES_PER_VERTEX, GL_INT,
+                           MAX_BONES_PER_VERTEX * sizeof(i32),
+                           (void *) ((u8 *) MeshInternalData.BoneIDs - MeshInternalData.Data));
+    glEnableVertexAttribArray(6);
+    glVertexAttribPointer(6, MAX_BONES_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          MAX_BONES_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.BoneWeights - MeshInternalData.Data));
 
     glBindVertexArray(0);
 
-    return meshVAO;
+    Out_Mesh->VAO = VAO;
+    Out_Mesh->IndexCount = MeshInternalData.IndexCount;
 }
+
 
 void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
 {
     glUseProgram(Shader);
+
+    // Process animation transforms
+    // ----------------------------
+
+    // Update current animation time to the beginning of the game loop
+    Model->AnimationData.CurrentTicks += DeltaTime;
+    // Loop animation around if past end
+    if (Model->AnimationData.CurrentTicks >= Model->AnimationData.TicksDuration)
+    {
+        Model->AnimationData.CurrentTicks -= Model->AnimationData.TicksDuration;
+    }
+
+    // Find current animation keyframes
+    i32 CurrentKey = -1;
+    for (i32 KeyIndex = 0; KeyIndex < Model->AnimationData.KeyCount; KeyIndex++)
+    {
+        if (Model->AnimationData.CurrentTicks >= Model->AnimationData.KeyTimes[KeyIndex])
+        {
+            CurrentKey = KeyIndex;
+            break;
+        }
+    }
+    Assert(CurrentKey >= 0);
+
+    // The last animation frame should alway be identical to and replaced with the first frame
+    // TODO: Only been dealing with loopable animation so far.
+    //       Find out what needs to be done for animations that change the end state
+    Assert(CurrentKey != Model->AnimationData.KeyCount - 1);
+
+    // Find the lerp ratio that will be used to determine the place between the current frame and the next frame
+    f32 LerpRatio = ((Model->AnimationData.CurrentTicks - Model->AnimationData.KeyTimes[CurrentKey]) /
+                     (Model->AnimationData.KeyTimes[CurrentKey + 1] - Model->AnimationData.KeyTimes[CurrentKey]));
+
+
 
 #if 0
     if (Model->Animation.isRunning)
@@ -867,7 +771,7 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
             }
         }
 
-        for (i32 atlbetaBoneIndex = 0; atlbetaBoneIndex < (i32)Model->Bones.size(); ++atlbetaBoneIndex)
+        for (i32 atlbetaBoneIndex = 0; atlbetaBoneIndex < (i32) Model->Bones.size(); ++atlbetaBoneIndex)
         {
             bone Bone = Model->Bones[atlbetaBoneIndex];
 
@@ -879,7 +783,7 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
             glm::mat4 rotationTransform(1.0f);
             glm::mat4 translationTransform(1.0f);
 
-            for (i32 i = 0; i < (i32)Bone.positionKeys.size() - 1; ++i)
+            for (i32 i = 0; i < (i32) Bone.positionKeys.size() - 1; ++i)
             {
                 if (Model->Animation.currentTicks >= Bone.positionKeys[i].time &&
                     Model->Animation.currentTicks < Bone.positionKeys[i + 1].time)
@@ -896,7 +800,7 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
                     break;
                 }
             }
-            for (i32 i = 0; i < (i32)Bone.rotationKeys.size() - 1; ++i)
+            for (i32 i = 0; i < (i32) Bone.rotationKeys.size() - 1; ++i)
             {
                 if (Model->Animation.currentTicks >= Bone.rotationKeys[i].time &&
                     Model->Animation.currentTicks < Bone.rotationKeys[i + 1].time)
@@ -913,7 +817,7 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
                     break;
                 }
             }
-            for (i32 i = 0; i < (i32)Bone.scalingKeys.size() - 1; ++i)
+            for (i32 i = 0; i < (i32) Bone.scalingKeys.size() - 1; ++i)
             {
                 if (Model->Animation.currentTicks >= Bone.scalingKeys[i].time &&
                     Model->Animation.currentTicks < Bone.scalingKeys[i + 1].time)
@@ -942,7 +846,7 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
                 glm::mat4 parentRotationTransform(1.0f);
                 glm::mat4 parentTranslationTransform(1.0f);
 
-                for (i32 i = 0; i < (i32)parentBone.positionKeys.size() - 1; ++i)
+                for (i32 i = 0; i < (i32) parentBone.positionKeys.size() - 1; ++i)
                 {
                     if (Model->Animation.currentTicks >= parentBone.positionKeys[i].time &&
                         Model->Animation.currentTicks < parentBone.positionKeys[i + 1].time)
@@ -959,7 +863,7 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
                         break;
                     }
                 }
-                for (i32 i = 0; i < (i32)parentBone.rotationKeys.size() - 1; ++i)
+                for (i32 i = 0; i < (i32) parentBone.rotationKeys.size() - 1; ++i)
                 {
                     if (Model->Animation.currentTicks >= parentBone.rotationKeys[i].time &&
                         Model->Animation.currentTicks < parentBone.rotationKeys[i + 1].time)
@@ -976,7 +880,7 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
                         break;
                     }
                 }
-                for (i32 i = 0; i < (i32)parentBone.scalingKeys.size() - 1; ++i)
+                for (i32 i = 0; i < (i32) parentBone.scalingKeys.size() - 1; ++i)
                 {
                     if (Model->Animation.currentTicks >= parentBone.scalingKeys[i].time &&
                         Model->Animation.currentTicks < parentBone.scalingKeys[i + 1].time)
@@ -991,20 +895,20 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
 
                         parentScalingTransform = glm::scale(glm::mat4(1.0f), scale);
                         break;
-}
-        }
+                    }
+                }
 
                 boneTransform = parentTranslationTransform * parentRotationTransform * parentScalingTransform * boneTransform;
-    }
+            }
 
             std::string location = "boneTransforms[" + std::to_string(atlbetaBoneIndex) + "]";
 
             glUniformMatrix4fv(glGetUniformLocation(Shader, location.c_str()), 1, GL_FALSE, glm::value_ptr(boneTransform));
-}
+        }
     }
     else
     {
-        for (i32 atlbetaBoneIndex = 0; atlbetaBoneIndex < (i32)Model->Bones.size(); ++atlbetaBoneIndex)
+        for (i32 atlbetaBoneIndex = 0; atlbetaBoneIndex < (i32) Model->Bones.size(); ++atlbetaBoneIndex)
         {
             std::string location = "boneTransforms[" + std::to_string(atlbetaBoneIndex) + "]";
             glm::mat4 boneTransform(1.0f);
@@ -1013,7 +917,9 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
     }
 #endif
 
-    for (i32 MeshIndex = 0; MeshIndex < (i32)Model->Meshes.size(); ++MeshIndex)
+    // Render each mesh of the model
+    // -----------------------------
+    for (i32 MeshIndex = 0; MeshIndex < (i32) Model->MeshCount; ++MeshIndex)
     {
         mesh Mesh = Model->Meshes[MeshIndex];
         glBindVertexArray(Mesh.VAO);
