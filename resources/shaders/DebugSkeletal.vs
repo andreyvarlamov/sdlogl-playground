@@ -15,7 +15,8 @@ uniform mat4 model;
 
 uniform int selectedBone;
 
-uniform mat4 boneTransforms[10];
+#define MAX_BONES 128
+uniform mat4 boneTransforms[MAX_BONES];
 
 void main()
 {
@@ -40,6 +41,6 @@ void main()
         boneTransform = mat4(1.0);
     }
  
-//    gl_Position = projection * view * model * boneTransform * vec4(aPosition, 1.0);
-    gl_Position = projection * view * model * vec4(aPosition, 1.0);
+    gl_Position = projection * view * model * boneTransform * vec4(aPosition, 1.0);
+//    gl_Position = projection * view * model * vec4(aPosition, 1.0);
 }

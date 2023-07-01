@@ -24,6 +24,7 @@ struct mesh
 struct bone
 {
     i32 ID;
+    i32 ParentID;
     i32 ChildrenIDs[MAX_BONE_CHILDREN];
     i32 ChildrenCount;
     glm::mat4 TransformToParent;
@@ -52,6 +53,8 @@ struct animation_data
     i32 ChannelCount;
     f32 *KeyTimes;
     animation_key *Keys;
+
+    glm::mat4 *TransientChannelTransformData;
 };
 
 struct skinned_model
@@ -63,17 +66,6 @@ struct skinned_model
     bone *Bones;
 
     animation_data AnimationData;
-};
-
-struct vertex_data
-{
-    glm::vec3 Position;
-    glm::vec2 UVs;
-    glm::vec3 Normal;
-    glm::vec3 Tangent;
-    glm::vec3 Bitangent;
-    glm::ivec4 BoneIDs;
-    glm::vec4 BoneWeights;
 };
 
 #define POSITIONS_PER_VERTEX 3

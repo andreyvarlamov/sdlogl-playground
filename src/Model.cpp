@@ -35,13 +35,14 @@ bone *ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
     Assert(Bones);
 
     aiNode *NodeQueue[128] = { };
+    i32 ParentIDHelperQueue[128] = { };
     i32 QueueStart = 0;
     i32 QueueEnd = 0;
     NodeQueue[QueueEnd++] = ArmatureNode;
 
     while (QueueStart != QueueEnd)
     {
-        aiNode *CurrentNode = NodeQueue[QueueStart++];
+        aiNode *CurrentNode = NodeQueue[QueueStart];
 
         bone Bone { };
         // First bone is a dummy bone
@@ -52,6 +53,7 @@ bone *ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
         else
         {
             strncpy_s(Bone.Name, CurrentNode->mName.C_Str(), MAX_BONE_NAME_LENGTH -1);
+            Bone.ParentID = ParentIDHelperQueue[QueueStart];
         }
         Bone.ID = CurrentBoneIndex;
         Bone.TransformToParent = ASSIMP_Mat4ToGLM(CurrentNode->mTransformation);
@@ -59,11 +61,14 @@ bone *ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
         for (i32 ChildIndex = 0; ChildIndex < CurrentNode->mNumChildren; ++ChildIndex)
         {
             NodeQueue[QueueEnd] = CurrentNode->mChildren[ChildIndex];
+            ParentIDHelperQueue[QueueEnd] = CurrentBoneIndex;
             Bone.ChildrenIDs[Bone.ChildrenCount++] = QueueEnd;
             ++QueueEnd;
         }
 
         Bones[CurrentBoneIndex++] = Bone;
+
+        ++QueueStart;
     }
 
     return Bones;
@@ -265,6 +270,8 @@ skinned_model LoadSkinnedModel(const char *Path)
                     }
                 }
 
+                Model.Bones[InternalBoneID].InverseBindTransform = ASSIMP_Mat4ToGLM(AssimpBone->mOffsetMatrix);
+
                 for (i32 WeightIndex = 0; WeightIndex < (i32) AssimpBone->mNumWeights; ++WeightIndex)
                 {
                     aiVertexWeight *AssimpWeight = &AssimpBone->mWeights[WeightIndex];
@@ -388,6 +395,9 @@ skinned_model LoadSkinnedModel(const char *Path)
     Model.AnimationData.ChannelCount = ChannelCount;
     Model.AnimationData.KeyTimes = AnimationKeyTimes;
     Model.AnimationData.Keys = AnimationKeys;
+    Model.AnimationData.TransientChannelTransformData = 
+        (glm::mat4 *) calloc(1, Model.AnimationData.ChannelCount * sizeof(glm::mat4));
+    Assert(Model.AnimationData.TransientChannelTransformData);
 
     aiReleaseImport(AssimpScene);
 
@@ -737,182 +747,65 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
     }
     Assert(CurrentKey >= 0);
 
-    // The last animation frame should alway be identical to and replaced with the first frame
+    // The last animation frame should always be identical to and replaced with the first frame
     // TODO: Only been dealing with loopable animation so far.
-    //       Find out what needs to be done for animations that change the end state
+    //       Find out what needs to be done for animations that stop and change the end state
     Assert(CurrentKey != Model->AnimationData.KeyCount - 1);
 
     // Find the lerp ratio that will be used to determine the place between the current frame and the next frame
     f32 LerpRatio = ((Model->AnimationData.CurrentTicks - Model->AnimationData.KeyTimes[CurrentKey]) /
                      (Model->AnimationData.KeyTimes[CurrentKey + 1] - Model->AnimationData.KeyTimes[CurrentKey]));
 
+    // Reset old transient animation transform data
+    memset(Model->AnimationData.TransientChannelTransformData, 0, Model->AnimationData.ChannelCount * sizeof(glm::mat4));
 
-
-#if 0
-    if (Model->Animation.isRunning)
+    // Calculate animation transforms for each of the animation channels
+    i32 ChannelCount = Model->AnimationData.ChannelCount;
+    for (i32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
     {
-        if (!Model->Animation.isPaused)
+        animation_key CurrentKeyForChannel = Model->AnimationData.Keys[CurrentKey*ChannelCount + ChannelIndex];
+        animation_key NextKeyForChannel = Model->AnimationData.Keys[(CurrentKey+1)*ChannelCount + ChannelIndex];
+
+        glm::vec3 Position = (CurrentKeyForChannel.Position +
+                              LerpRatio * (NextKeyForChannel.Position - CurrentKeyForChannel.Position));
+        glm::quat Rotation = glm::slerp(CurrentKeyForChannel.Rotation, NextKeyForChannel.Rotation, LerpRatio);
+        glm::vec3 Scale = (CurrentKeyForChannel.Scale +
+                           LerpRatio * (NextKeyForChannel.Scale - CurrentKeyForChannel.Scale));
+
+        glm::mat4 TranslateTransform = glm::translate(glm::mat4(1.0f), Position);
+        glm::mat4 RotateTransform = glm::mat4_cast(Rotation);
+        glm::mat4 ScaleTransform = glm::scale(glm::mat4(1.0f), Scale);
+        
+        //glm::mat4 Transform = TranslateTransform * RotateTransform * ScaleTransform;
+
+        i32 BoneID = ChannelIndex + 1;
+        glm::mat4 Transform = Model->Bones[BoneID].TransformToParent;
+
+        if (Model->Bones[BoneID].ParentID > 0)
         {
-            Model->Animation.currentTicks += DeltaTime * Model->Animation.ticksPerSecond;
-            if (Model->Animation.currentTicks >= Model->Animation.ticksDuration)
-            {
-                if (Model->Animation.isLooped)
-                {
-                    Model->Animation.currentTicks -= Model->Animation.ticksDuration;
-                }
-                else
-                {
-                    Model->Animation.currentTicks = 0.0f;
-                    Model->Animation.isRunning = false;
-                }
-            }
+            i32 ParentBoneChannel = Model->Bones[BoneID].ParentID - 1;
+            Assert(ParentBoneChannel < Model->AnimationData.ChannelCount);
+            Transform = Model->AnimationData.TransientChannelTransformData[ParentBoneChannel] * Transform;
         }
 
-        for (i32 atlbetaBoneIndex = 0; atlbetaBoneIndex < (i32) Model->Bones.size(); ++atlbetaBoneIndex)
-        {
-            bone Bone = Model->Bones[atlbetaBoneIndex];
-
-            glm::mat4 boneTransform = Bone.InverseBindTransform;
-
-            //boneTransform = bone.transformToParent * boneTransform;
-
-            glm::mat4 scalingTransform(1.0f);
-            glm::mat4 rotationTransform(1.0f);
-            glm::mat4 translationTransform(1.0f);
-
-            for (i32 i = 0; i < (i32) Bone.positionKeys.size() - 1; ++i)
-            {
-                if (Model->Animation.currentTicks >= Bone.positionKeys[i].time &&
-                    Model->Animation.currentTicks < Bone.positionKeys[i + 1].time)
-                {
-                    f32 timeBetweenFrames = Bone.positionKeys[i + 1].time - Bone.positionKeys[i].time;
-                    f32 timeAfterPreviousFrame = Model->Animation.currentTicks - Bone.positionKeys[i].time;
-                    f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
-
-                    glm::vec3 interpolatedPosition =
-                        (Bone.positionKeys[i].position * (1 - percentNextFrame) +
-                         Bone.positionKeys[i + 1].position * percentNextFrame);
-
-                    translationTransform = glm::translate(glm::mat4(1.0f), interpolatedPosition);
-                    break;
-                }
-            }
-            for (i32 i = 0; i < (i32) Bone.rotationKeys.size() - 1; ++i)
-            {
-                if (Model->Animation.currentTicks >= Bone.rotationKeys[i].time &&
-                    Model->Animation.currentTicks < Bone.rotationKeys[i + 1].time)
-                {
-                    f32 timeBetweenFrames = Bone.rotationKeys[i + 1].time - Bone.rotationKeys[i].time;
-                    f32 timeAfterPreviousFrame = Model->Animation.currentTicks - Bone.rotationKeys[i].time;
-                    f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
-
-                    glm::quat interpolatedRotation = glm::slerp(Bone.rotationKeys[i].rotation,
-                                                                Bone.rotationKeys[i + 1].rotation,
-                                                                percentNextFrame);
-
-                    rotationTransform = glm::mat4_cast(interpolatedRotation);
-                    break;
-                }
-            }
-            for (i32 i = 0; i < (i32) Bone.scalingKeys.size() - 1; ++i)
-            {
-                if (Model->Animation.currentTicks >= Bone.scalingKeys[i].time &&
-                    Model->Animation.currentTicks < Bone.scalingKeys[i + 1].time)
-                {
-                    f32 timeBetweenFrames = Bone.scalingKeys[i + 1].time - Bone.scalingKeys[i].time;
-                    f32 timeAfterPreviousFrame = Model->Animation.currentTicks - Bone.scalingKeys[i].time;
-                    f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
-
-                    glm::vec3 scale =
-                        (Bone.scalingKeys[i].scale * (1 - percentNextFrame) +
-                         Bone.scalingKeys[i + 1].scale * percentNextFrame);
-
-                    scalingTransform = glm::scale(glm::mat4(1.0f), scale);
-                    break;
-                }
-            }
-
-            boneTransform = translationTransform * rotationTransform * scalingTransform * boneTransform;
-
-            for (i32 parentIndex = Bone.pathNodes - 1; parentIndex >= 0; --parentIndex)
-            {
-                Bone parentBone = Model->Bones[Bone.pathToRoot[parentIndex]];
-                //boneTransform = parentBone.transformToParent * boneTransform;
-
-                glm::mat4 parentScalingTransform(1.0f);
-                glm::mat4 parentRotationTransform(1.0f);
-                glm::mat4 parentTranslationTransform(1.0f);
-
-                for (i32 i = 0; i < (i32) parentBone.positionKeys.size() - 1; ++i)
-                {
-                    if (Model->Animation.currentTicks >= parentBone.positionKeys[i].time &&
-                        Model->Animation.currentTicks < parentBone.positionKeys[i + 1].time)
-                    {
-                        f32 timeBetweenFrames = parentBone.positionKeys[i + 1].time - parentBone.positionKeys[i].time;
-                        f32 timeAfterPreviousFrame = Model->Animation.currentTicks - parentBone.positionKeys[i].time;
-                        f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
-
-                        glm::vec3 interpolatedPosition =
-                            (parentBone.positionKeys[i].position * (1 - percentNextFrame) +
-                             parentBone.positionKeys[i + 1].position * percentNextFrame);
-
-                        parentTranslationTransform = glm::translate(glm::mat4(1.0f), interpolatedPosition);
-                        break;
-                    }
-                }
-                for (i32 i = 0; i < (i32) parentBone.rotationKeys.size() - 1; ++i)
-                {
-                    if (Model->Animation.currentTicks >= parentBone.rotationKeys[i].time &&
-                        Model->Animation.currentTicks < parentBone.rotationKeys[i + 1].time)
-                    {
-                        f32 timeBetweenFrames = parentBone.rotationKeys[i + 1].time - parentBone.rotationKeys[i].time;
-                        f32 timeAfterPreviousFrame = Model->Animation.currentTicks - parentBone.rotationKeys[i].time;
-                        f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
-
-                        glm::quat interpolatedRotation = glm::slerp(parentBone.rotationKeys[i].rotation,
-                                                                    parentBone.rotationKeys[i + 1].rotation,
-                                                                    percentNextFrame);
-
-                        parentRotationTransform = glm::mat4_cast(interpolatedRotation);
-                        break;
-                    }
-                }
-                for (i32 i = 0; i < (i32) parentBone.scalingKeys.size() - 1; ++i)
-                {
-                    if (Model->Animation.currentTicks >= parentBone.scalingKeys[i].time &&
-                        Model->Animation.currentTicks < parentBone.scalingKeys[i + 1].time)
-                    {
-                        f32 timeBetweenFrames = parentBone.scalingKeys[i + 1].time - parentBone.scalingKeys[i].time;
-                        f32 timeAfterPreviousFrame = Model->Animation.currentTicks - parentBone.scalingKeys[i].time;
-                        f32 percentNextFrame = timeAfterPreviousFrame / timeBetweenFrames;
-
-                        glm::vec3 scale =
-                            (parentBone.scalingKeys[i].scale * (1 - percentNextFrame) +
-                             parentBone.scalingKeys[i + 1].scale * percentNextFrame);
-
-                        parentScalingTransform = glm::scale(glm::mat4(1.0f), scale);
-                        break;
-                    }
-                }
-
-                boneTransform = parentTranslationTransform * parentRotationTransform * parentScalingTransform * boneTransform;
-            }
-
-            std::string location = "boneTransforms[" + std::to_string(atlbetaBoneIndex) + "]";
-
-            glUniformMatrix4fv(glGetUniformLocation(Shader, location.c_str()), 1, GL_FALSE, glm::value_ptr(boneTransform));
-        }
+        Model->AnimationData.TransientChannelTransformData[ChannelIndex] = Transform;
     }
-    else
+
+    // Pass the bone transforms to the shader
+    // Skip bone #0 (DummyBone)
+    for (i32 BoneIndex = 1; BoneIndex < Model->BoneCount; ++BoneIndex)
     {
-        for (i32 atlbetaBoneIndex = 0; atlbetaBoneIndex < (i32) Model->Bones.size(); ++atlbetaBoneIndex)
-        {
-            std::string location = "boneTransforms[" + std::to_string(atlbetaBoneIndex) + "]";
-            glm::mat4 boneTransform(1.0f);
-            glUniformMatrix4fv(glGetUniformLocation(Shader, location.c_str()), 1, GL_FALSE, glm::value_ptr(boneTransform));
-        }
+        i32 ChannelID = BoneIndex - 1;
+        Assert(ChannelID < Model->AnimationData.ChannelCount);
+        glm::mat4 Transform = (Model->AnimationData.TransientChannelTransformData[BoneIndex] *
+                               Model->Bones[BoneIndex].InverseBindTransform);
+
+        // TODO: This should probably use a UBO...
+        char LocationStringBuffer[32] = { };
+        // TODO: This is probably very slow...
+        sprintf(LocationStringBuffer, "boneTransforms[%d]", BoneIndex);
+        glUniformMatrix4fv(glGetUniformLocation(Shader, LocationStringBuffer), 1, GL_FALSE, glm::value_ptr(Transform));
     }
-#endif
 
     // Render each mesh of the model
     // -----------------------------
