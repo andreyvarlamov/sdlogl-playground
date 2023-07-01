@@ -19,46 +19,57 @@
 glm::mat4 ASSIMP_Mat4ToGLM(aiMatrix4x4 AssimpMat);
 glm::vec3 ASSIMP_Vec3ToGLM(aiVector3D AssimpVector);
 glm::quat ASSIMP_QuatToGLM(aiQuaternion AssimpQuat);
-u32 prepareMeshVAO(f32 *vertexData, u32 vertexCount, u32 *indices, u32 indexCount);
+//u32 prepareMeshVAO(f32 *vertexData, u32 vertexCount, u32 *indices, u32 indexCount);
 void PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh);
 mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount);
 void FreeMeshInternalData(mesh_internal_data *MeshInternalData);
 
-void ASSIMP_ParseBonesHelper(aiNode *Node, bone **Bones, i32 *CurrentIndex, i32 BoneCount)
+bone *ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
 {
-    Assert(*CurrentIndex < BoneCount + 1);
-
-    i32 ParentIndex = *CurrentIndex;
-
-    for (i32 Index = 0; Index < (i32) Node->mNumChildren; ++Index)
-    {
-        aiNode *ChildNode = Node->mChildren[Index];
-        ++(*CurrentIndex);
-
-        bone ChildBone{ };
-        strncpy_s(ChildBone.Name, ChildNode->mName.C_Str(), MAX_BONE_NAME_LENGTH - 1);
-        ChildBone.ID = *CurrentIndex;
-        ChildBone.ParentID = ParentIndex;
-        ChildBone.TransformToParent = ASSIMP_Mat4ToGLM(ChildNode->mTransformation);
-        (*Bones)[*CurrentIndex] = ChildBone;
-        ASSIMP_ParseBonesHelper(ChildNode, Bones, CurrentIndex, BoneCount);
-    }
-}
-
-void ASSIMP_ParseBones(aiNode *ArmatureNode, bone **Bones, i32 BoneCount)
-{
-    Assert(*Bones);
     Assert(BoneCount > 0);
+    Assert(BoneCount < 128);
 
-    i32 BoneIndex = 0;
+    i32 CurrentBoneIndex = 0;
+    // TODO: LEAK
+    bone *Bones = (bone *) calloc(1, (BoneCount) * sizeof(bone));
+    Assert(Bones);
 
-    bone DummyBone{ };
-    strncpy_s(DummyBone.Name, "DummyBone", MAX_BONE_NAME_LENGTH - 1);
-    (*Bones)[BoneIndex] = DummyBone;
+    aiNode *NodeQueue[128] = { };
+    i32 QueueStart = 0;
+    i32 QueueEnd = 0;
+    NodeQueue[QueueEnd++] = ArmatureNode;
 
-    ASSIMP_ParseBonesHelper(ArmatureNode, Bones, &BoneIndex, BoneCount);
+    while (QueueStart != QueueEnd)
+    {
+        aiNode *CurrentNode = NodeQueue[QueueStart++];
+
+        bone Bone { };
+        // First bone is a dummy bone
+        if (CurrentBoneIndex == 0)
+        {
+            strncpy_s(Bone.Name, "DummyBone", MAX_BONE_NAME_LENGTH -1);
+        }
+        else
+        {
+            strncpy_s(Bone.Name, CurrentNode->mName.C_Str(), MAX_BONE_NAME_LENGTH -1);
+        }
+        Bone.ID = CurrentBoneIndex;
+        Bone.TransformToParent = ASSIMP_Mat4ToGLM(CurrentNode->mTransformation);
+
+        for (i32 ChildIndex = 0; ChildIndex < CurrentNode->mNumChildren; ++ChildIndex)
+        {
+            NodeQueue[QueueEnd] = CurrentNode->mChildren[ChildIndex];
+            Bone.ChildrenIDs[Bone.ChildrenCount++] = QueueEnd;
+            ++QueueEnd;
+        }
+
+        Bones[CurrentBoneIndex++] = Bone;
+    }
+
+    return Bones;
 }
 
+// TODO: Now I want to get rid of recursion again...
 void ASSIMP_GetArmatureInfoHelper(aiNode *Node, aiNode **Out_ArmatureNode, i32 *Out_BoneCount)
 {
     std::cout << Node->mName.C_Str() << ": ";
@@ -161,26 +172,10 @@ skinned_model LoadSkinnedModel(const char *Path)
     aiNode *ArmatureNode = 0;
     i32 BoneCount = 0;
     ASSIMP_GetArmatureInfo(AssimpScene->mRootNode, &ArmatureNode, &BoneCount);
-    if (ArmatureNode)
+    if (ArmatureNode && BoneCount > 0)
     {
-        Assert(BoneCount > 0);
-
-        // TODO: LEAK
-        bone *Bones = (bone *) calloc(1, (BoneCount) * sizeof(bone));
-
-        if (Bones)
-        {
-            std::cout << BoneCount * sizeof(bone) << " bytes allocated for bones array" << "\n";
-
-            ASSIMP_ParseBones(ArmatureNode, &Bones, BoneCount);
-
-            Model.BoneCount = BoneCount;
-            Model.Bones = Bones;
-        }
-        else
-        {
-            // TODO: Logging
-        }
+        Model.BoneCount = BoneCount;
+        Model.Bones = ASSIMP_ParseBones(ArmatureNode, BoneCount);
     }
 
     // Scene mesh data
@@ -616,6 +611,7 @@ glm::quat ASSIMP_QuatToGLM(aiQuaternion AssimpQuat)
     return Result;
 }
 
+#if 0
 u32 prepareMeshVAO(f32 *vertexData, u32 vertexAttribCount, u32 *indices, u32 indexCount)
 {
     u32 meshVAO;
@@ -654,6 +650,7 @@ u32 prepareMeshVAO(f32 *vertexData, u32 vertexAttribCount, u32 *indices, u32 ind
 
     return meshVAO;
 }
+#endif
 
 void PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh)
 {

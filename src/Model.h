@@ -19,36 +19,16 @@ struct mesh
     u32 NormalMapID;
 };
 
-struct PositionKey
-{
-    f32 time;
-    glm::vec3 position;
-};
-
-struct ScalingKey
-{
-    f32 time;
-    glm::vec3 scale;
-};
-
-struct RotationKey
-{
-    f32 time;
-    glm::quat rotation;
-};
-
 #define MAX_BONE_NAME_LENGTH 32
+#define MAX_BONE_CHILDREN 8
 struct bone
 {
     i32 ID;
-    i32 ParentID;
+    i32 ChildrenIDs[MAX_BONE_CHILDREN];
+    i32 ChildrenCount;
     glm::mat4 TransformToParent;
     glm::mat4 InverseBindTransform;
     char Name[MAX_BONE_NAME_LENGTH];
-
-    //std::vector<PositionKey> positionKeys;
-    //std::vector<ScalingKey> scalingKeys;
-    //std::vector<RotationKey> rotationKeys;
 };
 
 struct animation_key
