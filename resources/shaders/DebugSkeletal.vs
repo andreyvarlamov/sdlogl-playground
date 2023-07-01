@@ -26,7 +26,7 @@ void main()
     {
         if (aBoneIDs[i] > 0)
         {
-            boneTransform += boneTransforms[aBoneIDs[i] - 1] * aBoneWeights[i];
+            boneTransform += boneTransforms[aBoneIDs[i]] * aBoneWeights[i];
             boneTransformToApply = true;
         }
 

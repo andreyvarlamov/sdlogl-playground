@@ -728,7 +728,7 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
     // ----------------------------
 
     // Update current animation time to the beginning of the game loop
-    Model->AnimationData.CurrentTicks += DeltaTime;
+    Model->AnimationData.CurrentTicks += DeltaTime * Model->AnimationData.TicksPerSecond;
     // Loop animation around if past end
     if (Model->AnimationData.CurrentTicks >= Model->AnimationData.TicksDuration)
     {
@@ -736,25 +736,21 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
     }
 
     // Find current animation keyframes
-    i32 CurrentKey = -1;
-    for (i32 KeyIndex = 0; KeyIndex < Model->AnimationData.KeyCount; KeyIndex++)
+    i32 NextKey = -1;
+    for (i32 KeyIndex = 1; KeyIndex < Model->AnimationData.KeyCount; KeyIndex++)
     {
-        if (Model->AnimationData.CurrentTicks >= Model->AnimationData.KeyTimes[KeyIndex])
+        if (Model->AnimationData.CurrentTicks <= Model->AnimationData.KeyTimes[KeyIndex])
         {
-            CurrentKey = KeyIndex;
+            NextKey = KeyIndex;
             break;
         }
     }
-    Assert(CurrentKey >= 0);
-
-    // The last animation frame should always be identical to and replaced with the first frame
-    // TODO: Only been dealing with loopable animation so far.
-    //       Find out what needs to be done for animations that stop and change the end state
-    Assert(CurrentKey != Model->AnimationData.KeyCount - 1);
+    Assert(NextKey >= 1 && NextKey < Model->AnimationData.KeyCount);
+    std::cout << "Animation time: " << Model->AnimationData.CurrentTicks << "; NextKey: " << NextKey << '\n';
 
     // Find the lerp ratio that will be used to determine the place between the current frame and the next frame
-    f32 LerpRatio = ((Model->AnimationData.CurrentTicks - Model->AnimationData.KeyTimes[CurrentKey]) /
-                     (Model->AnimationData.KeyTimes[CurrentKey + 1] - Model->AnimationData.KeyTimes[CurrentKey]));
+    f32 LerpRatio = ((Model->AnimationData.CurrentTicks - Model->AnimationData.KeyTimes[NextKey-1]) /
+                     (Model->AnimationData.KeyTimes[NextKey] - Model->AnimationData.KeyTimes[NextKey-1]));
 
     // Reset old transient animation transform data
     memset(Model->AnimationData.TransientChannelTransformData, 0, Model->AnimationData.ChannelCount * sizeof(glm::mat4));
@@ -763,8 +759,8 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
     i32 ChannelCount = Model->AnimationData.ChannelCount;
     for (i32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
     {
-        animation_key CurrentKeyForChannel = Model->AnimationData.Keys[CurrentKey*ChannelCount + ChannelIndex];
-        animation_key NextKeyForChannel = Model->AnimationData.Keys[(CurrentKey+1)*ChannelCount + ChannelIndex];
+        animation_key CurrentKeyForChannel = Model->AnimationData.Keys[(NextKey-1)*ChannelCount + ChannelIndex];
+        animation_key NextKeyForChannel = Model->AnimationData.Keys[NextKey*ChannelCount + ChannelIndex];
 
         glm::vec3 Position = (CurrentKeyForChannel.Position +
                               LerpRatio * (NextKeyForChannel.Position - CurrentKeyForChannel.Position));
@@ -776,10 +772,10 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
         glm::mat4 RotateTransform = glm::mat4_cast(Rotation);
         glm::mat4 ScaleTransform = glm::scale(glm::mat4(1.0f), Scale);
         
-        //glm::mat4 Transform = TranslateTransform * RotateTransform * ScaleTransform;
+        glm::mat4 Transform = TranslateTransform * RotateTransform * ScaleTransform;
 
         i32 BoneID = ChannelIndex + 1;
-        glm::mat4 Transform = Model->Bones[BoneID].TransformToParent;
+        //glm::mat4 Transform = Model->Bones[BoneID].TransformToParent;
 
         if (Model->Bones[BoneID].ParentID > 0)
         {
@@ -797,13 +793,14 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
     {
         i32 ChannelID = BoneIndex - 1;
         Assert(ChannelID < Model->AnimationData.ChannelCount);
-        glm::mat4 Transform = (Model->AnimationData.TransientChannelTransformData[BoneIndex] *
+        glm::mat4 Transform = (Model->AnimationData.TransientChannelTransformData[ChannelID] *
                                Model->Bones[BoneIndex].InverseBindTransform);
 
         // TODO: This should probably use a UBO...
         char LocationStringBuffer[32] = { };
         // TODO: This is probably very slow...
         sprintf(LocationStringBuffer, "boneTransforms[%d]", BoneIndex);
+        //Transform = glm::mat4(1.0f);
         glUniformMatrix4fv(glGetUniformLocation(Shader, LocationStringBuffer), 1, GL_FALSE, glm::value_ptr(Transform));
     }
 
