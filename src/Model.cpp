@@ -48,17 +48,17 @@ bone *ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
         // First bone is a dummy bone
         if (CurrentBoneIndex == 0)
         {
-            strncpy_s(Bone.Name, "DummyBone", MAX_BONE_NAME_LENGTH -1);
+            strncpy_s(Bone.Name, "DummyBone", MAX_ASSIMP_NAME_LENGTH -1);
         }
         else
         {
-            strncpy_s(Bone.Name, CurrentNode->mName.C_Str(), MAX_BONE_NAME_LENGTH -1);
+            strncpy_s(Bone.Name, CurrentNode->mName.C_Str(), MAX_ASSIMP_NAME_LENGTH -1);
             Bone.ParentID = ParentIDHelperQueue[QueueStart];
         }
         Bone.ID = CurrentBoneIndex;
         Bone.TransformToParent = ASSIMP_Mat4ToGLM(CurrentNode->mTransformation);
 
-        for (i32 ChildIndex = 0; ChildIndex < CurrentNode->mNumChildren; ++ChildIndex)
+        for (i32 ChildIndex = 0; ChildIndex < (i32) CurrentNode->mNumChildren; ++ChildIndex)
         {
             NodeQueue[QueueEnd] = CurrentNode->mChildren[ChildIndex];
             ParentIDHelperQueue[QueueEnd] = CurrentBoneIndex;
@@ -314,90 +314,99 @@ skinned_model LoadSkinnedModel(const char *Path)
 
     // Scene animation data
     // --------------------
-    aiAnimation *AssimpAnimation = AssimpScene->mAnimations[0];
-    i32 KeyCount = 0;
-    i32 ChannelCount = AssimpAnimation->mNumChannels;
-    f32 *AnimationKeyTimes = 0;
-    animation_key *AnimationKeys = 0;
-    bool firstChannel = true;
-    for (i32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
+    i32 AnimationCount = AssimpScene->mNumAnimations;
+    Model.AnimationCount = AnimationCount;
+    Model.Animations = (animation *) calloc(1, AnimationCount * sizeof(animation));
+    Assert(Model.Animations);
+
+    for (i32 AnimationIndex = 0; AnimationIndex < AnimationCount; ++AnimationIndex)
     {
-        aiNodeAnim *AssimpAnimationChannel = AssimpAnimation->mChannels[ChannelIndex];
-
-        // Find the bone ID corresponding to this node
-        // So that the animation nodes are in the same
-        // order as bones.
-        // -------------------------------------------
-        i32 BoneID = 0;
-        for (i32 BoneIndex = 0; BoneIndex < Model.BoneCount; ++BoneIndex)
+        aiAnimation *AssimpAnimation = AssimpScene->mAnimations[AnimationIndex];
+        i32 KeyCount = 0;
+        i32 ChannelCount = AssimpAnimation->mNumChannels;
+        f32 *AnimationKeyTimes = 0;
+        animation_key *AnimationKeys = 0;
+        bool firstChannel = true;
+        for (i32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
         {
-            if (strcmp(Model.Bones[BoneIndex].Name, AssimpAnimationChannel->mNodeName.C_Str()) == 0)
+            aiNodeAnim *AssimpAnimationChannel = AssimpAnimation->mChannels[ChannelIndex];
+
+            // Find the bone ID corresponding to this node
+            // So that the animation nodes are in the same
+            // order as bones.
+            // -------------------------------------------
+            i32 BoneID = 0;
+            for (i32 BoneIndex = 0; BoneIndex < Model.BoneCount; ++BoneIndex)
             {
-                BoneID = BoneIndex;
+                if (strcmp(Model.Bones[BoneIndex].Name, AssimpAnimationChannel->mNodeName.C_Str()) == 0)
+                {
+                    BoneID = BoneIndex;
+                }
             }
-        }
-        Assert(BoneID > 0);
+            Assert(BoneID > 0);
 
-        // Initialize key data structures on the first loop
-        // ------------------------------------------------
-        if (firstChannel)
-        {
-            KeyCount = AssimpAnimationChannel->mNumPositionKeys;
-            // TODO: LEAK
-            AnimationKeyTimes = (f32 *) calloc(1, KeyCount * sizeof(f32));
-            Assert(AnimationKeyTimes);
-            // TODO: LEAK
-            AnimationKeys = (animation_key *) calloc(1, KeyCount * ChannelCount * sizeof(animation_key));
-            Assert(AnimationKeys);
+            // Initialize key data structures on the first loop
+            // ------------------------------------------------
+            if (firstChannel)
+            {
+                KeyCount = AssimpAnimationChannel->mNumPositionKeys;
+                // TODO: LEAK
+                AnimationKeyTimes = (f32 *) calloc(1, KeyCount * sizeof(f32));
+                Assert(AnimationKeyTimes);
+                // TODO: LEAK
+                AnimationKeys = (animation_key *) calloc(1, KeyCount * ChannelCount * sizeof(animation_key));
+                Assert(AnimationKeys);
+                for (i32 KeyIndex = 0; KeyIndex < KeyCount; ++KeyIndex)
+                {
+                    AnimationKeyTimes[KeyIndex] = (f32) AssimpAnimationChannel->mPositionKeys[KeyIndex].mTime;
+                }
+                firstChannel = false;
+            }
+
+            // Assuming positions, rotations and scaling have the same number of keys for all channels
+            Assert(KeyCount == AssimpAnimationChannel->mNumPositionKeys);
+            Assert(KeyCount == AssimpAnimationChannel->mNumRotationKeys);
+            Assert(KeyCount == AssimpAnimationChannel->mNumScalingKeys);
+
+            // Process transformation data for each key of the channel
+            // -------------------------------------------------------
             for (i32 KeyIndex = 0; KeyIndex < KeyCount; ++KeyIndex)
             {
-                AnimationKeyTimes[KeyIndex] = (f32) AssimpAnimationChannel->mPositionKeys[KeyIndex].mTime;
+                aiVectorKey *AssimpPosKey = &AssimpAnimationChannel->mPositionKeys[KeyIndex];
+                aiQuatKey *AssimpRotKey = &AssimpAnimationChannel->mRotationKeys[KeyIndex];
+                aiVectorKey *AssimpScaKey = &AssimpAnimationChannel->mScalingKeys[KeyIndex];
+
+                // Assuming all channels have the same exact timing info
+                Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpPosKey->mTime);
+                Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpRotKey->mTime);
+                Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpScaKey->mTime);
+
+                animation_key Key{ };
+                Key.Position = ASSIMP_Vec3ToGLM(AssimpPosKey->mValue);
+                Key.Rotation = ASSIMP_QuatToGLM(AssimpRotKey->mValue);
+                Key.Scale = ASSIMP_Vec3ToGLM(AssimpScaKey->mValue);
+
+                // All animation channels should have the same order as bones for easy access
+                // But BoneID = 0 is the DummyBone, no need to save animation for that
+                i32 ChannelPosition = BoneID - 1;
+
+                // TODO: Profile vs de-intereleaved
+                // Interleaved A0A1B0B1C0C1...; A - Key; 0 - Channel
+                AnimationKeys[KeyIndex * ChannelCount + ChannelPosition] = Key;
             }
-            firstChannel = false;
         }
 
-        // Assuming positions, rotations and scaling have the same number of keys for all channels
-        Assert(KeyCount == AssimpAnimationChannel->mNumPositionKeys);
-        Assert(KeyCount == AssimpAnimationChannel->mNumRotationKeys);
-        Assert(KeyCount == AssimpAnimationChannel->mNumScalingKeys);
-
-        // Process transformation data for each key of the channel
-        // -------------------------------------------------------
-        for (i32 KeyIndex = 0; KeyIndex < KeyCount; ++KeyIndex)
-        {
-            aiVectorKey *AssimpPosKey = &AssimpAnimationChannel->mPositionKeys[KeyIndex];
-            aiQuatKey *AssimpRotKey = &AssimpAnimationChannel->mRotationKeys[KeyIndex];
-            aiVectorKey *AssimpScaKey = &AssimpAnimationChannel->mScalingKeys[KeyIndex];
-
-            // Assuming all channels have the same exact timing info
-            Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpPosKey->mTime);
-            Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpRotKey->mTime);
-            Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpScaKey->mTime);
-
-            animation_key Key{ };
-            Key.Position = ASSIMP_Vec3ToGLM(AssimpPosKey->mValue);
-            Key.Rotation = ASSIMP_QuatToGLM(AssimpRotKey->mValue);
-            Key.Scale = ASSIMP_Vec3ToGLM(AssimpScaKey->mValue);
-
-            // All animation channels should have the same order as bones for easy access
-            // But BoneID = 0 is the DummyBone, no need to save animation for that
-            i32 ChannelPosition = BoneID - 1;
-
-            // TODO: Profile vs de-intereleaved
-            // Interleaved A0A1B0B1C0C1...; A - Key; 0 - Channel
-            AnimationKeys[KeyIndex * ChannelCount + ChannelPosition] = Key;
-        }
+        strncpy_s(Model.Animations[AnimationIndex].Name, AssimpAnimation->mName.C_Str(), MAX_ASSIMP_NAME_LENGTH - 1);
+        Model.Animations[AnimationIndex].TicksDuration = (f32) AssimpAnimation->mDuration;
+        Model.Animations[AnimationIndex].TicksPerSecond = (f32) AssimpAnimation->mTicksPerSecond;
+        Model.Animations[AnimationIndex].KeyCount = KeyCount;
+        Model.Animations[AnimationIndex].ChannelCount = ChannelCount;
+        Model.Animations[AnimationIndex].KeyTimes = AnimationKeyTimes;
+        Model.Animations[AnimationIndex].Keys = AnimationKeys;
+        Model.Animations[AnimationIndex].TransientChannelTransformData = 
+            (glm::mat4 *) calloc(1, Model.Animations[AnimationIndex].ChannelCount * sizeof(glm::mat4));
+        Assert(Model.Animations[AnimationIndex].TransientChannelTransformData);
     }
-
-    Model.AnimationData.TicksDuration = (f32) AssimpAnimation->mDuration;
-    Model.AnimationData.TicksPerSecond = (f32) AssimpAnimation->mTicksPerSecond;
-    Model.AnimationData.KeyCount = KeyCount;
-    Model.AnimationData.ChannelCount = ChannelCount;
-    Model.AnimationData.KeyTimes = AnimationKeyTimes;
-    Model.AnimationData.Keys = AnimationKeys;
-    Model.AnimationData.TransientChannelTransformData = 
-        (glm::mat4 *) calloc(1, Model.AnimationData.ChannelCount * sizeof(glm::mat4));
-    Assert(Model.AnimationData.TransientChannelTransformData);
 
     aiReleaseImport(AssimpScene);
 
@@ -726,41 +735,42 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
 
     // Process animation transforms
     // ----------------------------
+    animation *CurrentAnimation = &Model->Animations[Model->AnimationState.CurrentAnimationIndex];
 
     // Update current animation time to the beginning of the game loop
-    Model->AnimationData.CurrentTicks += DeltaTime * Model->AnimationData.TicksPerSecond;
+    CurrentAnimation->CurrentTicks += DeltaTime * CurrentAnimation->TicksPerSecond;
     // Loop animation around if past end
-    if (Model->AnimationData.CurrentTicks >= Model->AnimationData.TicksDuration)
+    if (CurrentAnimation->CurrentTicks >= CurrentAnimation->TicksDuration)
     {
-        Model->AnimationData.CurrentTicks -= Model->AnimationData.TicksDuration;
+        CurrentAnimation->CurrentTicks -= CurrentAnimation->TicksDuration;
     }
 
     // Find current animation keyframes
     i32 NextKey = -1;
-    for (i32 KeyIndex = 1; KeyIndex < Model->AnimationData.KeyCount; KeyIndex++)
+    for (i32 KeyIndex = 1; KeyIndex < CurrentAnimation->KeyCount; KeyIndex++)
     {
-        if (Model->AnimationData.CurrentTicks <= Model->AnimationData.KeyTimes[KeyIndex])
+        if (CurrentAnimation->CurrentTicks <= CurrentAnimation->KeyTimes[KeyIndex])
         {
             NextKey = KeyIndex;
             break;
         }
     }
-    Assert(NextKey >= 1 && NextKey < Model->AnimationData.KeyCount);
-    std::cout << "Animation time: " << Model->AnimationData.CurrentTicks << "; NextKey: " << NextKey << '\n';
+    Assert(NextKey >= 1 && NextKey < CurrentAnimation->KeyCount);
+    std::cout << "Animation time: " << CurrentAnimation->CurrentTicks << "; NextKey: " << NextKey << '\n';
 
     // Find the lerp ratio that will be used to determine the place between the current frame and the next frame
-    f32 LerpRatio = ((Model->AnimationData.CurrentTicks - Model->AnimationData.KeyTimes[NextKey-1]) /
-                     (Model->AnimationData.KeyTimes[NextKey] - Model->AnimationData.KeyTimes[NextKey-1]));
+    f32 LerpRatio = ((CurrentAnimation->CurrentTicks - CurrentAnimation->KeyTimes[NextKey-1]) /
+                     (CurrentAnimation->KeyTimes[NextKey] - CurrentAnimation->KeyTimes[NextKey-1]));
 
     // Reset old transient animation transform data
-    memset(Model->AnimationData.TransientChannelTransformData, 0, Model->AnimationData.ChannelCount * sizeof(glm::mat4));
+    memset(CurrentAnimation->TransientChannelTransformData, 0, CurrentAnimation->ChannelCount * sizeof(glm::mat4));
 
     // Calculate animation transforms for each of the animation channels
-    i32 ChannelCount = Model->AnimationData.ChannelCount;
+    i32 ChannelCount = CurrentAnimation->ChannelCount;
     for (i32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
     {
-        animation_key CurrentKeyForChannel = Model->AnimationData.Keys[(NextKey-1)*ChannelCount + ChannelIndex];
-        animation_key NextKeyForChannel = Model->AnimationData.Keys[NextKey*ChannelCount + ChannelIndex];
+        animation_key CurrentKeyForChannel = CurrentAnimation->Keys[(NextKey-1)*ChannelCount + ChannelIndex];
+        animation_key NextKeyForChannel = CurrentAnimation->Keys[NextKey*ChannelCount + ChannelIndex];
 
         glm::vec3 Position = (CurrentKeyForChannel.Position +
                               LerpRatio * (NextKeyForChannel.Position - CurrentKeyForChannel.Position));
@@ -780,11 +790,11 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
         if (Model->Bones[BoneID].ParentID > 0)
         {
             i32 ParentBoneChannel = Model->Bones[BoneID].ParentID - 1;
-            Assert(ParentBoneChannel < Model->AnimationData.ChannelCount);
-            Transform = Model->AnimationData.TransientChannelTransformData[ParentBoneChannel] * Transform;
+            Assert(ParentBoneChannel < CurrentAnimation->ChannelCount);
+            Transform = CurrentAnimation->TransientChannelTransformData[ParentBoneChannel] * Transform;
         }
 
-        Model->AnimationData.TransientChannelTransformData[ChannelIndex] = Transform;
+        CurrentAnimation->TransientChannelTransformData[ChannelIndex] = Transform;
     }
 
     // Pass the bone transforms to the shader
@@ -792,14 +802,14 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
     for (i32 BoneIndex = 1; BoneIndex < Model->BoneCount; ++BoneIndex)
     {
         i32 ChannelID = BoneIndex - 1;
-        Assert(ChannelID < Model->AnimationData.ChannelCount);
-        glm::mat4 Transform = (Model->AnimationData.TransientChannelTransformData[ChannelID] *
+        Assert(ChannelID < CurrentAnimation->ChannelCount);
+        glm::mat4 Transform = (CurrentAnimation->TransientChannelTransformData[ChannelID] *
                                Model->Bones[BoneIndex].InverseBindTransform);
 
         // TODO: This should probably use a UBO...
         char LocationStringBuffer[32] = { };
         // TODO: This is probably very slow...
-        sprintf(LocationStringBuffer, "boneTransforms[%d]", BoneIndex);
+        sprintf_s(LocationStringBuffer, "boneTransforms[%d]", BoneIndex);
         //Transform = glm::mat4(1.0f);
         glUniformMatrix4fv(glGetUniformLocation(Shader, LocationStringBuffer), 1, GL_FALSE, glm::value_ptr(Transform));
     }

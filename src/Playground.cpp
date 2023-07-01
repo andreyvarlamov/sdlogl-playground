@@ -33,6 +33,7 @@ bool AnimationStartButtonPressed = false;
 bool AnimationLoopButtonPressed = false;
 bool AnimationPauseButtonPressed = false;
 bool AnimationRetriggerButtonPressed = false;
+bool AnimationSwitchButtonPressed = false;
 
 glm::vec3 calculateTangentForTriangle(const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
 void generateTriangleVertexData(f32 *vertexData, const glm::vec3 *positions, glm::vec3 normal, const glm::vec2 *uvs);
@@ -139,7 +140,7 @@ int main(int argc, char *argv[])
 
                 // Load models
                 // -----------
-                skinned_model AtlbetaModel = LoadSkinnedModel("resources/models/animtest/atlbeta09.gltf");
+                skinned_model AtlbetaModel = LoadSkinnedModel("resources/models/animtest/atlbeta10.gltf");
                 i32 selectedBone = 0;
                 bool incBoneButtonPressed = false;
                 bool decBoneButtonPressed = false;
@@ -236,6 +237,22 @@ int main(int argc, char *argv[])
                     else if (!currentKeyStates[SDL_SCANCODE_RIGHT])
                     {
                         incBoneButtonPressed = false;
+                    }
+                    if (currentKeyStates[SDL_SCANCODE_T] && !AnimationSwitchButtonPressed)
+                    {
+                        ++AtlbetaModel.AnimationState.CurrentAnimationIndex;
+                        if (AtlbetaModel.AnimationState.CurrentAnimationIndex >= AtlbetaModel.AnimationCount)
+                        {
+                            AtlbetaModel.AnimationState.CurrentAnimationIndex = 0;
+                        }
+                        std::cout << 
+                            AtlbetaModel.Animations[AtlbetaModel.AnimationState.CurrentAnimationIndex].Name
+                            << '\n';
+                        AnimationSwitchButtonPressed = !AnimationSwitchButtonPressed;
+                    }
+                    else if (!currentKeyStates[SDL_SCANCODE_T])
+                    {
+                        AnimationSwitchButtonPressed = false;
                     }
                     //if (currentKeyStates[SDL_SCANCODE_F] && !AnimationStartButtonPressed)
                     //{

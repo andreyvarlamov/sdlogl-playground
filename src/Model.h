@@ -19,7 +19,7 @@ struct mesh
     u32 NormalMapID;
 };
 
-#define MAX_BONE_NAME_LENGTH 32
+#define MAX_ASSIMP_NAME_LENGTH 32
 #define MAX_BONE_CHILDREN 8
 struct bone
 {
@@ -29,7 +29,7 @@ struct bone
     i32 ChildrenCount;
     glm::mat4 TransformToParent;
     glm::mat4 InverseBindTransform;
-    char Name[MAX_BONE_NAME_LENGTH];
+    char Name[MAX_ASSIMP_NAME_LENGTH];
 };
 
 struct animation_key
@@ -39,22 +39,28 @@ struct animation_key
     glm::vec3 Scale;
 };
 
-struct animation_data
+struct animation
 {
     f32 TicksDuration;
     f32 TicksPerSecond;
 
     f32 CurrentTicks;
-    bool IsRunning = true;
-    bool IsPaused = false;
-    bool IsLooped = true;
-
     i32 KeyCount;
     i32 ChannelCount;
     f32 *KeyTimes;
     animation_key *Keys;
 
     glm::mat4 *TransientChannelTransformData;
+
+    char Name[MAX_ASSIMP_NAME_LENGTH];
+};
+
+struct animation_state
+{
+    i32 CurrentAnimationIndex;
+    bool IsRunning = true;
+    bool IsPaused = false;
+    bool IsLooped = true;
 };
 
 struct skinned_model
@@ -65,7 +71,9 @@ struct skinned_model
     i32 BoneCount;
     bone *Bones;
 
-    animation_data AnimationData;
+    animation_state AnimationState;
+    i32 AnimationCount;
+    animation *Animations;
 };
 
 #define POSITIONS_PER_VERTEX 3
