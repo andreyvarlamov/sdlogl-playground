@@ -23,6 +23,11 @@ glm::quat ASSIMP_QuatToGLM(aiQuaternion AssimpQuat);
 void PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh);
 mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount);
 void FreeMeshInternalData(mesh_internal_data *MeshInternalData);
+inline glm::mat4 GetTransformationForAnimationKey(animation_key Key);
+inline animation_key LerpAnimationKeys(animation_key KeyA, animation_key KeyB, f32 LerpRatio);
+inline void UpdateAnimationState(animation *Animation, f32 DeltaTime);
+inline i32 FindNextAnimationKey(animation *Animation);
+inline f32 CalculateLerpRatioBetweenTwoFrames(animation *Animation, i32 NextKey);
 
 bone *ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
 {
@@ -186,6 +191,7 @@ skinned_model LoadSkinnedModel(const char *Path)
     // Scene mesh data
     // ---------------
     Model.MeshCount = AssimpScene->mNumMeshes;
+    // TODO: LEAK
     Model.Meshes = (mesh *) calloc(1, Model.MeshCount * sizeof(mesh));
     if (!Model.Meshes)
     {
@@ -316,14 +322,19 @@ skinned_model LoadSkinnedModel(const char *Path)
     // --------------------
     i32 AnimationCount = AssimpScene->mNumAnimations;
     Model.AnimationCount = AnimationCount;
+    //TODO: LEAK
     Model.Animations = (animation *) calloc(1, AnimationCount * sizeof(animation));
     Assert(Model.Animations);
+
+    // NOTE: An assumption I'm making: all animations for the same model have the same number of channels
+    i32 ModelAnimationChannelCount = AssimpScene->mAnimations[0]->mNumChannels;
 
     for (i32 AnimationIndex = 0; AnimationIndex < AnimationCount; ++AnimationIndex)
     {
         aiAnimation *AssimpAnimation = AssimpScene->mAnimations[AnimationIndex];
         i32 KeyCount = 0;
         i32 ChannelCount = AssimpAnimation->mNumChannels;
+        Assert(ChannelCount == ModelAnimationChannelCount);
         f32 *AnimationKeyTimes = 0;
         animation_key *AnimationKeys = 0;
         bool firstChannel = true;
@@ -363,7 +374,8 @@ skinned_model LoadSkinnedModel(const char *Path)
                 firstChannel = false;
             }
 
-            // Assuming positions, rotations and scaling have the same number of keys for all channels
+            // NOTE: An assumption I'm making: positions, rotations and scaling
+            //       have the same number of keys for all channels
             Assert(KeyCount == AssimpAnimationChannel->mNumPositionKeys);
             Assert(KeyCount == AssimpAnimationChannel->mNumRotationKeys);
             Assert(KeyCount == AssimpAnimationChannel->mNumScalingKeys);
@@ -376,7 +388,7 @@ skinned_model LoadSkinnedModel(const char *Path)
                 aiQuatKey *AssimpRotKey = &AssimpAnimationChannel->mRotationKeys[KeyIndex];
                 aiVectorKey *AssimpScaKey = &AssimpAnimationChannel->mScalingKeys[KeyIndex];
 
-                // Assuming all channels have the same exact timing info
+                // NOTE: an assumption I'm making: all channels have the same exact timing info
                 Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpPosKey->mTime);
                 Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpRotKey->mTime);
                 Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpScaKey->mTime);
@@ -403,9 +415,10 @@ skinned_model LoadSkinnedModel(const char *Path)
         Model.Animations[AnimationIndex].ChannelCount = ChannelCount;
         Model.Animations[AnimationIndex].KeyTimes = AnimationKeyTimes;
         Model.Animations[AnimationIndex].Keys = AnimationKeys;
-        Model.Animations[AnimationIndex].TransientChannelTransformData = 
+        // TODO: LEAK
+        Model.AnimationState.TransientChannelTransformData = 
             (glm::mat4 *) calloc(1, Model.Animations[AnimationIndex].ChannelCount * sizeof(glm::mat4));
-        Assert(Model.Animations[AnimationIndex].TransientChannelTransformData);
+        Assert(Model.AnimationState.TransientChannelTransformData);
     }
 
     aiReleaseImport(AssimpScene);
@@ -728,73 +741,53 @@ void PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out
     Out_Mesh->IndexCount = MeshInternalData.IndexCount;
 }
 
-
 void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
 {
     glUseProgram(Shader);
 
     // Process animation transforms
     // ----------------------------
-    animation *CurrentAnimation = &Model->Animations[Model->AnimationState.CurrentAnimationIndex];
+    animation *CurrentAnimationA = &Model->Animations[Model->AnimationState.CurrentAnimationA];
+    animation *CurrentAnimationB = &Model->Animations[Model->AnimationState.CurrentAnimationB];
 
-    // Update current animation time to the beginning of the game loop
-    CurrentAnimation->CurrentTicks += DeltaTime * CurrentAnimation->TicksPerSecond;
-    // Loop animation around if past end
-    if (CurrentAnimation->CurrentTicks >= CurrentAnimation->TicksDuration)
-    {
-        CurrentAnimation->CurrentTicks -= CurrentAnimation->TicksDuration;
-    }
+    UpdateAnimationState(CurrentAnimationA, DeltaTime);
+    UpdateAnimationState(CurrentAnimationB, DeltaTime);
 
     // Find current animation keyframes
-    i32 NextKey = -1;
-    for (i32 KeyIndex = 1; KeyIndex < CurrentAnimation->KeyCount; KeyIndex++)
-    {
-        if (CurrentAnimation->CurrentTicks <= CurrentAnimation->KeyTimes[KeyIndex])
-        {
-            NextKey = KeyIndex;
-            break;
-        }
-    }
-    Assert(NextKey >= 1 && NextKey < CurrentAnimation->KeyCount);
-    std::cout << "Animation time: " << CurrentAnimation->CurrentTicks << "; NextKey: " << NextKey << '\n';
+    i32 NextKeyA = FindNextAnimationKey(CurrentAnimationA);
+    i32 NextKeyB = FindNextAnimationKey(CurrentAnimationB);
 
-    // Find the lerp ratio that will be used to determine the place between the current frame and the next frame
-    f32 LerpRatio = ((CurrentAnimation->CurrentTicks - CurrentAnimation->KeyTimes[NextKey-1]) /
-                     (CurrentAnimation->KeyTimes[NextKey] - CurrentAnimation->KeyTimes[NextKey-1]));
-
-    // Reset old transient animation transform data
-    memset(CurrentAnimation->TransientChannelTransformData, 0, CurrentAnimation->ChannelCount * sizeof(glm::mat4));
+    // Find the lerp ratio that will be used to determine the place between the current key and the next key
+    f32 LerpRatioA = CalculateLerpRatioBetweenTwoFrames(CurrentAnimationA, NextKeyA);
+    f32 LerpRatioB = CalculateLerpRatioBetweenTwoFrames(CurrentAnimationB, NextKeyB);
 
     // Calculate animation transforms for each of the animation channels
-    i32 ChannelCount = CurrentAnimation->ChannelCount;
+    // NOTE: All animations have the same channel count
+    i32 ChannelCount = CurrentAnimationA->ChannelCount;
     for (i32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
     {
-        animation_key CurrentKeyForChannel = CurrentAnimation->Keys[(NextKey-1)*ChannelCount + ChannelIndex];
-        animation_key NextKeyForChannel = CurrentAnimation->Keys[NextKey*ChannelCount + ChannelIndex];
+        animation_key InterpolatedKeyA = LerpAnimationKeys(CurrentAnimationA->Keys[(NextKeyA-1)*ChannelCount + ChannelIndex],
+                                                           CurrentAnimationA->Keys[NextKeyA*ChannelCount + ChannelIndex],
+                                                           LerpRatioA);
+        animation_key InterpolatedKeyB = LerpAnimationKeys(CurrentAnimationB->Keys[(NextKeyB-1)*ChannelCount + ChannelIndex],
+                                                           CurrentAnimationB->Keys[NextKeyB*ChannelCount + ChannelIndex],
+                                                           LerpRatioB);
 
-        glm::vec3 Position = (CurrentKeyForChannel.Position +
-                              LerpRatio * (NextKeyForChannel.Position - CurrentKeyForChannel.Position));
-        glm::quat Rotation = glm::slerp(CurrentKeyForChannel.Rotation, NextKeyForChannel.Rotation, LerpRatio);
-        glm::vec3 Scale = (CurrentKeyForChannel.Scale +
-                           LerpRatio * (NextKeyForChannel.Scale - CurrentKeyForChannel.Scale));
+        // Blend between 2 animations
+        animation_key BlendedKey = LerpAnimationKeys(InterpolatedKeyA, InterpolatedKeyB, Model->AnimationState.BlendingFactor);
 
-        glm::mat4 TranslateTransform = glm::translate(glm::mat4(1.0f), Position);
-        glm::mat4 RotateTransform = glm::mat4_cast(Rotation);
-        glm::mat4 ScaleTransform = glm::scale(glm::mat4(1.0f), Scale);
-        
-        glm::mat4 Transform = TranslateTransform * RotateTransform * ScaleTransform;
+        glm::mat4 Transform = GetTransformationForAnimationKey(BlendedKey);
 
         i32 BoneID = ChannelIndex + 1;
-        //glm::mat4 Transform = Model->Bones[BoneID].TransformToParent;
 
         if (Model->Bones[BoneID].ParentID > 0)
         {
-            i32 ParentBoneChannel = Model->Bones[BoneID].ParentID - 1;
-            Assert(ParentBoneChannel < CurrentAnimation->ChannelCount);
-            Transform = CurrentAnimation->TransientChannelTransformData[ParentBoneChannel] * Transform;
+            i32 ParentBoneChannelID = Model->Bones[BoneID].ParentID - 1;
+            Assert(ParentBoneChannelID < ChannelCount);
+            Transform = Model->AnimationState.TransientChannelTransformData[ParentBoneChannelID] * Transform;
         }
 
-        CurrentAnimation->TransientChannelTransformData[ChannelIndex] = Transform;
+        Model->AnimationState.TransientChannelTransformData[ChannelIndex] = Transform;
     }
 
     // Pass the bone transforms to the shader
@@ -802,8 +795,8 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
     for (i32 BoneIndex = 1; BoneIndex < Model->BoneCount; ++BoneIndex)
     {
         i32 ChannelID = BoneIndex - 1;
-        Assert(ChannelID < CurrentAnimation->ChannelCount);
-        glm::mat4 Transform = (CurrentAnimation->TransientChannelTransformData[ChannelID] *
+        Assert(ChannelID < ChannelCount);
+        glm::mat4 Transform = (Model->AnimationState.TransientChannelTransformData[ChannelID] *
                                Model->Bones[BoneIndex].InverseBindTransform);
 
         // TODO: This should probably use a UBO...
@@ -825,4 +818,66 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
     }
 
     glUseProgram(0);
+}
+
+inline glm::mat4 GetTransformationForAnimationKey(animation_key Key)
+{
+    glm::mat4 Result{ };
+
+    glm::mat4 TranslateTransform = glm::translate(glm::mat4(1.0f), Key.Position);
+    glm::mat4 RotateTransform = glm::mat4_cast(Key.Rotation);
+    glm::mat4 ScaleTransform = glm::scale(glm::mat4(1.0f), Key.Scale);
+    Result = TranslateTransform * RotateTransform * ScaleTransform;
+
+    return Result;
+}
+
+// TODO: Is it better to copy here, or deal with aliasing with 2 animation_key pointers?
+inline animation_key LerpAnimationKeys(animation_key KeyA, animation_key KeyB, f32 LerpRatio)
+{
+    animation_key Result{ };
+    
+    Result.Position = KeyA.Position + LerpRatio * (KeyB.Position - KeyA.Position);
+    Result.Rotation = glm::slerp(KeyA.Rotation, KeyB.Rotation, LerpRatio);
+    Result.Scale = KeyA.Scale + LerpRatio * (KeyB.Scale - KeyA.Scale);
+
+    return Result;
+}
+
+inline void UpdateAnimationState(animation *Animation, f32 DeltaTime)
+{
+    // Update current animation time to the beginning of the game loop
+    Animation->CurrentTicks += DeltaTime * Animation->TicksPerSecond;
+    // Loop animation around if past end
+    if (Animation->CurrentTicks >= Animation->TicksDuration)
+    {
+        Animation->CurrentTicks -= Animation->TicksDuration;
+    }
+}
+
+inline i32 FindNextAnimationKey(animation *Animation)
+{
+    i32 Result = -1;
+
+    for (i32 KeyIndex = 1; KeyIndex < Animation->KeyCount; KeyIndex++)
+    {
+        if (Animation->CurrentTicks <= Animation->KeyTimes[KeyIndex])
+        {
+            Result = KeyIndex;
+            break;
+        }
+    }
+    Assert(Result >= 1 && Result < Animation->KeyCount);
+
+    return Result;
+}
+
+inline f32 CalculateLerpRatioBetweenTwoFrames(animation *Animation, i32 NextKey)
+{
+    f32 Result;
+
+    Result = ((Animation->CurrentTicks - Animation->KeyTimes[NextKey-1]) /
+              (Animation->KeyTimes[NextKey] - Animation->KeyTimes[NextKey-1]));
+
+    return Result;
 }

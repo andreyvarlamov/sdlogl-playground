@@ -144,6 +144,9 @@ int main(int argc, char *argv[])
                 i32 selectedBone = 0;
                 bool incBoneButtonPressed = false;
                 bool decBoneButtonPressed = false;
+                AtlbetaModel.AnimationState.CurrentAnimationA = 0;
+                AtlbetaModel.AnimationState.CurrentAnimationB = 1;
+                AtlbetaModel.AnimationState.BlendingFactor = 0.0f;
                 //std::vector<Mesh> snowmanMeshes = loadModel("resources/models/snowman/snowman.objm");
                 //std::vector<Mesh> containerMeshes = loadModel("resources/models/container/container.obj");
 
@@ -238,21 +241,39 @@ int main(int argc, char *argv[])
                     {
                         incBoneButtonPressed = false;
                     }
-                    if (currentKeyStates[SDL_SCANCODE_T] && !AnimationSwitchButtonPressed)
+                    //if (currentKeyStates[SDL_SCANCODE_T] && !AnimationSwitchButtonPressed)
+                    //{
+                    //    ++AtlbetaModel.AnimationState.CurrentAnimationIndex;
+                    //    if (AtlbetaModel.AnimationState.CurrentAnimationIndex >= AtlbetaModel.AnimationCount)
+                    //    {
+                    //        AtlbetaModel.AnimationState.CurrentAnimationIndex = 0;
+                    //    }
+                    //    std::cout << 
+                    //        AtlbetaModel.Animations[AtlbetaModel.AnimationState.CurrentAnimationIndex].Name
+                    //        << '\n';
+                    //    AnimationSwitchButtonPressed = !AnimationSwitchButtonPressed;
+                    //}
+                    //else if (!currentKeyStates[SDL_SCANCODE_T])
+                    //{
+                    //    AnimationSwitchButtonPressed = false;
+                    //}
+                    if (currentKeyStates[SDL_SCANCODE_Y])
                     {
-                        ++AtlbetaModel.AnimationState.CurrentAnimationIndex;
-                        if (AtlbetaModel.AnimationState.CurrentAnimationIndex >= AtlbetaModel.AnimationCount)
+                        AtlbetaModel.AnimationState.BlendingFactor -= deltaTime;
+                        if (AtlbetaModel.AnimationState.BlendingFactor < 0.0f)
                         {
-                            AtlbetaModel.AnimationState.CurrentAnimationIndex = 0;
+                            AtlbetaModel.AnimationState.BlendingFactor = 0.0f;
                         }
-                        std::cout << 
-                            AtlbetaModel.Animations[AtlbetaModel.AnimationState.CurrentAnimationIndex].Name
-                            << '\n';
-                        AnimationSwitchButtonPressed = !AnimationSwitchButtonPressed;
+                        std::cout << "Animation factor: " << AtlbetaModel.AnimationState.BlendingFactor << '\n';
                     }
-                    else if (!currentKeyStates[SDL_SCANCODE_T])
+                    if (currentKeyStates[SDL_SCANCODE_U])
                     {
-                        AnimationSwitchButtonPressed = false;
+                        AtlbetaModel.AnimationState.BlendingFactor += deltaTime;
+                        if (AtlbetaModel.AnimationState.BlendingFactor > 1.0f)
+                        {
+                            AtlbetaModel.AnimationState.BlendingFactor = 1.0f;
+                        }
+                        std::cout << "Animation factor: " << AtlbetaModel.AnimationState.BlendingFactor << '\n';
                     }
                     //if (currentKeyStates[SDL_SCANCODE_F] && !AnimationStartButtonPressed)
                     //{

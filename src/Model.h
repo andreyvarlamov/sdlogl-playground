@@ -50,17 +50,19 @@ struct animation
     f32 *KeyTimes;
     animation_key *Keys;
 
-    glm::mat4 *TransientChannelTransformData;
-
     char Name[MAX_ASSIMP_NAME_LENGTH];
 };
 
 struct animation_state
 {
-    i32 CurrentAnimationIndex;
-    bool IsRunning = true;
-    bool IsPaused = false;
-    bool IsLooped = true;
+    i32 CurrentAnimationA;
+    i32 CurrentAnimationB;
+    f32 BlendingFactor;
+    //bool IsRunning = true;
+    //bool IsPaused = false;
+    //bool IsLooped = true;
+    
+    glm::mat4 *TransientChannelTransformData;
 };
 
 struct skinned_model
@@ -84,6 +86,7 @@ struct skinned_model
 #define MAX_BONES_PER_VERTEX 4
 struct mesh_internal_data
 {
+    // TODO: Is this unoptimal because of aliasing?
     u8 *Data;
 
     i32 VertexCount;
@@ -99,7 +102,6 @@ struct mesh_internal_data
 
     i32 *Indices;
 };
-
 
 //std::vector<mesh> loadModel(const char *Path);
 skinned_model LoadSkinnedModel(const char *Path);
