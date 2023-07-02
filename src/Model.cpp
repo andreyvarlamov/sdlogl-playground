@@ -28,6 +28,7 @@ inline animation_key LerpAnimationKeys(animation_key KeyA, animation_key KeyB, f
 inline void UpdateAnimationState(animation *Animation, f32 DeltaTime);
 inline i32 FindNextAnimationKey(animation *Animation);
 inline f32 CalculateLerpRatioBetweenTwoFrames(animation *Animation, i32 NextKey);
+inline animation_key GetRestAnimationKeyForBone(bone Bone);
 
 bone *ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
 {
@@ -766,19 +767,24 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
     i32 ChannelCount = CurrentAnimationA->ChannelCount;
     for (i32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
     {
+        i32 BoneID = ChannelIndex + 1;
+
         animation_key InterpolatedKeyA = LerpAnimationKeys(CurrentAnimationA->Keys[(NextKeyA-1)*ChannelCount + ChannelIndex],
                                                            CurrentAnimationA->Keys[NextKeyA*ChannelCount + ChannelIndex],
                                                            LerpRatioA);
+        // NOTE: This is causing some weird jumping in some animations
+        //       E.g. the second shape in atlbeta10.gltf (BONETREE.blend)
+        //       Something with 360 rotation?
+        // TODO: Investigate (should be easier when there's texture loaded and debugging ui)
         animation_key InterpolatedKeyB = LerpAnimationKeys(CurrentAnimationB->Keys[(NextKeyB-1)*ChannelCount + ChannelIndex],
                                                            CurrentAnimationB->Keys[NextKeyB*ChannelCount + ChannelIndex],
                                                            LerpRatioB);
+        //animation_key InterpolatedKeyA = GetRestAnimationKeyForBone(Model->Bones[BoneID]);
 
         // Blend between 2 animations
         animation_key BlendedKey = LerpAnimationKeys(InterpolatedKeyA, InterpolatedKeyB, Model->AnimationState.BlendingFactor);
 
         glm::mat4 Transform = GetTransformationForAnimationKey(BlendedKey);
-
-        i32 BoneID = ChannelIndex + 1;
 
         if (Model->Bones[BoneID].ParentID > 0)
         {
@@ -820,6 +826,32 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
     glUseProgram(0);
 }
 
+inline animation_key GetRestAnimationKeyForBone(bone Bone)
+{
+    animation_key Result{ };
+
+    // NOTE: Decompose the bone's (node's) transform to parent (bone/node) into separate
+    //       position, scaling and rotation components so they can be interpolated:
+    //         - 4th column (only xyz) gives position
+    //         - Lengths of first 3 columns (only xyz) gives scaling
+    //         - 3x3 matrix, where each column is a unit vector (i.e. minus scale) is the rotation matrix;
+    //           it will be cast to a quaternion
+    
+    Result.Position = Bone.TransformToParent[3];
+    
+    Result.Scale.x = glm::length(glm::vec3(Bone.TransformToParent[0]));
+    Result.Scale.y = glm::length(glm::vec3(Bone.TransformToParent[1]));
+    Result.Scale.z = glm::length(glm::vec3(Bone.TransformToParent[2]));
+    
+    glm::mat3 RotationMatrix{ };
+    RotationMatrix[0] = glm::vec3(Bone.TransformToParent[0]) / Result.Scale.x;
+    RotationMatrix[1] = glm::vec3(Bone.TransformToParent[1]) / Result.Scale.y;
+    RotationMatrix[2] = glm::vec3(Bone.TransformToParent[2]) / Result.Scale.z;
+    Result.Rotation = glm::quat_cast(RotationMatrix);
+
+    return Result;
+}
+
 inline glm::mat4 GetTransformationForAnimationKey(animation_key Key)
 {
     glm::mat4 Result{ };
@@ -848,6 +880,7 @@ inline void UpdateAnimationState(animation *Animation, f32 DeltaTime)
 {
     // Update current animation time to the beginning of the game loop
     Animation->CurrentTicks += DeltaTime * Animation->TicksPerSecond;
+
     // Loop animation around if past end
     if (Animation->CurrentTicks >= Animation->TicksDuration)
     {
