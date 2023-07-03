@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
                 // Load shaders
                 // ------------
                 u32 basicShader = buildShader("resources/shaders/Basic.vs", "resources/shaders/Basic.fs");
-                u32 debugSkeletalShader = buildShader("resources/shaders/DebugSkeletal.vs", "resources/shaders/DebugSkeletal.fs");
+                u32 debugSkeletalShader = buildShader("resources/shaders/DebugSkeletal.vs", "resources/shaders/Basic.fs");
 
                 // Vertex data
                 // -----------
@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
 
                 // Load models
                 // -----------
-                skinned_model AtlbetaModel = LoadSkinnedModel("resources/models/animtest/atlbeta10.gltf");
+                skinned_model AtlbetaModel = LoadSkinnedModel("resources/models/animtest/atlbeta12.gltf");
                 i32 selectedBone = 0;
                 bool incBoneButtonPressed = false;
                 bool decBoneButtonPressed = false;
@@ -165,10 +165,22 @@ int main(int argc, char *argv[])
                 glUseProgram(basicShader);
                 glUniform1i(glGetUniformLocation(basicShader, "normalMap"), 3);
 
+                glUseProgram(debugSkeletalShader);
+                glUniform1i(glGetUniformLocation(debugSkeletalShader, "diffuseMap"), 0);
+                glUseProgram(debugSkeletalShader);
+                glUniform1i(glGetUniformLocation(debugSkeletalShader, "specularMap"), 1);
+                glUseProgram(debugSkeletalShader);
+                glUniform1i(glGetUniformLocation(debugSkeletalShader, "emissionMap"), 2);
+                glUseProgram(debugSkeletalShader);
+                glUniform1i(glGetUniformLocation(debugSkeletalShader, "normalMap"), 3);
+
                 // Light configuration
                 // -------------------
                 glm::vec3 lightDir = glm::normalize(glm::vec3(-1.0f, -1.0f, -0.33f));
+                glUseProgram(basicShader);
                 glUniform3fv(glGetUniformLocation(basicShader, "lightDirection"), 1, &lightDir[0]);
+                glUseProgram(debugSkeletalShader);
+                glUniform3fv(glGetUniformLocation(debugSkeletalShader, "lightDirection"), 1, &lightDir[0]);
 
                 // Game Loop
                 // ---------
@@ -397,6 +409,8 @@ int main(int argc, char *argv[])
                     // view position for light calculation
                     glUseProgram(basicShader);
                     glUniform3fv(glGetUniformLocation(basicShader, "viewPosition"), 1, &CameraPosition[0]);
+                    glUseProgram(debugSkeletalShader);
+                    glUniform3fv(glGetUniformLocation(debugSkeletalShader, "viewPosition"), 1, &CameraPosition[0]);
 
                     glUseProgram(0);
 
@@ -483,7 +497,7 @@ int main(int argc, char *argv[])
                     
                     // quad wall
                     model = glm::mat4(1.0f);
-                    model = glm::translate(model, glm::vec3(-5.0f, 0.0f, 0.0f));
+                    model = glm::translate(model, glm::vec3(-10.0f, 0.0f, 0.0f));
                     model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
                     glUniformMatrix4fv(glGetUniformLocation(basicShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
@@ -551,9 +565,9 @@ int main(int argc, char *argv[])
                     glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "view"), 1, GL_FALSE, glm::value_ptr(view));
                     glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
                     model = glm::mat4(1.0f);
-                    model = glm::translate(model, glm::vec3(0.0f, 0.0f, 5.0f));
-                    model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                    model = glm::scale(model, glm::vec3(1.0f));
+                    model = glm::translate(model, glm::vec3(-5.0f, 0.0f, 3.0f));
+                    model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    model = glm::scale(model, glm::vec3(0.5f));
                     glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
                     Render(&AtlbetaModel, debugSkeletalShader, deltaTime);
 

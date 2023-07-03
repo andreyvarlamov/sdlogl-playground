@@ -29,6 +29,7 @@ inline void UpdateAnimationState(animation *Animation, f32 DeltaTime);
 inline i32 FindNextAnimationKey(animation *Animation);
 inline f32 CalculateLerpRatioBetweenTwoFrames(animation *Animation, i32 NextKey);
 inline animation_key GetRestAnimationKeyForBone(bone Bone);
+inline void RenderMeshList(mesh *Meshes, i32 MeshCount);
 
 bone *ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
 {
@@ -313,7 +314,19 @@ skinned_model LoadSkinnedModel(const char *Path)
         // Load textures
         // -------------
         // TODO
+        aiMaterial *mat = AssimpScene->mMaterials[AssimpMesh->mMaterialIndex];
+        u32 DiffuseCount = aiGetMaterialTextureCount(mat, aiTextureType_DIFFUSE);
+        if (DiffuseCount > 0)
+        {
+            aiString AssimpTextureFileName;
+            aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 0), &AssimpTextureFileName);
 
+            std::string textureFileName = std::string(AssimpTextureFileName.C_Str());
+            std::string modelPath = std::string(Path);
+            std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
+            std::string texturePath = modelDirectory + '/' + textureFileName;
+            Mesh.DiffuseMapID = loadTexture(texturePath.c_str());
+        }
         // Save mesh into model
         // --------------------
         Model.Meshes[MeshIndex] = Mesh;
@@ -813,17 +826,41 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
         glUniformMatrix4fv(glGetUniformLocation(Shader, LocationStringBuffer), 1, GL_FALSE, glm::value_ptr(Transform));
     }
 
-    // Render each mesh of the model
-    // -----------------------------
-    for (i32 MeshIndex = 0; MeshIndex < (i32) Model->MeshCount; ++MeshIndex)
-    {
-        mesh Mesh = Model->Meshes[MeshIndex];
-        glBindVertexArray(Mesh.VAO);
-        glDrawElements(GL_TRIANGLES, Mesh.IndexCount, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
-    }
-
+    // Render model's meshes
+    // ---------------------
+    RenderMeshList(Model->Meshes, Model->MeshCount);
+ 
     glUseProgram(0);
+}
+
+inline void RenderMeshList(mesh *Meshes, i32 MeshCount)
+{
+    for (i32 MeshIndex = 0; MeshIndex < (i32) MeshCount; ++MeshIndex)
+    {
+        mesh *Mesh = &Meshes[MeshIndex];
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, Mesh->DiffuseMapID);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, Mesh->SpecularMapID);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, Mesh->EmissionMapID);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, Mesh->NormalMapID);
+
+        glBindVertexArray(Mesh->VAO);
+        glDrawElements(GL_TRIANGLES, Mesh->IndexCount, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D, 0);
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
 }
 
 inline animation_key GetRestAnimationKeyForBone(bone Bone)

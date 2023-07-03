@@ -1,13 +1,19 @@
 #version 330 core
 layout (location = 0) in vec3 aPosition;
 layout (location = 1) in vec2 aUV;
-layout (location = 2) in vec3 aNormals;
-layout (location = 3) in vec3 aTangents;
-layout (location = 4) in vec3 aBitangents;
+layout (location = 2) in vec3 aNormal;
+layout (location = 3) in vec3 aTangent;
+layout (location = 4) in vec3 aBitangent;
 layout (location = 5) in ivec4 aBoneIDs;
 layout (location = 6) in vec4 aBoneWeights;
 
-out float BoneInfluence;
+out VS_OUT
+{
+    vec2 TextureCoordinates;
+    vec3 LightDirectionTangentSpace;
+    vec3 ViewPositionTangentSpace;
+    vec3 FragmentPositionTangentSpace;
+} vs_out;
 
 uniform mat4 projection;
 uniform mat4 view;
@@ -17,6 +23,9 @@ uniform int selectedBone;
 
 #define MAX_BONES 128
 uniform mat4 boneTransforms[MAX_BONES];
+
+uniform vec3 lightDirection;
+uniform vec3 viewPosition;
 
 void main()
 {
@@ -29,11 +38,6 @@ void main()
             boneTransform += boneTransforms[aBoneIDs[i]] * aBoneWeights[i];
             boneTransformToApply = true;
         }
-
-        if (aBoneIDs[i] == selectedBone)
-        {
-            BoneInfluence = aBoneWeights[i];
-        }
     }
 
     if (!boneTransformToApply)
@@ -42,5 +46,17 @@ void main()
     }
  
     gl_Position = projection * view * model * boneTransform * vec4(aPosition, 1.0);
-//    gl_Position = projection * view * model * vec4(aPosition, 1.0);
+
+    vs_out.TextureCoordinates = aUV;
+
+    mat3 normalMatrix = mat3(transpose(inverse(model * boneTransform)));
+    vec3 Tangent = normalize(normalMatrix * aTangent);
+    vec3 Normal = normalize(normalMatrix * aNormal);
+    Tangent = normalize(Tangent - dot(Tangent, Normal) * Normal);
+    vec3 Bitangent = cross(Tangent, Normal);
+
+    mat3 TBN = transpose(mat3(Tangent, Bitangent, Normal));
+    vs_out.LightDirectionTangentSpace = TBN * lightDirection;
+    vs_out.ViewPositionTangentSpace = TBN * viewPosition;
+    vs_out.FragmentPositionTangentSpace = TBN * vec3(model * vec4(aPosition, 1.0));
 }
