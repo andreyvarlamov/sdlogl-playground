@@ -842,7 +842,7 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
         // TODO: This should probably use a UBO...
         char LocationStringBuffer[32] = { };
         // TODO: This is probably very slow...
-        sprintf_s(LocationStringBuffer, "boneTransforms[%d]", BoneIndex);
+        sprintf_s(LocationStringBuffer, "BoneTransforms[%d]", BoneIndex);
         //Transform = glm::mat4(1.0f);
         glUniformMatrix4fv(glGetUniformLocation(Shader, LocationStringBuffer), 1, GL_FALSE, glm::value_ptr(Transform));
     }

@@ -1,62 +1,59 @@
 #version 330 core
-layout (location = 0) in vec3 aPosition;
-layout (location = 1) in vec2 aUV;
-layout (location = 2) in vec3 aNormal;
-layout (location = 3) in vec3 aTangent;
-layout (location = 4) in vec3 aBitangent;
-layout (location = 5) in ivec4 aBoneIDs;
-layout (location = 6) in vec4 aBoneWeights;
+layout (location = 0) in vec3 In_Position;
+layout (location = 1) in vec2 In_UVs;
+layout (location = 2) in vec3 In_Normal;
+layout (location = 3) in vec3 In_Tangent;
+layout (location = 4) in vec3 In_Bitangent;
+layout (location = 5) in ivec4 In_BoneIDs;
+layout (location = 6) in vec4 In_BoneWeights;
 
-out VS_OUT
+out vertex_shader_out
 {
-    vec2 TextureCoordinates;
+    vec2 UVs;
     vec3 LightDirectionTangentSpace;
     vec3 ViewPositionTangentSpace;
     vec3 FragmentPositionTangentSpace;
-} vs_out;
+} Out;
 
-uniform mat4 projection;
-uniform mat4 view;
-uniform mat4 model;
-
-uniform int selectedBone;
+uniform mat4 Projection;
+uniform mat4 View;
+uniform mat4 Model;
 
 #define MAX_BONES 128
-uniform mat4 boneTransforms[MAX_BONES];
+uniform mat4 BoneTransforms[MAX_BONES];
 
-uniform vec3 lightDirection;
-uniform vec3 viewPosition;
+uniform vec3 LightDirection;
+uniform vec3 ViewPosition;
 
 void main()
 {
     mat4 boneTransform = mat4(0.0);
-    bool boneTransformToApply = false;
     for (int i = 0; i < 4; ++i)
     {
-        if (aBoneIDs[i] > 0)
+        // TODO: This if might not be good
+        if (In_BoneIDs[i] > 0)
         {
-            boneTransform += boneTransforms[aBoneIDs[i]] * aBoneWeights[i];
-            boneTransformToApply = true;
+            // TODO: The lerp should happen after bone transform is applied to position
+            //       But cannot do that because there's scaling and that needs to be
+            //       taken account of in the inverse normal transform.
+            //       This seems to sort of work for now, so fix that when scaling is removed from animations.
+            boneTransform += BoneTransforms[In_BoneIDs[i]] * In_BoneWeights[i];
         }
     }
 
-    if (!boneTransformToApply)
-    {
-        boneTransform = mat4(1.0);
-    }
- 
-    gl_Position = projection * view * model * boneTransform * vec4(aPosition, 1.0);
+    vec4 transformedPosition = Model * boneTransform * vec4(In_Position, 1.0);
+    gl_Position = Projection * View * transformedPosition;
+    Out.UVs = In_UVs;
 
-    vs_out.TextureCoordinates = aUV;
+    // TODO: Avoid scaling in animations, so there's no need to do this for every vertex
+    mat3 normalMatrix = mat3(transpose(inverse(Model * boneTransform)));
+    vec3 tangent = normalize(normalMatrix * In_Tangent);
+    vec3 bitangent = normalize(normalMatrix * In_Bitangent);
+    vec3 normal = normalize(normalMatrix * In_Normal);
+    tangent = normalize(tangent - dot(tangent, normal) * normal);
 
-    mat3 normalMatrix = mat3(transpose(inverse(model * boneTransform)));
-    vec3 Tangent = normalize(normalMatrix * aTangent);
-    vec3 Normal = normalize(normalMatrix * aNormal);
-    Tangent = normalize(Tangent - dot(Tangent, Normal) * Normal);
-    vec3 Bitangent = cross(Tangent, Normal);
-
-    mat3 TBN = transpose(mat3(Tangent, Bitangent, Normal));
-    vs_out.LightDirectionTangentSpace = TBN * lightDirection;
-    vs_out.ViewPositionTangentSpace = TBN * viewPosition;
-    vs_out.FragmentPositionTangentSpace = TBN * vec3(model * vec4(aPosition, 1.0));
+    mat3 tbn = transpose(mat3(tangent, bitangent, normal));
+    Out.LightDirectionTangentSpace = tbn * LightDirection;
+    Out.ViewPositionTangentSpace = tbn * ViewPosition;
+    Out.FragmentPositionTangentSpace = tbn * vec3(transformedPosition);
 }

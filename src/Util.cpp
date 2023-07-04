@@ -9,7 +9,7 @@
 #include <sstream>
 #include <iostream>
 
-#define LOADED_TEXTURE_CACHE_BLOCK_SIZE 4
+#define LOADED_TEXTURE_CACHE_BLOCK_SIZE 32
 struct loaded_textures_cache_block
 {
     i32 Count;

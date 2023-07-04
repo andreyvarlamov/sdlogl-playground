@@ -163,30 +163,30 @@ int main(int argc, char *argv[])
                 // Shader global uniforms
                 // ----------------------
                 glUseProgram(basicShader);
-                glUniform1i(glGetUniformLocation(basicShader, "diffuseMap"), 0);
+                glUniform1i(glGetUniformLocation(basicShader, "DiffuseMap"), 0);
                 glUseProgram(basicShader);
-                glUniform1i(glGetUniformLocation(basicShader, "specularMap"), 1);
+                glUniform1i(glGetUniformLocation(basicShader, "SpecularMap"), 1);
                 glUseProgram(basicShader);
-                glUniform1i(glGetUniformLocation(basicShader, "emissionMap"), 2);
+                glUniform1i(glGetUniformLocation(basicShader, "EmissionMap"), 2);
                 glUseProgram(basicShader);
-                glUniform1i(glGetUniformLocation(basicShader, "normalMap"), 3);
+                glUniform1i(glGetUniformLocation(basicShader, "NormalMap"), 3);
 
                 glUseProgram(debugSkeletalShader);
-                glUniform1i(glGetUniformLocation(debugSkeletalShader, "diffuseMap"), 0);
+                glUniform1i(glGetUniformLocation(debugSkeletalShader, "DiffuseMap"), 0);
                 glUseProgram(debugSkeletalShader);
-                glUniform1i(glGetUniformLocation(debugSkeletalShader, "specularMap"), 1);
+                glUniform1i(glGetUniformLocation(debugSkeletalShader, "SpecularMap"), 1);
                 glUseProgram(debugSkeletalShader);
-                glUniform1i(glGetUniformLocation(debugSkeletalShader, "emissionMap"), 2);
+                glUniform1i(glGetUniformLocation(debugSkeletalShader, "EmissionMap"), 2);
                 glUseProgram(debugSkeletalShader);
-                glUniform1i(glGetUniformLocation(debugSkeletalShader, "normalMap"), 3);
+                glUniform1i(glGetUniformLocation(debugSkeletalShader, "NormalMap"), 3);
 
                 // Light configuration
                 // -------------------
                 glm::vec3 lightDir = glm::normalize(glm::vec3(-1.0f, -1.0f, -0.33f));
                 glUseProgram(basicShader);
-                glUniform3fv(glGetUniformLocation(basicShader, "lightDirection"), 1, &lightDir[0]);
+                glUniform3fv(glGetUniformLocation(basicShader, "LightDirection"), 1, &lightDir[0]);
                 glUseProgram(debugSkeletalShader);
-                glUniform3fv(glGetUniformLocation(debugSkeletalShader, "lightDirection"), 1, &lightDir[0]);
+                glUniform3fv(glGetUniformLocation(debugSkeletalShader, "LightDirection"), 1, &lightDir[0]);
 
                 // Game Loop
                 // ---------
@@ -405,18 +405,22 @@ int main(int argc, char *argv[])
                     // perspective projection
                     glm::mat4 projection = glm::perspective(glm::radians(CameraFov / 2.0f), (f32)SCREEN_WIDTH / (f32)SCREEN_HEIGHT, 0.1f, 100.0f);
                     glUseProgram(basicShader);
-                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
+                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "Projection"), 1, GL_FALSE, glm::value_ptr(projection));
+                    glUseProgram(debugSkeletalShader);
+                    glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "Projection"), 1, GL_FALSE, glm::value_ptr(projection));
 
                     // camera view matrix
                     glm::mat4 view = glm::lookAt(CameraPosition, CameraPosition + CameraFront, CameraUp);
                     glUseProgram(basicShader);
-                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "view"), 1, GL_FALSE, glm::value_ptr(view));
+                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "View"), 1, GL_FALSE, glm::value_ptr(view));
+                    glUseProgram(debugSkeletalShader);
+                    glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "View"), 1, GL_FALSE, glm::value_ptr(view));
 
                     // view position for light calculation
                     glUseProgram(basicShader);
-                    glUniform3fv(glGetUniformLocation(basicShader, "viewPosition"), 1, &CameraPosition[0]);
+                    glUniform3fv(glGetUniformLocation(basicShader, "ViewPosition"), 1, &CameraPosition[0]);
                     glUseProgram(debugSkeletalShader);
-                    glUniform3fv(glGetUniformLocation(debugSkeletalShader, "viewPosition"), 1, &CameraPosition[0]);
+                    glUniform3fv(glGetUniformLocation(debugSkeletalShader, "ViewPosition"), 1, &CameraPosition[0]);
 
                     glUseProgram(0);
 
@@ -428,9 +432,9 @@ int main(int argc, char *argv[])
                     // floor
                     model = glm::mat4(1.0f);
                     model = glm::scale(model, glm::vec3(25.0f));
-                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-                    glUniformMatrix3fv(glGetUniformLocation(basicShader, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "Model"), 1, GL_FALSE, glm::value_ptr(model));
+                    //normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
+                    //glUniformMatrix3fv(glGetUniformLocation(basicShader, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, grassTextureID);
                     glBindVertexArray(floorVAO);
@@ -505,9 +509,7 @@ int main(int argc, char *argv[])
                     model = glm::mat4(1.0f);
                     model = glm::translate(model, glm::vec3(-10.0f, 0.0f, 0.0f));
                     model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-                    glUniformMatrix3fv(glGetUniformLocation(basicShader, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "Model"), 1, GL_FALSE, glm::value_ptr(model));
                     glBindVertexArray(wallVAO);
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, wallDiffuseID);
@@ -516,9 +518,7 @@ int main(int argc, char *argv[])
                     glDrawArrays(GL_TRIANGLES, 0, 6);
                     // other side of wall (no z-fighting because faces are culled)
                     model = glm::rotate(model, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                    normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-                    glUniformMatrix3fv(glGetUniformLocation(basicShader, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "Model"), 1, GL_FALSE, glm::value_ptr(model));
                     glDrawArrays(GL_TRIANGLES, 0, 6);
                     glActiveTexture(GL_TEXTURE0);
                     glBindTexture(GL_TEXTURE_2D, 0);
@@ -567,14 +567,11 @@ int main(int argc, char *argv[])
 
                     // animtest
                     glUseProgram(debugSkeletalShader);
-                    glUniform1i(glGetUniformLocation(debugSkeletalShader, "selectedBone"), selectedBone);
-                    glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "view"), 1, GL_FALSE, glm::value_ptr(view));
-                    glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "projection"), 1, GL_FALSE, glm::value_ptr(projection));
                     model = glm::mat4(1.0f);
                     model = glm::translate(model, glm::vec3(-5.0f, 0.0f, 3.0f));
                     model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
                     model = glm::scale(model, glm::vec3(0.5f));
-                    glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
+                    glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "Model"), 1, GL_FALSE, glm::value_ptr(model));
                     Render(&AtlbetaModel, debugSkeletalShader, deltaTime);
 
                     // Swap buffer
