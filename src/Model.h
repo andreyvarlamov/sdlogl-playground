@@ -84,6 +84,12 @@ struct skinned_model
     animation *Animations;
 };
 
+struct model
+{
+    i32 MeshCount;
+    mesh *Meshes;
+};
+
 #define POSITIONS_PER_VERTEX 3
 #define UVS_PER_VERTEX 2
 #define NORMALS_PER_VERTEX 3
@@ -109,8 +115,9 @@ struct mesh_internal_data
     i32 *Indices;
 };
 
-//std::vector<mesh> loadModel(const char *Path);
+model LoadModel(const char *Path);
 skinned_model LoadSkinnedModel(const char *Path);
-void Render(skinned_model *Model, u32 Shader, f32 DeltaTime);
+void RenderModel(model *Model, u32 Shader);
+void RenderSkinnedModel(skinned_model *Model, u32 Shader, f32 DeltaTime);
 
 #endif

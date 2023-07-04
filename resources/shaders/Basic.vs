@@ -1,10 +1,9 @@
 #version 330 core
 layout (location = 0) in vec3 In_Position;
-// TODO: Fix order once model loading is centralized
-layout (location = 1) in vec3 In_Normal;
-layout (location = 2) in vec2 In_UVs;
+layout (location = 1) in vec2 In_UVs;
+layout (location = 2) in vec3 In_Normal;
 layout (location = 3) in vec3 In_Tangent;
-//layout (location = 4) in vec3 In_Bitangent;
+layout (location = 4) in vec3 In_Bitangent;
 
 out vertex_shader_out
 {

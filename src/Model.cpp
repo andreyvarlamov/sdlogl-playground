@@ -21,7 +21,8 @@ glm::vec3 ASSIMP_Vec3ToGLM(aiVector3D AssimpVector);
 glm::quat ASSIMP_QuatToGLM(aiQuaternion AssimpQuat);
 //u32 prepareMeshVAO(f32 *vertexData, u32 vertexCount, u32 *indices, u32 indexCount);
 void PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh);
-mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount);
+void PrepareMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh);
+mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount, bool IncludeBones);
 void FreeMeshInternalData(mesh_internal_data *MeshInternalData);
 inline glm::mat4 GetTransformationForAnimationKey(animation_key Key);
 inline animation_key LerpAnimationKeys(animation_key KeyA, animation_key KeyB, f32 LerpRatio);
@@ -87,18 +88,14 @@ bone *ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
 // TODO: Now I want to get rid of recursion again...
 void ASSIMP_GetArmatureInfoHelper(aiNode *Node, aiNode **Out_ArmatureNode, i32 *Out_BoneCount)
 {
-    std::cout << Node->mName.C_Str() << ": ";
     if (strcmp(Node->mName.C_Str(), "Armature") == 0)
     {
         *Out_ArmatureNode = Node;
     }
     else if (*Out_ArmatureNode)
     {
-        std::cout << "++Out_BoneCount: ";
         ++(*Out_BoneCount);
     }
-
-    std::cout << *Out_BoneCount << '\n';
 
     for (i32 Index = 0; Index < (i32) Node->mNumChildren; ++Index)
     {
@@ -116,17 +113,23 @@ void ASSIMP_GetArmatureInfo(aiNode *RootNode, aiNode **Out_ArmatureNode, i32 *Ou
     ASSIMP_GetArmatureInfoHelper(RootNode, Out_ArmatureNode, Out_BoneCount);
 }
 
-mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount)
+// TODO: I think this needs to be reworked
+mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount, bool IncludeBones)
 {
     mesh_internal_data Result{ };
+
+    size_t SpaceForBones = 0;
+    if (IncludeBones)
+    {
+        SpaceForBones = MAX_BONES_PER_VERTEX * (sizeof(i32) + sizeof(f32));
+    }
 
     size_t BytesToAllocate = VertexCount * (POSITIONS_PER_VERTEX * sizeof(f32) +
                                             UVS_PER_VERTEX * sizeof(f32) +
                                             NORMALS_PER_VERTEX * sizeof(f32) +
                                             TANGENTS_PER_VERTEX * sizeof(f32) +
                                             BITANGENTS_PER_VERTEX * sizeof(f32) +
-                                            MAX_BONES_PER_VERTEX * sizeof(i32) +
-                                            MAX_BONES_PER_VERTEX * sizeof(i32) +
+                                            SpaceForBones +
                                             IndexCount * sizeof(i32));
 
     u8 *Data = (u8 *) calloc(1, BytesToAllocate);
@@ -141,9 +144,18 @@ mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount)
         Result.Normals = (f32 *) (Result.UVs + VertexCount * UVS_PER_VERTEX);
         Result.Tangents = (f32 *) (Result.Normals + VertexCount * NORMALS_PER_VERTEX);
         Result.Bitangents = (f32 *) (Result.Tangents + VertexCount * TANGENTS_PER_VERTEX);
-        Result.BoneIDs = (i32 *) (Result.Bitangents + VertexCount * BITANGENTS_PER_VERTEX);
-        Result.BoneWeights = (f32 *) (Result.BoneIDs + VertexCount * MAX_BONES_PER_VERTEX);
-        Result.Indices = (i32 *) (Result.BoneWeights + VertexCount * MAX_BONES_PER_VERTEX);
+        if (IncludeBones)
+        {
+            Result.BoneIDs = (i32 *) (Result.Bitangents + VertexCount * BITANGENTS_PER_VERTEX);
+            Result.BoneWeights = (f32 *) (Result.BoneIDs + VertexCount * MAX_BONES_PER_VERTEX);
+            Result.Indices = (i32 *) (Result.BoneWeights + VertexCount * MAX_BONES_PER_VERTEX);
+        }
+        else
+        {
+            Result.BoneIDs = 0;
+            Result.BoneWeights = 0;
+            Result.Indices = (i32 *) (Result.Bitangents + VertexCount * BITANGENTS_PER_VERTEX);
+        }
     }
     else
     {
@@ -161,7 +173,7 @@ void FreeMeshInternalData(mesh_internal_data *MeshInternalData)
 
 skinned_model LoadSkinnedModel(const char *Path)
 {
-    std::cout << "Loading model at: " << Path << '\n';
+    std::cout << "Loading skinned model at: " << Path << '\n';
 
     // Get directory data (to load textures later)
     // -------------------------------------------
@@ -221,7 +233,7 @@ skinned_model LoadSkinnedModel(const char *Path)
         i32 VertexCount = AssimpMesh->mNumVertices;
         i32 IndexCount = AssimpMesh->mNumFaces * 3;
 
-        mesh_internal_data InternalData = InitializeMeshInternalData(VertexCount, IndexCount);
+        mesh_internal_data InternalData = InitializeMeshInternalData(VertexCount, IndexCount, true);
 
         // Mesh vertex data
         // ----------------
@@ -320,7 +332,6 @@ skinned_model LoadSkinnedModel(const char *Path)
 
         mesh Mesh{ };
         PrepareSkinnedMeshRenderData(InternalData, &Mesh);
-
         FreeMeshInternalData(&InternalData);
 
         // Load textures
@@ -461,187 +472,145 @@ skinned_model LoadSkinnedModel(const char *Path)
     return Model;
 }
 
-#if 0
-std::vector<Mesh> loadModel(const char *path)
+model LoadModel(const char *Path)
 {
-    std::vector<Mesh> meshes;
+    std::cout << "Loading model at: " << Path << '\n';
 
-    const aiScene *assimpScene = aiImportFile(path,
+    // Get directory data (to load textures later)
+    // -------------------------------------------
+    char ModelPath[MAX_PATH_LENGTH];
+    strncpy_s(ModelPath, Path, MAX_PATH_LENGTH - 1);
+    i32 ModelPathCount = GetNullTerminatedStringLength(ModelPath);
+    char ModelDirectory[MAX_PATH_LENGTH];
+    i32 ModelDirectoryCount;
+    GetFileDirectory(ModelPath, ModelPathCount, ModelDirectory, &ModelDirectoryCount, MAX_PATH_LENGTH);
+
+    // Result
+    // ------
+    model Model{ };
+
+    // Load assimp scene
+    // -----------------
+    const aiScene *AssimpScene = aiImportFile(Path,
                                               aiProcess_CalcTangentSpace |
                                               aiProcess_Triangulate |
                                               aiProcess_JoinIdenticalVertices |
                                               aiProcess_FlipUVs);
 
-    if (!assimpScene || assimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !assimpScene->mRootNode)
+    if (!AssimpScene || AssimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !AssimpScene->mRootNode)
     {
-        std::cerr << "ERROR::LOAD_MODEL::ASSIMP_READ_ERROR: " << " path: " << path << '\n' << aiGetErrorString() << '\n';
-        return meshes;
+        // TODO: Logging
+        std::cerr << "ERROR::LOAD_MODEL::ASSIMP_READ_ERROR: " << " Path: " << Path << '\n' << aiGetErrorString() << '\n';
+        return Model;
     }
 
-    std::unordered_map<std::string, u32> loadedTextures{ };
-
-    for (u32 meshIndex = 0; meshIndex < assimpScene->mNumMeshes; ++meshIndex)
+    // Scene mesh data
+    // ---------------
+    Model.MeshCount = AssimpScene->mNumMeshes;
+    // TODO: LEAK
+    Model.Meshes = (mesh *) calloc(1, Model.MeshCount * sizeof(mesh));
+    if (!Model.Meshes)
     {
-        std::cout << "Loading mesh #" << meshIndex << "/" << assimpScene->mNumMeshes << '\n';
-        Mesh mesh;
-
-        aiMesh *assimpMesh = assimpScene->mMeshes[meshIndex];
-
-        f32 *meshVertexData;
-        i32 meshVertexFloatCount;
-        u32 *meshIndices;
-        i32 meshIndexCount;
-        // Position + Normal + UVs + Tangent + Bitangent
-        i32 perVertexFloatCount = (3 + 3 + 2 + 3 + 3);
-        u32 assimpVertexCount = assimpMesh->mNumVertices;
-        meshVertexFloatCount = perVertexFloatCount * assimpVertexCount;
-        meshVertexData = (f32 *) calloc(1, meshVertexFloatCount * sizeof(f32));
-        if (!meshVertexData)
-        {
-            std::cerr << "ERROR::LOAD_MODEL::ALLOC_TEMP_HEAP_ERROR: path: " << path << '\n';
-            return meshes;
-        }
-        for (u32 assimpVertexIndex = 0; assimpVertexIndex < assimpVertexCount; ++assimpVertexIndex)
-        {
-            f32 *meshVertexDataCursor = meshVertexData + (assimpVertexIndex * perVertexFloatCount);
-
-            // Positions
-            meshVertexDataCursor[0] = assimpMesh->mVertices[assimpVertexIndex].x;
-            meshVertexDataCursor[1] = assimpMesh->mVertices[assimpVertexIndex].y;
-            meshVertexDataCursor[2] = assimpMesh->mVertices[assimpVertexIndex].z;
-            // Normals               
-            meshVertexDataCursor[3] = assimpMesh->mNormals[assimpVertexIndex].x;
-            meshVertexDataCursor[4] = assimpMesh->mNormals[assimpVertexIndex].y;
-            meshVertexDataCursor[5] = assimpMesh->mNormals[assimpVertexIndex].z;
-            // UVs                   
-            meshVertexDataCursor[6] = assimpMesh->mTextureCoords[0][assimpVertexIndex].x;
-            meshVertexDataCursor[7] = assimpMesh->mTextureCoords[0][assimpVertexIndex].y;
-            // Tangent               
-            meshVertexDataCursor[8] = assimpMesh->mTangents[assimpVertexIndex].x;
-            meshVertexDataCursor[9] = assimpMesh->mTangents[assimpVertexIndex].y;
-            meshVertexDataCursor[10] = assimpMesh->mTangents[assimpVertexIndex].z;
-            // Bitangent
-            meshVertexDataCursor[11] = assimpMesh->mBitangents[assimpVertexIndex].x;
-            meshVertexDataCursor[12] = assimpMesh->mBitangents[assimpVertexIndex].y;
-            meshVertexDataCursor[13] = assimpMesh->mBitangents[assimpVertexIndex].z;
-        }
-        // TODO: This assumes faces are triangles; might cause problems in the future
-        u32 perFaceIndexCount = 3;
-        u32 assimpFaceCount = assimpMesh->mNumFaces;
-        meshIndexCount = assimpFaceCount * perFaceIndexCount;
-        // TODO: Custom memory allocation
-        meshIndices = (u32 *) calloc(1, meshIndexCount * sizeof(u32));
-        if (!meshIndices)
-        {
-            std::cerr << "ERROR::LOAD_MODEL::ALLOC_TEMP_HEAP_ERROR: path: " << path << '\n';
-            return meshes;
-        }
-        u32 *meshIndicesCursor = meshIndices;
-        for (u32 assimpFaceIndex = 0; assimpFaceIndex < assimpFaceCount; ++assimpFaceIndex)
-        {
-            aiFace assimpFace = assimpMesh->mFaces[assimpFaceIndex];
-            for (u32 assimpIndexIndex = 0; assimpIndexIndex < assimpFace.mNumIndices; ++assimpIndexIndex)
-            {
-                *meshIndicesCursor++ = assimpFace.mIndices[assimpIndexIndex];
-            }
-        }
-        mesh.vao = prepareMeshVAO(meshVertexData, meshVertexFloatCount, meshIndices, meshIndexCount);
-        mesh.indexCount = meshIndexCount;
-
-        free(meshVertexData);
-        free(meshIndices);
-
-        // TODO: Refactor this
-        aiMaterial *mat = assimpScene->mMaterials[assimpMesh->mMaterialIndex];
-        u32 diffuseCount = aiGetMaterialTextureCount(mat, aiTextureType_DIFFUSE);
-        if (diffuseCount > 0)
-        {
-            aiString assimpTextureFileName;
-            aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 0), &assimpTextureFileName);
-
-            std::string textureFileName = std::string(assimpTextureFileName.C_Str());
-            if (loadedTextures.find(textureFileName) == loadedTextures.end())
-            {
-                std::string modelPath = std::string(path);
-                std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
-                std::string texturePath = modelDirectory + '/' + textureFileName;
-                mesh.diffuseMapID = LoadTexture(texturePath.c_str());
-                loadedTextures[textureFileName] = mesh.diffuseMapID;
-            }
-            else
-            {
-                mesh.diffuseMapID = loadedTextures[textureFileName];
-            }
-        }
-        u32 specularCount = aiGetMaterialTextureCount(mat, aiTextureType_SPECULAR);
-        if (specularCount > 0)
-        {
-            aiString assimpTextureFileName;
-            aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_SPECULAR, 0), &assimpTextureFileName);
-
-            std::string textureFileName = std::string(assimpTextureFileName.C_Str());
-            if (loadedTextures.find(textureFileName) == loadedTextures.end())
-            {
-                std::string modelPath = std::string(path);
-                std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
-                std::string texturePath = modelDirectory + '/' + textureFileName;
-                mesh.specularMapID = LoadTexture(texturePath.c_str());
-                loadedTextures[textureFileName] = mesh.specularMapID;
-            }
-            else
-            {
-                mesh.specularMapID = loadedTextures[textureFileName];
-            }
-        }
-        u32 emissionCount = aiGetMaterialTextureCount(mat, aiTextureType_EMISSIVE);
-        if (emissionCount > 0)
-        {
-            aiString assimpTextureFileName;
-            aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_EMISSIVE, 0), &assimpTextureFileName);
-
-            std::string textureFileName = std::string(assimpTextureFileName.C_Str());
-            if (loadedTextures.find(textureFileName) == loadedTextures.end())
-            {
-                std::string modelPath = std::string(path);
-                std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
-                std::string texturePath = modelDirectory + '/' + textureFileName;
-                mesh.emissionMapID = LoadTexture(texturePath.c_str());
-                loadedTextures[textureFileName] = mesh.emissionMapID;
-            }
-            else
-            {
-                mesh.emissionMapID = loadedTextures[textureFileName];
-            }
-        }
-        u32 normalCount = aiGetMaterialTextureCount(mat, aiTextureType_HEIGHT);
-        if (normalCount > 0)
-        {
-            aiString assimpTextureFileName;
-            aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_HEIGHT, 0), &assimpTextureFileName);
-
-            std::string textureFileName = std::string(assimpTextureFileName.C_Str());
-            if (loadedTextures.find(textureFileName) == loadedTextures.end())
-            {
-                std::string modelPath = std::string(path);
-                std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
-                std::string texturePath = modelDirectory + '/' + textureFileName;
-                mesh.normalMapID = LoadTexture(texturePath.c_str());
-                loadedTextures[textureFileName] = mesh.normalMapID;
-            }
-            else
-            {
-                mesh.normalMapID = loadedTextures[textureFileName];
-            }
-        }
-
-        meshes.push_back(mesh);
+        std::cerr << "ERROR::LOAD_MODEL: Could not allocate space for meshes" << '\n';
+        return Model;
     }
 
-    aiReleaseImport(assimpScene);
+    for (i32 MeshIndex = 0; MeshIndex < Model.MeshCount; ++MeshIndex)
+    {
+        aiMesh *AssimpMesh = AssimpScene->mMeshes[MeshIndex];
 
-    return meshes;
+        i32 VertexCount = AssimpMesh->mNumVertices;
+        i32 IndexCount = AssimpMesh->mNumFaces * 3;
+
+        mesh_internal_data InternalData = InitializeMeshInternalData(VertexCount, IndexCount, false);
+
+        // Mesh vertex data
+        // ----------------
+        for (i32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+        {
+            for (i32 Index = 0; Index < POSITIONS_PER_VERTEX; ++Index)
+            {
+                InternalData.Positions[VertexIndex * POSITIONS_PER_VERTEX + Index] =
+                    AssimpMesh->mVertices[VertexIndex][Index];
+            }
+
+            for (i32 Index = 0; Index < UVS_PER_VERTEX; ++Index)
+            {
+                InternalData.UVs[VertexIndex * UVS_PER_VERTEX + Index] =
+                    AssimpMesh->mTextureCoords[0][VertexIndex][Index];
+            }
+
+            for (i32 Index = 0; Index < NORMALS_PER_VERTEX; ++Index)
+            {
+                InternalData.Normals[VertexIndex * NORMALS_PER_VERTEX + Index] =
+                    AssimpMesh->mNormals[VertexIndex][Index];
+            }
+
+            for (i32 Index = 0; Index < TANGENTS_PER_VERTEX; ++Index)
+            {
+                InternalData.Tangents[VertexIndex * TANGENTS_PER_VERTEX + Index] =
+                    AssimpMesh->mTangents[VertexIndex][Index];
+            }
+
+            for (i32 Index = 0; Index < BITANGENTS_PER_VERTEX; ++Index)
+            {
+                InternalData.Bitangents[VertexIndex * BITANGENTS_PER_VERTEX + Index] =
+                    AssimpMesh->mBitangents[VertexIndex][Index];
+            }
+        }
+
+        // Mesh index data
+        // ---------------
+        i32 *IndexCursor = InternalData.Indices;
+        for (i32 FaceIndex = 0; FaceIndex < (i32) AssimpMesh->mNumFaces; ++FaceIndex)
+        {
+            aiFace *AssimpFace = &AssimpMesh->mFaces[FaceIndex];
+            for (i32 Index = 0; Index < (i32) AssimpFace->mNumIndices; ++Index)
+            {
+                Assert(IndexCursor < InternalData.Indices + InternalData.IndexCount);
+
+                *IndexCursor++ = AssimpFace->mIndices[Index];
+            }
+        }
+
+        mesh Mesh{ };
+        PrepareMeshRenderData(InternalData, &Mesh);
+        FreeMeshInternalData(&InternalData);
+
+        // Load textures
+        // -------------
+        aiMaterial *AssimpMaterial = AssimpScene->mMaterials[AssimpMesh->mMaterialIndex];
+        aiTextureType TextureTypes[] = { 
+            aiTextureType_DIFFUSE, aiTextureType_SPECULAR,
+            aiTextureType_EMISSIVE, aiTextureType_HEIGHT };
+
+        char TextureFilename[MAX_FILENAME_LENGTH]; i32 TextureFilenameCount;
+        char TexturePath[MAX_PATH_LENGTH];
+        for (i32 TextureType = 0; TextureType < 4; ++TextureType)
+        {
+            ASSIMP_GetTextureFilename(AssimpMaterial, TextureTypes[TextureType],
+                                      TextureFilename, &TextureFilenameCount, MAX_FILENAME_LENGTH);
+
+            TexturePath[0] = '\0';
+
+            if (TextureFilenameCount > 0)
+            {
+                CatStrings(ModelDirectory, ModelDirectoryCount,
+                           TextureFilename, TextureFilenameCount,
+                           TexturePath, MAX_PATH_LENGTH);
+                Mesh.TextureIDs[TextureType] = LoadTexture(TexturePath);
 }
-#endif
+        }
+
+        // Save mesh into model
+        // --------------------
+        Model.Meshes[MeshIndex] = Mesh;
+    }
+
+    aiReleaseImport(AssimpScene);
+
+    return Model;
+}
 
 glm::mat4 ASSIMP_Mat4ToGLM(aiMatrix4x4 AssimpMat)
 {
@@ -677,47 +646,6 @@ glm::quat ASSIMP_QuatToGLM(aiQuaternion AssimpQuat)
 
     return Result;
 }
-
-#if 0
-u32 prepareMeshVAO(f32 *vertexData, u32 vertexAttribCount, u32 *indices, u32 indexCount)
-{
-    u32 meshVAO;
-    glGenVertexArrays(1, &meshVAO);
-    u32 meshVBO;
-    glGenBuffers(1, &meshVBO);
-    u32 meshEBO;
-    glGenBuffers(1, &meshEBO);
-
-    glBindVertexArray(meshVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, meshVBO);
-    glBufferData(GL_ARRAY_BUFFER, vertexAttribCount * sizeof(f32), vertexData, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, meshEBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indexCount * sizeof(u32), indices, GL_STATIC_DRAW);
-
-    // Position + Normal + UVs + Tangent + Bitangent
-    i32 vertexSize = (3 + 3 + 2 + 3 + 3) * sizeof(f32);
-
-    // Position
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *) 0);
-    // Normal
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *) (3 * sizeof(f32)));
-    // UVs
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, vertexSize, (void *) (6 * sizeof(f32)));
-    // Tangent
-    glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *) (8 * sizeof(f32)));
-    // Bitangent
-    glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, vertexSize, (void *) (11 * sizeof(f32)));
-
-    glBindVertexArray(0);
-
-    return meshVAO;
-}
-#endif
 
 void PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh)
 {
@@ -776,7 +704,54 @@ void PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out
     Out_Mesh->IndexCount = MeshInternalData.IndexCount;
 }
 
-void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
+void PrepareMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh)
+{
+    u32 VAO;
+    glGenVertexArrays(1, &VAO);
+    u32 VBO;
+    glGenBuffers(1, &VBO);
+    u32 EBO;
+    glGenBuffers(1, &EBO);
+
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    size_t BufferSize = MeshInternalData.VertexCount * (POSITIONS_PER_VERTEX * sizeof(f32) +
+                                                        UVS_PER_VERTEX * sizeof(f32) +
+                                                        NORMALS_PER_VERTEX * sizeof(f32) +
+                                                        TANGENTS_PER_VERTEX * sizeof(f32) +
+                                                        BITANGENTS_PER_VERTEX * sizeof(f32));
+    glBufferData(GL_ARRAY_BUFFER, BufferSize, MeshInternalData.Data, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, MeshInternalData.IndexCount * sizeof(i32), MeshInternalData.Indices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, POSITIONS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          POSITIONS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.Positions - MeshInternalData.Data));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, UVS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          UVS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.UVs - MeshInternalData.Data));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, NORMALS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          NORMALS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.Normals - MeshInternalData.Data));
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, TANGENTS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          TANGENTS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.Tangents - MeshInternalData.Data));
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, BITANGENTS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          BITANGENTS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.Bitangents - MeshInternalData.Data));
+
+    glBindVertexArray(0);
+
+    Out_Mesh->VAO = VAO;
+    Out_Mesh->IndexCount = MeshInternalData.IndexCount;
+}
+
+void RenderSkinnedModel(skinned_model *Model, u32 Shader, f32 DeltaTime)
 {
     glUseProgram(Shader);
 
@@ -846,6 +821,17 @@ void Render(skinned_model *Model, u32 Shader, f32 DeltaTime)
         //Transform = glm::mat4(1.0f);
         glUniformMatrix4fv(glGetUniformLocation(Shader, LocationStringBuffer), 1, GL_FALSE, glm::value_ptr(Transform));
     }
+
+    // Render model's meshes
+    // ---------------------
+    RenderMeshList(Model->Meshes, Model->MeshCount);
+ 
+    glUseProgram(0);
+}
+
+void RenderModel(model *Model, u32 Shader)
+{
+    glUseProgram(Shader);
 
     // Render model's meshes
     // ---------------------

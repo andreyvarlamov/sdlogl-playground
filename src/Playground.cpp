@@ -148,12 +148,10 @@ int main(int argc, char *argv[])
                 // -----------
                 skinned_model AtlbetaModel = LoadSkinnedModel("resources/models/animtest/atlbeta12.gltf");
                 i32 selectedBone = 0;
-                bool incBoneButtonPressed = false;
-                bool decBoneButtonPressed = false;
                 AtlbetaModel.AnimationState.CurrentAnimationA = 0;
                 AtlbetaModel.AnimationState.CurrentAnimationB = 1;
                 AtlbetaModel.AnimationState.BlendingFactor = 0.0f;
-                //std::vector<Mesh> snowmanMeshes = loadModel("resources/models/snowman/snowman.objm");
+                model SnowmanModel = LoadModel("resources/models/snowman/snowman.objm");
                 //std::vector<Mesh> containerMeshes = loadModel("resources/models/container/container.obj");
 
                 //stbi_set_flip_vertically_on_load(true);
@@ -230,34 +228,6 @@ int main(int argc, char *argv[])
                     else if (!currentKeyStates[SDL_SCANCODE_GRAVE])
                     {
                         CameraFPSModeButtonPressed = false;
-                    }
-                    if (currentKeyStates[SDL_SCANCODE_LEFT] && !decBoneButtonPressed)
-                    {
-                        --selectedBone;
-                        if (selectedBone < 0)
-                        {
-                            selectedBone = AtlbetaModel.BoneCount - 1;
-                        }
-                        std::cout << AtlbetaModel.Bones[selectedBone].Name << '\n';
-                        decBoneButtonPressed = !decBoneButtonPressed;
-                    }
-                    else if (!currentKeyStates[SDL_SCANCODE_LEFT])
-                    {
-                        decBoneButtonPressed = false;
-                    }
-                    if (currentKeyStates[SDL_SCANCODE_RIGHT] && !incBoneButtonPressed)
-                    {
-                        ++selectedBone;
-                        if (selectedBone >= AtlbetaModel.BoneCount)
-                        {
-                            selectedBone = 0;
-                        }
-                        std::cout << AtlbetaModel.Bones[selectedBone].Name << '\n';
-                        incBoneButtonPressed = !incBoneButtonPressed;
-                    }
-                    else if (!currentKeyStates[SDL_SCANCODE_RIGHT])
-                    {
-                        incBoneButtonPressed = false;
                     }
                     //if (currentKeyStates[SDL_SCANCODE_T] && !AnimationSwitchButtonPressed)
                     //{
@@ -527,23 +497,11 @@ int main(int argc, char *argv[])
                     glBindVertexArray(0);
 
                     // snowman
-                    //model = glm::mat4(1.0f);
-                    //model = glm::translate(model, glm::vec3(0.0f, 0.0f, -5.0f));
-                    //model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-                    //glUniformMatrix4fv(glGetUniformLocation(basicShader, "model"), 1, GL_FALSE, glm::value_ptr(model));
-                    //normalMatrix = glm::transpose(glm::inverse(glm::mat3(model)));
-                    //glUniformMatrix3fv(glGetUniformLocation(basicShader, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
-                    //for (u32 snowmanMeshIndex = 0; snowmanMeshIndex < snowmanMeshes.size(); ++snowmanMeshIndex)
-                    //{
-                    //    Mesh mesh = snowmanMeshes[snowmanMeshIndex];
-                    //    glActiveTexture(GL_TEXTURE0);
-                    //    glBindTexture(GL_TEXTURE_2D, mesh.diffuseMapID);
-                    //    glBindVertexArray(mesh.vao);
-                    //    glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
-                    //    glBindVertexArray(0);
-                    //    glActiveTexture(GL_TEXTURE0);
-                    //    glBindTexture(GL_TEXTURE_2D, 0);
-                    //}
+                    model = glm::mat4(1.0f);
+                    model = glm::translate(model, glm::vec3(0.0f, 0.0f, -5.0f));
+                    model = glm::rotate(model, currentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+                    glUniformMatrix4fv(glGetUniformLocation(basicShader, "Model"), 1, GL_FALSE, glm::value_ptr(model));
+                    RenderModel(&SnowmanModel, basicShader);
 
                     // backpack
                     //model = glm::mat4(1.0f);
@@ -572,7 +530,7 @@ int main(int argc, char *argv[])
                     model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
                     model = glm::scale(model, glm::vec3(0.5f));
                     glUniformMatrix4fv(glGetUniformLocation(debugSkeletalShader, "Model"), 1, GL_FALSE, glm::value_ptr(model));
-                    Render(&AtlbetaModel, debugSkeletalShader, deltaTime);
+                    RenderSkinnedModel(&AtlbetaModel, debugSkeletalShader, deltaTime);
 
                     // Swap buffer
                     // -----------
@@ -652,7 +610,6 @@ void generateTriangleVertexData(f32 *vertexData, const glm::vec3 *positions, glm
     vertexDataCursor[4]  = normal.y;
     vertexDataCursor[5]  = normal.z;
     vertexDataCursor[6]  = uvs[2].x;
-    vertexDataCursor[7]  = uvs[2].y;
     vertexDataCursor[8]  = tangent.x;
     vertexDataCursor[9]  = tangent.y;
     vertexDataCursor[10] = tangent.z;
