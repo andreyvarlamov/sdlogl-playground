@@ -30,6 +30,9 @@ inline i32 FindNextAnimationKey(animation *Animation);
 inline f32 CalculateLerpRatioBetweenTwoFrames(animation *Animation, i32 NextKey);
 inline animation_key GetRestAnimationKeyForBone(bone Bone);
 inline void RenderMeshList(mesh *Meshes, i32 MeshCount);
+void ASSIMP_GetTextureFilename(aiMaterial *AssimpMaterial, aiTextureType TextureType,
+                               char *Out_Filename, i32 *Out_FilenameCount,
+                               i32 FilenameBufferSize);
 
 bone *ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
 {
@@ -55,11 +58,11 @@ bone *ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
         // First bone is a dummy bone
         if (CurrentBoneIndex == 0)
         {
-            strncpy_s(Bone.Name, "DummyBone", MAX_ASSIMP_NAME_LENGTH -1);
+            strncpy_s(Bone.Name, "DummyBone", MAX_INTERNAL_NAME_LENGTH -1);
         }
         else
         {
-            strncpy_s(Bone.Name, CurrentNode->mName.C_Str(), MAX_ASSIMP_NAME_LENGTH -1);
+            strncpy_s(Bone.Name, CurrentNode->mName.C_Str(), MAX_INTERNAL_NAME_LENGTH -1);
             Bone.ParentID = ParentIDHelperQueue[QueueStart];
         }
         Bone.ID = CurrentBoneIndex;
@@ -159,6 +162,15 @@ void FreeMeshInternalData(mesh_internal_data *MeshInternalData)
 skinned_model LoadSkinnedModel(const char *Path)
 {
     std::cout << "Loading model at: " << Path << '\n';
+
+    // Get directory data (to load textures later)
+    // -------------------------------------------
+    char ModelPath[MAX_PATH_LENGTH];
+    strncpy_s(ModelPath, Path, MAX_PATH_LENGTH - 1);
+    i32 ModelPathCount = GetNullTerminatedStringLength(ModelPath);
+    char ModelDirectory[MAX_PATH_LENGTH];
+    i32 ModelDirectoryCount;
+    GetFileDirectory(ModelPath, ModelPathCount, ModelDirectory, &ModelDirectoryCount, MAX_PATH_LENGTH);
 
     // Result
     // ------
@@ -313,20 +325,29 @@ skinned_model LoadSkinnedModel(const char *Path)
 
         // Load textures
         // -------------
-        // TODO
-        aiMaterial *mat = AssimpScene->mMaterials[AssimpMesh->mMaterialIndex];
-        u32 DiffuseCount = aiGetMaterialTextureCount(mat, aiTextureType_DIFFUSE);
-        if (DiffuseCount > 0)
-        {
-            aiString AssimpTextureFileName;
-            aiGetMaterialString(mat, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE, 0), &AssimpTextureFileName);
+        aiMaterial *AssimpMaterial = AssimpScene->mMaterials[AssimpMesh->mMaterialIndex];
+        aiTextureType TextureTypes[] = { 
+            aiTextureType_DIFFUSE, aiTextureType_SPECULAR,
+            aiTextureType_EMISSIVE, aiTextureType_HEIGHT };
 
-            std::string textureFileName = std::string(AssimpTextureFileName.C_Str());
-            std::string modelPath = std::string(Path);
-            std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
-            std::string texturePath = modelDirectory + '/' + textureFileName;
-            Mesh.DiffuseMapID = loadTexture(texturePath.c_str());
+        char TextureFilename[MAX_FILENAME_LENGTH]; i32 TextureFilenameCount;
+        char TexturePath[MAX_PATH_LENGTH];
+        for (i32 TextureType = 0; TextureType < 4; ++TextureType)
+        {
+            ASSIMP_GetTextureFilename(AssimpMaterial, TextureTypes[TextureType],
+                                      TextureFilename, &TextureFilenameCount, MAX_FILENAME_LENGTH);
+            
+            TexturePath[0] = '\0';
+
+            if (TextureFilenameCount > 0)
+            {
+                CatStrings(ModelDirectory, ModelDirectoryCount,
+                       TextureFilename, TextureFilenameCount,
+                       TexturePath, MAX_PATH_LENGTH);
+                Mesh.TextureIDs[TextureType] = LoadTexture(TexturePath);
+            }
         }
+        
         // Save mesh into model
         // --------------------
         Model.Meshes[MeshIndex] = Mesh;
@@ -422,7 +443,7 @@ skinned_model LoadSkinnedModel(const char *Path)
             }
         }
 
-        strncpy_s(Model.Animations[AnimationIndex].Name, AssimpAnimation->mName.C_Str(), MAX_ASSIMP_NAME_LENGTH - 1);
+        strncpy_s(Model.Animations[AnimationIndex].Name, AssimpAnimation->mName.C_Str(), MAX_INTERNAL_NAME_LENGTH - 1);
         Model.Animations[AnimationIndex].TicksDuration = (f32) AssimpAnimation->mDuration;
         Model.Animations[AnimationIndex].TicksPerSecond = (f32) AssimpAnimation->mTicksPerSecond;
         Model.Animations[AnimationIndex].KeyCount = KeyCount;
@@ -544,7 +565,7 @@ std::vector<Mesh> loadModel(const char *path)
                 std::string modelPath = std::string(path);
                 std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
                 std::string texturePath = modelDirectory + '/' + textureFileName;
-                mesh.diffuseMapID = loadTexture(texturePath.c_str());
+                mesh.diffuseMapID = LoadTexture(texturePath.c_str());
                 loadedTextures[textureFileName] = mesh.diffuseMapID;
             }
             else
@@ -564,7 +585,7 @@ std::vector<Mesh> loadModel(const char *path)
                 std::string modelPath = std::string(path);
                 std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
                 std::string texturePath = modelDirectory + '/' + textureFileName;
-                mesh.specularMapID = loadTexture(texturePath.c_str());
+                mesh.specularMapID = LoadTexture(texturePath.c_str());
                 loadedTextures[textureFileName] = mesh.specularMapID;
             }
             else
@@ -584,7 +605,7 @@ std::vector<Mesh> loadModel(const char *path)
                 std::string modelPath = std::string(path);
                 std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
                 std::string texturePath = modelDirectory + '/' + textureFileName;
-                mesh.emissionMapID = loadTexture(texturePath.c_str());
+                mesh.emissionMapID = LoadTexture(texturePath.c_str());
                 loadedTextures[textureFileName] = mesh.emissionMapID;
             }
             else
@@ -604,7 +625,7 @@ std::vector<Mesh> loadModel(const char *path)
                 std::string modelPath = std::string(path);
                 std::string modelDirectory = modelPath.substr(0, modelPath.find_last_of('/'));
                 std::string texturePath = modelDirectory + '/' + textureFileName;
-                mesh.normalMapID = loadTexture(texturePath.c_str());
+                mesh.normalMapID = LoadTexture(texturePath.c_str());
                 loadedTextures[textureFileName] = mesh.normalMapID;
             }
             else
@@ -950,4 +971,26 @@ inline f32 CalculateLerpRatioBetweenTwoFrames(animation *Animation, i32 NextKey)
               (Animation->KeyTimes[NextKey] - Animation->KeyTimes[NextKey-1]));
 
     return Result;
+}
+
+void ASSIMP_GetTextureFilename(aiMaterial *AssimpMaterial, aiTextureType TextureType,
+                               char *Out_Filename, i32 *Out_FilenameCount,
+                               i32 FilenameBufferSize)
+{
+    if (aiGetMaterialTextureCount(AssimpMaterial, TextureType) > 0)
+    {
+        aiString AssimpTextureFilename;
+        aiGetMaterialString(AssimpMaterial,
+                            AI_MATKEY_TEXTURE(TextureType, 0),
+                            &AssimpTextureFilename);
+        strncpy_s(Out_Filename, FilenameBufferSize,
+                  AssimpTextureFilename.C_Str(), FilenameBufferSize - 1);
+
+        *Out_FilenameCount = AssimpTextureFilename.length;
+    }
+    else
+    {
+        Out_Filename[0] = '\0';
+        *Out_FilenameCount = 0;
+    }
 }

@@ -13,13 +13,19 @@ struct mesh
 {
     u32 VAO;
     u32 IndexCount;
-    u32 DiffuseMapID;
-    u32 SpecularMapID;
-    u32 EmissionMapID;
-    u32 NormalMapID;
+    union
+    {
+        u32 TextureIDs[4];
+        struct
+        {
+            u32 DiffuseMapID;
+            u32 SpecularMapID;
+            u32 EmissionMapID;
+            u32 NormalMapID;
+        };
+    };
 };
 
-#define MAX_ASSIMP_NAME_LENGTH 32
 #define MAX_BONE_CHILDREN 8
 struct bone
 {
@@ -29,7 +35,7 @@ struct bone
     i32 ChildrenCount;
     glm::mat4 TransformToParent;
     glm::mat4 InverseBindTransform;
-    char Name[MAX_ASSIMP_NAME_LENGTH];
+    char Name[MAX_INTERNAL_NAME_LENGTH];
 };
 
 struct animation_key
@@ -50,7 +56,7 @@ struct animation
     f32 *KeyTimes;
     animation_key *Keys;
 
-    char Name[MAX_ASSIMP_NAME_LENGTH];
+    char Name[MAX_INTERNAL_NAME_LENGTH];
 };
 
 struct animation_state

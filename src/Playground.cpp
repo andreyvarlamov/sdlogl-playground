@@ -24,7 +24,7 @@ glm::vec3 CameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 f32 CameraMovementSpeed = 3.5f;
 f32 CameraMouseSensitivity = 0.05f;
 f32 CameraFov = 90.0f;
-f32 CameraYaw = 90.0f;
+f32 CameraYaw = -90.0f;
 f32 CameraPitch = 0.0f;
 bool CameraFPSMode = true;
 
@@ -131,12 +131,18 @@ int main(int argc, char *argv[])
 
                 // Load textures
                 // -------------
-                u32 containerDiffuseID = loadTexture("resources/textures/container.png");
-                u32 containerSpecularID = loadTexture("resources/textures/container_specular.png");
-                u32 eyeEmissionID = loadTexture("resources/textures/eye_emission.png");
-                u32 wallDiffuseID = loadTexture("resources/textures/brickwall.jpg");
-                u32 wallNormalTexID = loadTexture("resources/textures/brickwall_normal.jpg");
-                u32 grassTextureID = loadTexture("resources/textures/grass.jpg");
+                u32 containerDiffuseID = LoadTexture("resources/textures/container.png");
+                u32 containerSpecularID = LoadTexture("resources/textures/container_specular.png");
+                u32 eyeEmissionID = LoadTexture("resources/textures/eye_emission.png");
+                u32 wallDiffuseID = LoadTexture("resources/textures/brickwall.jpg");
+                u32 wallNormalTexID = LoadTexture("resources/textures/brickwall_normal.jpg");
+                u32 grassTextureID = LoadTexture("resources/textures/grass.jpg");
+                u32 containerDiffuseID2 = LoadTexture("resources/textures/container.png");
+                u32 containerSpecularID2 = LoadTexture("resources/textures/container_specular.png");
+                u32 eyeEmissionID2 = LoadTexture("resources/textures/eye_emission.png");
+                u32 wallDiffuseID2 = LoadTexture("resources/textures/brickwall.jpg");
+                u32 wallNormalTexID2 = LoadTexture("resources/textures/brickwall_normal.jpg");
+                u32 grassTextureID2 = LoadTexture("resources/textures/grass.jpg");
 
                 // Load models
                 // -----------
