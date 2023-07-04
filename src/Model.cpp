@@ -19,7 +19,6 @@
 glm::mat4 ASSIMP_Mat4ToGLM(aiMatrix4x4 AssimpMat);
 glm::vec3 ASSIMP_Vec3ToGLM(aiVector3D AssimpVector);
 glm::quat ASSIMP_QuatToGLM(aiQuaternion AssimpQuat);
-//u32 prepareMeshVAO(f32 *vertexData, u32 vertexCount, u32 *indices, u32 indexCount);
 void PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh);
 void PrepareMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh);
 mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount, bool IncludeBones);
@@ -34,6 +33,11 @@ inline void RenderMeshList(mesh *Meshes, i32 MeshCount);
 void ASSIMP_GetTextureFilename(aiMaterial *AssimpMaterial, aiTextureType TextureType,
                                char *Out_Filename, i32 *Out_FilenameCount,
                                i32 FilenameBufferSize);
+void LoadTexturesForMesh(mesh *Mesh, const char *ModelPath, aiMaterial *AssimpMaterial);
+const aiScene *ASSIMP_ImportFile(const char *Path);
+void ASSIMP_ParseMeshVertexIndexData(aiMesh *AssimpMesh, mesh_internal_data *Out_InternalData);
+void ASSIMP_ParseMeshBoneData(aiMesh *AssimpMesh, skinned_model *Out_Model, mesh_internal_data *Out_InternalData);
+animation ASSIMP_ParseAnimation(aiAnimation *AssimpAnimation, bone *Bones, i32 BoneCount);
 
 bone *ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
 {
@@ -175,298 +179,75 @@ skinned_model LoadSkinnedModel(const char *Path)
 {
     std::cout << "Loading skinned model at: " << Path << '\n';
 
-    // Get directory data (to load textures later)
-    // -------------------------------------------
-    char ModelPath[MAX_PATH_LENGTH];
-    strncpy_s(ModelPath, Path, MAX_PATH_LENGTH - 1);
-    i32 ModelPathCount = GetNullTerminatedStringLength(ModelPath);
-    char ModelDirectory[MAX_PATH_LENGTH];
-    i32 ModelDirectoryCount;
-    GetFileDirectory(ModelPath, ModelPathCount, ModelDirectory, &ModelDirectoryCount, MAX_PATH_LENGTH);
-
-    // Result
-    // ------
     skinned_model Model{ };
 
-    // Load assimp scene
-    // -----------------
-    const aiScene *AssimpScene = aiImportFile(Path,
-                                              aiProcess_CalcTangentSpace |
-                                              aiProcess_Triangulate |
-                                              aiProcess_JoinIdenticalVertices |
-                                              aiProcess_FlipUVs);
-
-    if (!AssimpScene || AssimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !AssimpScene->mRootNode)
-    {
-        // TODO: Logging
-        std::cerr << "ERROR::LOAD_MODEL::ASSIMP_READ_ERROR: " << " Path: " << Path << '\n' << aiGetErrorString() << '\n';
-        return Model;
-    }
+    const aiScene *AssimpScene = ASSIMP_ImportFile(Path);
 
     // Scene armature data
     // -------------------
     aiNode *ArmatureNode = 0;
     i32 BoneCount = 0;
     ASSIMP_GetArmatureInfo(AssimpScene->mRootNode, &ArmatureNode, &BoneCount);
-    if (ArmatureNode && BoneCount > 0)
-    {
-        Model.BoneCount = BoneCount;
-        Model.Bones = ASSIMP_ParseBones(ArmatureNode, BoneCount);
-    }
+    Assert(ArmatureNode);
+    Assert(BoneCount > 0);
+    Model.BoneCount = BoneCount;
+    Model.Bones = ASSIMP_ParseBones(ArmatureNode, BoneCount);
 
     // Scene mesh data
     // ---------------
     Model.MeshCount = AssimpScene->mNumMeshes;
     // TODO: LEAK
     Model.Meshes = (mesh *) calloc(1, Model.MeshCount * sizeof(mesh));
-    if (!Model.Meshes)
-    {
-        std::cerr << "ERROR::LOAD_MODEL: Could not allocate space for meshes" << '\n';
-        free(Model.Bones);
-        Model.Bones = 0;
-        return Model;
-    }
+    Assert(Model.Meshes);
+
     for (i32 MeshIndex = 0; MeshIndex < Model.MeshCount; ++MeshIndex)
     {
         aiMesh *AssimpMesh = AssimpScene->mMeshes[MeshIndex];
+        
+        mesh Mesh{ };
 
         i32 VertexCount = AssimpMesh->mNumVertices;
         i32 IndexCount = AssimpMesh->mNumFaces * 3;
-
         mesh_internal_data InternalData = InitializeMeshInternalData(VertexCount, IndexCount, true);
 
-        // Mesh vertex data
-        // ----------------
-        for (i32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
-        {
-            for (i32 Index = 0; Index < POSITIONS_PER_VERTEX; ++Index)
-            {
-                InternalData.Positions[VertexIndex * POSITIONS_PER_VERTEX + Index] =
-                    AssimpMesh->mVertices[VertexIndex][Index];
-            }
+        ASSIMP_ParseMeshVertexIndexData(AssimpMesh, &InternalData);
 
-            for (i32 Index = 0; Index < UVS_PER_VERTEX; ++Index)
-            {
-                InternalData.UVs[VertexIndex * UVS_PER_VERTEX + Index] =
-                    AssimpMesh->mTextureCoords[0][VertexIndex][Index];
-            }
+        ASSIMP_ParseMeshBoneData(AssimpMesh, &Model, &InternalData);
 
-            for (i32 Index = 0; Index < NORMALS_PER_VERTEX; ++Index)
-            {
-                InternalData.Normals[VertexIndex * NORMALS_PER_VERTEX + Index] =
-                    AssimpMesh->mNormals[VertexIndex][Index];
-            }
-
-            for (i32 Index = 0; Index < TANGENTS_PER_VERTEX; ++Index)
-            {
-                InternalData.Tangents[VertexIndex * TANGENTS_PER_VERTEX + Index] =
-                    AssimpMesh->mTangents[VertexIndex][Index];
-            }
-
-            for (i32 Index = 0; Index < BITANGENTS_PER_VERTEX; ++Index)
-            {
-                InternalData.Bitangents[VertexIndex * BITANGENTS_PER_VERTEX + Index] =
-                    AssimpMesh->mBitangents[VertexIndex][Index];
-            }
-        }
-
-        // Mesh index data
-        // ---------------
-        i32 *IndexCursor = InternalData.Indices;
-        for (i32 FaceIndex = 0; FaceIndex < (i32) AssimpMesh->mNumFaces; ++FaceIndex)
-        {
-            aiFace *AssimpFace = &AssimpMesh->mFaces[FaceIndex];
-            for (i32 Index = 0; Index < (i32) AssimpFace->mNumIndices; ++Index)
-            {
-                Assert(IndexCursor < InternalData.Indices + InternalData.IndexCount);
-
-                *IndexCursor++ = AssimpFace->mIndices[Index];
-            }
-        }
-
-        // Mesh bone data
-        // --------------
-        if (Model.Bones)
-        {
-            for (i32 AssimpBoneIndex = 0; AssimpBoneIndex < (i32) AssimpMesh->mNumBones; ++AssimpBoneIndex)
-            {
-                aiBone *AssimpBone = AssimpMesh->mBones[AssimpBoneIndex];
-
-                i32 InternalBoneID = 0;
-
-                for (i32 SearchBoneIndex = 0; SearchBoneIndex < BoneCount; ++SearchBoneIndex)
-                {
-                    if (strcmp(Model.Bones[SearchBoneIndex].Name, AssimpBone->mName.C_Str()) == 0)
-                    {
-                        InternalBoneID = SearchBoneIndex;
-                    }
-                }
-
-                Model.Bones[InternalBoneID].InverseBindTransform = ASSIMP_Mat4ToGLM(AssimpBone->mOffsetMatrix);
-
-                for (i32 WeightIndex = 0; WeightIndex < (i32) AssimpBone->mNumWeights; ++WeightIndex)
-                {
-                    aiVertexWeight *AssimpWeight = &AssimpBone->mWeights[WeightIndex];
-
-                    if (AssimpWeight->mWeight > 0.0f)
-                    {
-                        bool SpaceForBoneFound = false;
-                        for (i32 BonePerVertexOffset = 0;
-                             BonePerVertexOffset < MAX_BONES_PER_VERTEX;
-                             ++BonePerVertexOffset)
-                        {
-                            i32 VertexBonePosition = AssimpWeight->mVertexId * MAX_BONES_PER_VERTEX + BonePerVertexOffset;
-                            if (InternalData.BoneIDs[VertexBonePosition] == 0)
-                            {
-                                InternalData.BoneIDs[VertexBonePosition] = InternalBoneID;
-                                InternalData.BoneWeights[VertexBonePosition] = AssimpWeight->mWeight;
-                                SpaceForBoneFound = true;
-                                break;
-                            }
-                        }
-                        Assert(SpaceForBoneFound);
-                    }
-                }
-            }
-        }
-
-        mesh Mesh{ };
         PrepareSkinnedMeshRenderData(InternalData, &Mesh);
+
         FreeMeshInternalData(&InternalData);
 
-        // Load textures
-        // -------------
-        aiMaterial *AssimpMaterial = AssimpScene->mMaterials[AssimpMesh->mMaterialIndex];
-        aiTextureType TextureTypes[] = { 
-            aiTextureType_DIFFUSE, aiTextureType_SPECULAR,
-            aiTextureType_EMISSIVE, aiTextureType_HEIGHT };
-
-        char TextureFilename[MAX_FILENAME_LENGTH]; i32 TextureFilenameCount;
-        char TexturePath[MAX_PATH_LENGTH];
-        for (i32 TextureType = 0; TextureType < 4; ++TextureType)
-        {
-            ASSIMP_GetTextureFilename(AssimpMaterial, TextureTypes[TextureType],
-                                      TextureFilename, &TextureFilenameCount, MAX_FILENAME_LENGTH);
-            
-            TexturePath[0] = '\0';
-
-            if (TextureFilenameCount > 0)
-            {
-                CatStrings(ModelDirectory, ModelDirectoryCount,
-                       TextureFilename, TextureFilenameCount,
-                       TexturePath, MAX_PATH_LENGTH);
-                Mesh.TextureIDs[TextureType] = LoadTexture(TexturePath);
-            }
-        }
+        LoadTexturesForMesh(&Mesh, Path, AssimpScene->mMaterials[AssimpMesh->mMaterialIndex]);
         
-        // Save mesh into model
-        // --------------------
         Model.Meshes[MeshIndex] = Mesh;
     }
 
     // Scene animation data
     // --------------------
-    i32 AnimationCount = AssimpScene->mNumAnimations;
-    Model.AnimationCount = AnimationCount;
+    Model.AnimationCount = AssimpScene->mNumAnimations;
     //TODO: LEAK
-    Model.Animations = (animation *) calloc(1, AnimationCount * sizeof(animation));
+    Model.Animations = (animation *) calloc(1, Model.AnimationCount * sizeof(animation));
     Assert(Model.Animations);
 
-    // NOTE: An assumption I'm making: all animations for the same model have the same number of channels
     i32 ModelAnimationChannelCount = AssimpScene->mAnimations[0]->mNumChannels;
-
-    for (i32 AnimationIndex = 0; AnimationIndex < AnimationCount; ++AnimationIndex)
+    for (i32 AnimationIndex = 0; AnimationIndex < Model.AnimationCount; ++AnimationIndex)
     {
         aiAnimation *AssimpAnimation = AssimpScene->mAnimations[AnimationIndex];
-        i32 KeyCount = 0;
-        i32 ChannelCount = AssimpAnimation->mNumChannels;
-        Assert(ChannelCount == ModelAnimationChannelCount);
-        f32 *AnimationKeyTimes = 0;
-        animation_key *AnimationKeys = 0;
-        bool firstChannel = true;
-        for (i32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
-        {
-            aiNodeAnim *AssimpAnimationChannel = AssimpAnimation->mChannels[ChannelIndex];
-
-            // Find the bone ID corresponding to this node
-            // So that the animation nodes are in the same
-            // order as bones.
-            // -------------------------------------------
-            i32 BoneID = 0;
-            for (i32 BoneIndex = 0; BoneIndex < Model.BoneCount; ++BoneIndex)
-            {
-                if (strcmp(Model.Bones[BoneIndex].Name, AssimpAnimationChannel->mNodeName.C_Str()) == 0)
-                {
-                    BoneID = BoneIndex;
-                }
-            }
-            Assert(BoneID > 0);
-
-            // Initialize key data structures on the first loop
-            // ------------------------------------------------
-            if (firstChannel)
-            {
-                KeyCount = AssimpAnimationChannel->mNumPositionKeys;
-                // TODO: LEAK
-                AnimationKeyTimes = (f32 *) calloc(1, KeyCount * sizeof(f32));
-                Assert(AnimationKeyTimes);
-                // TODO: LEAK
-                AnimationKeys = (animation_key *) calloc(1, KeyCount * ChannelCount * sizeof(animation_key));
-                Assert(AnimationKeys);
-                for (i32 KeyIndex = 0; KeyIndex < KeyCount; ++KeyIndex)
-                {
-                    AnimationKeyTimes[KeyIndex] = (f32) AssimpAnimationChannel->mPositionKeys[KeyIndex].mTime;
-                }
-                firstChannel = false;
-            }
-
-            // NOTE: An assumption I'm making: positions, rotations and scaling
-            //       have the same number of keys for all channels
-            Assert(KeyCount == AssimpAnimationChannel->mNumPositionKeys);
-            Assert(KeyCount == AssimpAnimationChannel->mNumRotationKeys);
-            Assert(KeyCount == AssimpAnimationChannel->mNumScalingKeys);
-
-            // Process transformation data for each key of the channel
-            // -------------------------------------------------------
-            for (i32 KeyIndex = 0; KeyIndex < KeyCount; ++KeyIndex)
-            {
-                aiVectorKey *AssimpPosKey = &AssimpAnimationChannel->mPositionKeys[KeyIndex];
-                aiQuatKey *AssimpRotKey = &AssimpAnimationChannel->mRotationKeys[KeyIndex];
-                aiVectorKey *AssimpScaKey = &AssimpAnimationChannel->mScalingKeys[KeyIndex];
-
-                // NOTE: an assumption I'm making: all channels have the same exact timing info
-                Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpPosKey->mTime);
-                Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpRotKey->mTime);
-                Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpScaKey->mTime);
-
-                animation_key Key{ };
-                Key.Position = ASSIMP_Vec3ToGLM(AssimpPosKey->mValue);
-                Key.Rotation = ASSIMP_QuatToGLM(AssimpRotKey->mValue);
-                Key.Scale = ASSIMP_Vec3ToGLM(AssimpScaKey->mValue);
-
-                // All animation channels should have the same order as bones for easy access
-                // But BoneID = 0 is the DummyBone, no need to save animation for that
-                i32 ChannelPosition = BoneID - 1;
-
-                // TODO: Profile vs de-intereleaved
-                // Interleaved A0A1B0B1C0C1...; A - Key; 0 - Channel
-                AnimationKeys[KeyIndex * ChannelCount + ChannelPosition] = Key;
-            }
-        }
-
-        strncpy_s(Model.Animations[AnimationIndex].Name, AssimpAnimation->mName.C_Str(), MAX_INTERNAL_NAME_LENGTH - 1);
-        Model.Animations[AnimationIndex].TicksDuration = (f32) AssimpAnimation->mDuration;
-        Model.Animations[AnimationIndex].TicksPerSecond = (f32) AssimpAnimation->mTicksPerSecond;
-        Model.Animations[AnimationIndex].KeyCount = KeyCount;
-        Model.Animations[AnimationIndex].ChannelCount = ChannelCount;
-        Model.Animations[AnimationIndex].KeyTimes = AnimationKeyTimes;
-        Model.Animations[AnimationIndex].Keys = AnimationKeys;
-        // TODO: LEAK
-        Model.AnimationState.TransientChannelTransformData = 
-            (glm::mat4 *) calloc(1, Model.Animations[AnimationIndex].ChannelCount * sizeof(glm::mat4));
-        Assert(Model.AnimationState.TransientChannelTransformData);
+        
+        // NOTE: An assumption I'm making: all animations for the same model have the same number of channels
+        Assert(AssimpAnimation->mNumChannels == ModelAnimationChannelCount);
+        
+        Model.Animations[AnimationIndex] = ASSIMP_ParseAnimation(AssimpAnimation, Model.Bones, Model.BoneCount);
     }
 
+    // TODO: LEAK
+    Model.AnimationState.TransientChannelTransformData = 
+        (glm::mat4 *) calloc(1, ModelAnimationChannelCount * sizeof(glm::mat4));
+    Assert(Model.AnimationState.TransientChannelTransformData);
+
+    // Done with assimp data, free
+    // ---------------------------
     aiReleaseImport(AssimpScene);
 
     return Model;
@@ -476,140 +257,277 @@ model LoadModel(const char *Path)
 {
     std::cout << "Loading model at: " << Path << '\n';
 
-    // Get directory data (to load textures later)
-    // -------------------------------------------
-    char ModelPath[MAX_PATH_LENGTH];
-    strncpy_s(ModelPath, Path, MAX_PATH_LENGTH - 1);
-    i32 ModelPathCount = GetNullTerminatedStringLength(ModelPath);
-    char ModelDirectory[MAX_PATH_LENGTH];
-    i32 ModelDirectoryCount;
-    GetFileDirectory(ModelPath, ModelPathCount, ModelDirectory, &ModelDirectoryCount, MAX_PATH_LENGTH);
-
-    // Result
-    // ------
     model Model{ };
 
-    // Load assimp scene
-    // -----------------
-    const aiScene *AssimpScene = aiImportFile(Path,
-                                              aiProcess_CalcTangentSpace |
-                                              aiProcess_Triangulate |
-                                              aiProcess_JoinIdenticalVertices |
-                                              aiProcess_FlipUVs);
-
-    if (!AssimpScene || AssimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !AssimpScene->mRootNode)
-    {
-        // TODO: Logging
-        std::cerr << "ERROR::LOAD_MODEL::ASSIMP_READ_ERROR: " << " Path: " << Path << '\n' << aiGetErrorString() << '\n';
-        return Model;
-    }
+    const aiScene *AssimpScene = ASSIMP_ImportFile(Path);
 
     // Scene mesh data
     // ---------------
     Model.MeshCount = AssimpScene->mNumMeshes;
     // TODO: LEAK
     Model.Meshes = (mesh *) calloc(1, Model.MeshCount * sizeof(mesh));
-    if (!Model.Meshes)
-    {
-        std::cerr << "ERROR::LOAD_MODEL: Could not allocate space for meshes" << '\n';
-        return Model;
-    }
+    Assert(Model.Meshes);
 
     for (i32 MeshIndex = 0; MeshIndex < Model.MeshCount; ++MeshIndex)
     {
         aiMesh *AssimpMesh = AssimpScene->mMeshes[MeshIndex];
 
+        mesh Mesh{ };
+
         i32 VertexCount = AssimpMesh->mNumVertices;
         i32 IndexCount = AssimpMesh->mNumFaces * 3;
-
         mesh_internal_data InternalData = InitializeMeshInternalData(VertexCount, IndexCount, false);
 
-        // Mesh vertex data
-        // ----------------
-        for (i32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
-        {
-            for (i32 Index = 0; Index < POSITIONS_PER_VERTEX; ++Index)
-            {
-                InternalData.Positions[VertexIndex * POSITIONS_PER_VERTEX + Index] =
-                    AssimpMesh->mVertices[VertexIndex][Index];
-            }
+        ASSIMP_ParseMeshVertexIndexData(AssimpMesh, &InternalData);
 
-            for (i32 Index = 0; Index < UVS_PER_VERTEX; ++Index)
-            {
-                InternalData.UVs[VertexIndex * UVS_PER_VERTEX + Index] =
-                    AssimpMesh->mTextureCoords[0][VertexIndex][Index];
-            }
-
-            for (i32 Index = 0; Index < NORMALS_PER_VERTEX; ++Index)
-            {
-                InternalData.Normals[VertexIndex * NORMALS_PER_VERTEX + Index] =
-                    AssimpMesh->mNormals[VertexIndex][Index];
-            }
-
-            for (i32 Index = 0; Index < TANGENTS_PER_VERTEX; ++Index)
-            {
-                InternalData.Tangents[VertexIndex * TANGENTS_PER_VERTEX + Index] =
-                    AssimpMesh->mTangents[VertexIndex][Index];
-            }
-
-            for (i32 Index = 0; Index < BITANGENTS_PER_VERTEX; ++Index)
-            {
-                InternalData.Bitangents[VertexIndex * BITANGENTS_PER_VERTEX + Index] =
-                    AssimpMesh->mBitangents[VertexIndex][Index];
-            }
-        }
-
-        // Mesh index data
-        // ---------------
-        i32 *IndexCursor = InternalData.Indices;
-        for (i32 FaceIndex = 0; FaceIndex < (i32) AssimpMesh->mNumFaces; ++FaceIndex)
-        {
-            aiFace *AssimpFace = &AssimpMesh->mFaces[FaceIndex];
-            for (i32 Index = 0; Index < (i32) AssimpFace->mNumIndices; ++Index)
-            {
-                Assert(IndexCursor < InternalData.Indices + InternalData.IndexCount);
-
-                *IndexCursor++ = AssimpFace->mIndices[Index];
-            }
-        }
-
-        mesh Mesh{ };
         PrepareMeshRenderData(InternalData, &Mesh);
+
         FreeMeshInternalData(&InternalData);
 
-        // Load textures
-        // -------------
-        aiMaterial *AssimpMaterial = AssimpScene->mMaterials[AssimpMesh->mMaterialIndex];
-        aiTextureType TextureTypes[] = { 
-            aiTextureType_DIFFUSE, aiTextureType_SPECULAR,
-            aiTextureType_EMISSIVE, aiTextureType_HEIGHT };
+        LoadTexturesForMesh(&Mesh, Path, AssimpScene->mMaterials[AssimpMesh->mMaterialIndex]);
 
-        char TextureFilename[MAX_FILENAME_LENGTH]; i32 TextureFilenameCount;
-        char TexturePath[MAX_PATH_LENGTH];
-        for (i32 TextureType = 0; TextureType < 4; ++TextureType)
-        {
-            ASSIMP_GetTextureFilename(AssimpMaterial, TextureTypes[TextureType],
-                                      TextureFilename, &TextureFilenameCount, MAX_FILENAME_LENGTH);
-
-            TexturePath[0] = '\0';
-
-            if (TextureFilenameCount > 0)
-            {
-                CatStrings(ModelDirectory, ModelDirectoryCount,
-                           TextureFilename, TextureFilenameCount,
-                           TexturePath, MAX_PATH_LENGTH);
-                Mesh.TextureIDs[TextureType] = LoadTexture(TexturePath);
-}
-        }
-
-        // Save mesh into model
-        // --------------------
         Model.Meshes[MeshIndex] = Mesh;
     }
 
+    // Done with assimp data, free
+    // ---------------------------
     aiReleaseImport(AssimpScene);
 
     return Model;
+}
+
+void ASSIMP_ParseMeshVertexIndexData(aiMesh *AssimpMesh, mesh_internal_data *Out_InternalData)
+{
+    i32 VertexCount = AssimpMesh->mNumVertices;
+
+    for (i32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+    {
+        for (i32 Index = 0; Index < POSITIONS_PER_VERTEX; ++Index)
+        {
+            Out_InternalData->Positions[VertexIndex * POSITIONS_PER_VERTEX + Index] =
+                AssimpMesh->mVertices[VertexIndex][Index];
+        }
+
+        for (i32 Index = 0; Index < UVS_PER_VERTEX; ++Index)
+        {
+            Out_InternalData->UVs[VertexIndex * UVS_PER_VERTEX + Index] =
+                AssimpMesh->mTextureCoords[0][VertexIndex][Index];
+        }
+
+        for (i32 Index = 0; Index < NORMALS_PER_VERTEX; ++Index)
+        {
+            Out_InternalData->Normals[VertexIndex * NORMALS_PER_VERTEX + Index] =
+                AssimpMesh->mNormals[VertexIndex][Index];
+        }
+
+        for (i32 Index = 0; Index < TANGENTS_PER_VERTEX; ++Index)
+        {
+            Out_InternalData->Tangents[VertexIndex * TANGENTS_PER_VERTEX + Index] =
+                AssimpMesh->mTangents[VertexIndex][Index];
+        }
+
+        for (i32 Index = 0; Index < BITANGENTS_PER_VERTEX; ++Index)
+        {
+            Out_InternalData->Bitangents[VertexIndex * BITANGENTS_PER_VERTEX + Index] =
+                AssimpMesh->mBitangents[VertexIndex][Index];
+        }
+    }
+
+    i32 *IndexCursor = Out_InternalData->Indices;
+    for (i32 FaceIndex = 0; FaceIndex < (i32) AssimpMesh->mNumFaces; ++FaceIndex)
+    {
+        aiFace *AssimpFace = &AssimpMesh->mFaces[FaceIndex];
+        for (i32 Index = 0; Index < (i32) AssimpFace->mNumIndices; ++Index)
+        {
+            Assert(IndexCursor < Out_InternalData->Indices + Out_InternalData->IndexCount);
+            *IndexCursor++ = AssimpFace->mIndices[Index];
+        }
+    }
+}
+
+void ASSIMP_ParseMeshBoneData(aiMesh *AssimpMesh, skinned_model *Out_Model, mesh_internal_data *Out_InternalData)
+{
+    for (i32 AssimpBoneIndex = 0; AssimpBoneIndex < (i32) AssimpMesh->mNumBones; ++AssimpBoneIndex)
+    {
+        aiBone *AssimpBone = AssimpMesh->mBones[AssimpBoneIndex];
+
+        i32 InternalBoneID = 0;
+
+        for (i32 SearchBoneIndex = 0; SearchBoneIndex < Out_Model->BoneCount; ++SearchBoneIndex)
+        {
+            if (strcmp(Out_Model->Bones[SearchBoneIndex].Name, AssimpBone->mName.C_Str()) == 0)
+            {
+                InternalBoneID = SearchBoneIndex;
+            }
+        }
+
+        Out_Model->Bones[InternalBoneID].InverseBindTransform = ASSIMP_Mat4ToGLM(AssimpBone->mOffsetMatrix);
+
+        for (i32 WeightIndex = 0; WeightIndex < (i32) AssimpBone->mNumWeights; ++WeightIndex)
+        {
+            aiVertexWeight *AssimpWeight = &AssimpBone->mWeights[WeightIndex];
+
+            if (AssimpWeight->mWeight > 0.0f)
+            {
+                bool SpaceForBoneFound = false;
+                for (i32 BonePerVertexOffset = 0;
+                     BonePerVertexOffset < MAX_BONES_PER_VERTEX;
+                     ++BonePerVertexOffset)
+                {
+                    i32 VertexBonePosition = AssimpWeight->mVertexId * MAX_BONES_PER_VERTEX + BonePerVertexOffset;
+                    if (Out_InternalData->BoneIDs[VertexBonePosition] == 0)
+                    {
+                        Out_InternalData->BoneIDs[VertexBonePosition] = InternalBoneID;
+                        Out_InternalData->BoneWeights[VertexBonePosition] = AssimpWeight->mWeight;
+                        SpaceForBoneFound = true;
+                        break;
+                    }
+                }
+                Assert(SpaceForBoneFound);
+            }
+        }
+    }
+}
+
+animation ASSIMP_ParseAnimation(aiAnimation *AssimpAnimation, bone *Bones, i32 BoneCount)
+{
+    animation Result{ };
+
+    i32 KeyCount = 0;
+    i32 ChannelCount = AssimpAnimation->mNumChannels;
+    f32 *AnimationKeyTimes = 0;
+    animation_key *AnimationKeys = 0;
+    bool firstChannel = true;
+    for (i32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
+    {
+        aiNodeAnim *AssimpAnimationChannel = AssimpAnimation->mChannels[ChannelIndex];
+
+        // Find the bone ID corresponding to this node
+        // So that the animation nodes are in the same
+        // order as bones.
+        // -------------------------------------------
+        i32 BoneID = 0;
+        for (i32 BoneIndex = 0; BoneIndex < BoneCount; ++BoneIndex)
+        {
+            if (strcmp(Bones[BoneIndex].Name, AssimpAnimationChannel->mNodeName.C_Str()) == 0)
+            {
+                BoneID = BoneIndex;
+            }
+        }
+        Assert(BoneID > 0);
+
+        // Initialize key data structures on the first loop
+        // ------------------------------------------------
+        if (firstChannel)
+        {
+            KeyCount = AssimpAnimationChannel->mNumPositionKeys;
+            // TODO: LEAK
+            AnimationKeyTimes = (f32 *) calloc(1, KeyCount * sizeof(f32));
+            Assert(AnimationKeyTimes);
+            // TODO: LEAK
+            AnimationKeys = (animation_key *) calloc(1, KeyCount * ChannelCount * sizeof(animation_key));
+            Assert(AnimationKeys);
+            for (i32 KeyIndex = 0; KeyIndex < KeyCount; ++KeyIndex)
+            {
+                AnimationKeyTimes[KeyIndex] = (f32) AssimpAnimationChannel->mPositionKeys[KeyIndex].mTime;
+            }
+            firstChannel = false;
+        }
+
+        // NOTE: An assumption I'm making: positions, rotations and scaling
+        //       have the same number of keys for all channels
+        Assert(KeyCount == AssimpAnimationChannel->mNumPositionKeys);
+        Assert(KeyCount == AssimpAnimationChannel->mNumRotationKeys);
+        Assert(KeyCount == AssimpAnimationChannel->mNumScalingKeys);
+
+        // Process transformation data for each key of the channel
+        // -------------------------------------------------------
+        for (i32 KeyIndex = 0; KeyIndex < KeyCount; ++KeyIndex)
+        {
+            aiVectorKey *AssimpPosKey = &AssimpAnimationChannel->mPositionKeys[KeyIndex];
+            aiQuatKey *AssimpRotKey = &AssimpAnimationChannel->mRotationKeys[KeyIndex];
+            aiVectorKey *AssimpScaKey = &AssimpAnimationChannel->mScalingKeys[KeyIndex];
+
+            // NOTE: an assumption I'm making: all channels have the same exact timing info
+            Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpPosKey->mTime);
+            Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpRotKey->mTime);
+            Assert(AnimationKeyTimes[KeyIndex] == (f32) AssimpScaKey->mTime);
+
+            animation_key Key{ };
+            Key.Position = ASSIMP_Vec3ToGLM(AssimpPosKey->mValue);
+            Key.Rotation = ASSIMP_QuatToGLM(AssimpRotKey->mValue);
+            Key.Scale = ASSIMP_Vec3ToGLM(AssimpScaKey->mValue);
+
+            // All animation channels should have the same order as bones for easy access
+            // But BoneID = 0 is the DummyBone, no need to save animation for that
+            i32 ChannelPosition = BoneID - 1;
+
+            // TODO: Profile vs de-intereleaved
+            // Interleaved A0A1B0B1C0C1...; A - Key; 0 - Channel
+            AnimationKeys[KeyIndex * ChannelCount + ChannelPosition] = Key;
+        }
+    }
+
+    strncpy_s(Result.Name, AssimpAnimation->mName.C_Str(), MAX_INTERNAL_NAME_LENGTH - 1);
+    Result.TicksDuration = (f32) AssimpAnimation->mDuration;
+    Result.TicksPerSecond = (f32) AssimpAnimation->mTicksPerSecond;
+    Result.KeyCount = KeyCount;
+    Result.ChannelCount = ChannelCount;
+    Result.KeyTimes = AnimationKeyTimes;
+    Result.Keys = AnimationKeys;
+
+    return Result;
+}
+
+const aiScene *ASSIMP_ImportFile(const char *Path)
+{
+    const aiScene *AssimpScene = aiImportFile(Path,
+                                              aiProcess_CalcTangentSpace |
+                                              aiProcess_Triangulate |
+                                              aiProcess_JoinIdenticalVertices |
+                                              aiProcess_FlipUVs);
+
+    Assert(AssimpScene);
+    Assert(!(AssimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE));
+    Assert(AssimpScene->mRootNode);
+
+    if (!AssimpScene || AssimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !AssimpScene->mRootNode)
+    {
+        // TODO: Logging
+        return 0;
+    }
+}
+
+void LoadTexturesForMesh(mesh *Mesh, const char *ModelPath, aiMaterial *AssimpMaterial)
+{
+    char ModelPathOnStack[MAX_PATH_LENGTH];
+    strncpy_s(ModelPathOnStack, ModelPath, MAX_PATH_LENGTH - 1);
+    i32 ModelPathCount = GetNullTerminatedStringLength(ModelPathOnStack);
+    char ModelDirectory[MAX_PATH_LENGTH];
+    i32 ModelDirectoryCount;
+    GetFileDirectory(ModelPathOnStack, ModelPathCount, ModelDirectory, &ModelDirectoryCount, MAX_PATH_LENGTH);
+
+    aiTextureType TextureTypes[] = { 
+        aiTextureType_DIFFUSE, aiTextureType_SPECULAR,
+        aiTextureType_EMISSIVE, aiTextureType_HEIGHT };
+
+    char TextureFilename[MAX_FILENAME_LENGTH]; i32 TextureFilenameCount;
+    char TexturePath[MAX_PATH_LENGTH];
+    for (i32 TextureType = 0; TextureType < 4; ++TextureType)
+    {
+        ASSIMP_GetTextureFilename(AssimpMaterial, TextureTypes[TextureType],
+                                  TextureFilename, &TextureFilenameCount, MAX_FILENAME_LENGTH);
+
+        TexturePath[0] = '\0';
+
+        if (TextureFilenameCount > 0)
+        {
+            CatStrings(ModelDirectory, ModelDirectoryCount,
+                       TextureFilename, TextureFilenameCount,
+                       TexturePath, MAX_PATH_LENGTH);
+            Mesh->TextureIDs[TextureType] = LoadTexture(TexturePath);
+        }
+    }
 }
 
 glm::mat4 ASSIMP_Mat4ToGLM(aiMatrix4x4 AssimpMat)
