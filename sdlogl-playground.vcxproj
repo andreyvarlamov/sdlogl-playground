@@ -143,10 +143,10 @@
     <None Include="dlls\assimp-vc143-mtd.dll" />
     <None Include="dlls\SDL2.dll" />
     <None Include="README.md" />
-    <None Include="resources\shaders\Basic.fs" />
-    <None Include="resources\shaders\Basic.vs" />
-    <None Include="resources\shaders\DebugSkeletal.fs" />
-    <None Include="resources\shaders\DebugSkeletal.vs" />
+    <None Include="resources\shaders\BasicMesh.fs" />
+    <None Include="resources\shaders\StaticMesh.vs" />
+    <None Include="resources\shaders\DebugBone.fs" />
+    <None Include="resources\shaders\SkinnedMesh.vs" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Model.h" />
