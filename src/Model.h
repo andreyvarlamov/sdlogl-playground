@@ -115,9 +115,24 @@ struct mesh_internal_data
     i32 *Indices;
 };
 
-model LoadModel(const char *Path);
-skinned_model LoadSkinnedModel(const char *Path);
-void RenderModel(model *Model, u32 Shader);
-void RenderSkinnedModel(skinned_model *Model, u32 Shader, f32 DeltaTime);
+// ---------------------
+// FUNCTION DECLARATIONS
+// ---------------------
+
+// Model loading
+// -------------
+
+model
+LoadModel(const char *Path);
+skinned_model
+LoadSkinnedModel(const char *Path);
+
+// Model rendering
+// ---------------
+
+void
+RenderModel(model *Model, u32 Shader);
+void
+RenderSkinnedModel(skinned_model *Model, u32 Shader, f32 DeltaTime);
 
 #endif

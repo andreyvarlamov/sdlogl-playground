@@ -16,166 +16,127 @@
 
 #include "Util.h"
 
-glm::mat4 ASSIMP_Mat4ToGLM(aiMatrix4x4 AssimpMat);
-glm::vec3 ASSIMP_Vec3ToGLM(aiVector3D AssimpVector);
-glm::quat ASSIMP_QuatToGLM(aiQuaternion AssimpQuat);
-void PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh);
-void PrepareMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh);
-mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount, bool IncludeBones);
-void FreeMeshInternalData(mesh_internal_data *MeshInternalData);
-inline glm::mat4 GetTransformationForAnimationKey(animation_key Key);
-inline animation_key LerpAnimationKeys(animation_key KeyA, animation_key KeyB, f32 LerpRatio);
-inline void UpdateAnimationState(animation *Animation, f32 DeltaTime);
-inline i32 FindNextAnimationKey(animation *Animation);
-inline f32 CalculateLerpRatioBetweenTwoFrames(animation *Animation, i32 NextKey);
-inline animation_key GetRestAnimationKeyForBone(bone Bone);
-inline void RenderMeshList(mesh *Meshes, i32 MeshCount);
-void ASSIMP_GetTextureFilename(aiMaterial *AssimpMaterial, aiTextureType TextureType,
+// ------------------------------
+// INTERNAL FUNCTION DECLARATIONS
+// ------------------------------
+
+// Assimp helpers
+// --------------
+
+static const aiScene *
+ASSIMP_ImportFile(const char *Path);
+static void
+ASSIMP_GetArmatureInfo(aiNode *RootNode, aiNode **Out_ArmatureNode, i32 *Out_BoneCount);
+static void
+ASSIMP_GetArmatureInfoHelper(aiNode *Node, aiNode **Out_ArmatureNode, i32 *Out_BoneCount);
+static bone *
+ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount);
+static void
+ASSIMP_ParseMeshVertexIndexData(aiMesh *AssimpMesh, mesh_internal_data *Out_InternalData);
+static void
+ASSIMP_ParseMeshBoneData(aiMesh *AssimpMesh, skinned_model *Out_Model, mesh_internal_data *Out_InternalData);
+static animation
+ASSIMP_ParseAnimation(aiAnimation *AssimpAnimation, bone *Bones, i32 BoneCount);
+static inline glm::mat4
+ASSIMP_Mat4ToGLM(aiMatrix4x4 AssimpMat);
+static inline glm::vec3
+ASSIMP_Vec3ToGLM(aiVector3D AssimpVector);
+static inline glm::quat
+ASSIMP_QuatToGLM(aiQuaternion AssimpQuat);
+static void
+ASSIMP_GetTextureFilename(aiMaterial *AssimpMaterial, aiTextureType TextureType,
                                char *Out_Filename, i32 *Out_FilenameCount,
                                i32 FilenameBufferSize);
-void LoadTexturesForMesh(mesh *Mesh, const char *ModelPath, aiMaterial *AssimpMaterial);
-const aiScene *ASSIMP_ImportFile(const char *Path);
-void ASSIMP_ParseMeshVertexIndexData(aiMesh *AssimpMesh, mesh_internal_data *Out_InternalData);
-void ASSIMP_ParseMeshBoneData(aiMesh *AssimpMesh, skinned_model *Out_Model, mesh_internal_data *Out_InternalData);
-animation ASSIMP_ParseAnimation(aiAnimation *AssimpAnimation, bone *Bones, i32 BoneCount);
 
-bone *ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
+// Mesh data prep
+// --------------
+
+static mesh_internal_data
+InitializeMeshInternalData(i32 VertexCount, i32 IndexCount, bool IncludeBones);
+static void
+FreeMeshInternalData(mesh_internal_data *MeshInternalData);
+static void
+PrepareMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh);
+static void
+PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh);
+static void
+LoadTexturesForMesh(mesh *Mesh, const char *ModelPath, aiMaterial *AssimpMaterial);
+
+// Render helpers
+// --------------
+
+static inline void
+RenderMeshList(mesh *Meshes, i32 MeshCount);
+
+// Render helpers (animation)
+// --------------------------
+
+static inline void
+UpdateAnimationState(animation *Animation, f32 DeltaTime);
+static inline i32
+FindNextAnimationKey(animation *Animation);
+static inline f32
+CalculateLerpRatioBetweenTwoFrames(animation *Animation, i32 NextKey);
+static inline animation_key
+LerpAnimationKeys(animation_key KeyA, animation_key KeyB, f32 LerpRatio);
+static inline animation_key
+GetRestAnimationKeyForBone(bone Bone);
+static inline glm::mat4
+GetTransformationForAnimationKey(animation_key Key);
+
+// -----------------------------
+// EXTERNAL FUNCTION DEFINITIONS
+// -----------------------------
+
+// Model loading
+// -------------
+
+model
+LoadModel(const char *Path)
 {
-    Assert(BoneCount > 0);
-    Assert(BoneCount < 128);
+    std::cout << "Loading model at: " << Path << '\n';
 
-    i32 CurrentBoneIndex = 0;
+    model Model{ };
+
+    const aiScene *AssimpScene = ASSIMP_ImportFile(Path);
+
+    // Scene mesh data
+    // ---------------
+    Model.MeshCount = AssimpScene->mNumMeshes;
     // TODO: LEAK
-    bone *Bones = (bone *) calloc(1, (BoneCount) * sizeof(bone));
-    Assert(Bones);
+    Model.Meshes = (mesh *) calloc(1, Model.MeshCount * sizeof(mesh));
+    Assert(Model.Meshes);
 
-    aiNode *NodeQueue[128] = { };
-    i32 ParentIDHelperQueue[128] = { };
-    i32 QueueStart = 0;
-    i32 QueueEnd = 0;
-    NodeQueue[QueueEnd++] = ArmatureNode;
-
-    while (QueueStart != QueueEnd)
+    for (i32 MeshIndex = 0; MeshIndex < Model.MeshCount; ++MeshIndex)
     {
-        aiNode *CurrentNode = NodeQueue[QueueStart];
+        aiMesh *AssimpMesh = AssimpScene->mMeshes[MeshIndex];
 
-        bone Bone { };
-        // First bone is a dummy bone
-        if (CurrentBoneIndex == 0)
-        {
-            strncpy_s(Bone.Name, "DummyBone", MAX_INTERNAL_NAME_LENGTH -1);
-        }
-        else
-        {
-            strncpy_s(Bone.Name, CurrentNode->mName.C_Str(), MAX_INTERNAL_NAME_LENGTH -1);
-            Bone.ParentID = ParentIDHelperQueue[QueueStart];
-        }
-        Bone.ID = CurrentBoneIndex;
-        Bone.TransformToParent = ASSIMP_Mat4ToGLM(CurrentNode->mTransformation);
+        mesh Mesh{ };
 
-        for (i32 ChildIndex = 0; ChildIndex < (i32) CurrentNode->mNumChildren; ++ChildIndex)
-        {
-            NodeQueue[QueueEnd] = CurrentNode->mChildren[ChildIndex];
-            ParentIDHelperQueue[QueueEnd] = CurrentBoneIndex;
-            Bone.ChildrenIDs[Bone.ChildrenCount++] = QueueEnd;
-            ++QueueEnd;
-        }
+        i32 VertexCount = AssimpMesh->mNumVertices;
+        i32 IndexCount = AssimpMesh->mNumFaces * 3;
+        mesh_internal_data InternalData = InitializeMeshInternalData(VertexCount, IndexCount, false);
 
-        Bones[CurrentBoneIndex++] = Bone;
+        ASSIMP_ParseMeshVertexIndexData(AssimpMesh, &InternalData);
 
-        ++QueueStart;
+        PrepareMeshRenderData(InternalData, &Mesh);
+
+        FreeMeshInternalData(&InternalData);
+
+        LoadTexturesForMesh(&Mesh, Path, AssimpScene->mMaterials[AssimpMesh->mMaterialIndex]);
+
+        Model.Meshes[MeshIndex] = Mesh;
     }
 
-    return Bones;
+    // Done with assimp data, free
+    // ---------------------------
+    aiReleaseImport(AssimpScene);
+
+    return Model;
 }
 
-// TODO: Now I want to get rid of recursion again...
-void ASSIMP_GetArmatureInfoHelper(aiNode *Node, aiNode **Out_ArmatureNode, i32 *Out_BoneCount)
-{
-    if (strcmp(Node->mName.C_Str(), "Armature") == 0)
-    {
-        *Out_ArmatureNode = Node;
-    }
-    else if (*Out_ArmatureNode)
-    {
-        ++(*Out_BoneCount);
-    }
-
-    for (i32 Index = 0; Index < (i32) Node->mNumChildren; ++Index)
-    {
-        ASSIMP_GetArmatureInfoHelper(Node->mChildren[Index], Out_ArmatureNode, Out_BoneCount);
-    }
-}
-
-void ASSIMP_GetArmatureInfo(aiNode *RootNode, aiNode **Out_ArmatureNode, i32 *Out_BoneCount)
-{
-    // Allocate for one extra bone, so the bone indexed 0 can count as no bone
-    // TODO: Deal with assimp's "neutral_bone" for some models
-    *Out_BoneCount = 1;
-    *Out_ArmatureNode = 0;
-
-    ASSIMP_GetArmatureInfoHelper(RootNode, Out_ArmatureNode, Out_BoneCount);
-}
-
-// TODO: I think this needs to be reworked
-mesh_internal_data InitializeMeshInternalData(i32 VertexCount, i32 IndexCount, bool IncludeBones)
-{
-    mesh_internal_data Result{ };
-
-    size_t SpaceForBones = 0;
-    if (IncludeBones)
-    {
-        SpaceForBones = MAX_BONES_PER_VERTEX * (sizeof(i32) + sizeof(f32));
-    }
-
-    size_t BytesToAllocate = VertexCount * (POSITIONS_PER_VERTEX * sizeof(f32) +
-                                            UVS_PER_VERTEX * sizeof(f32) +
-                                            NORMALS_PER_VERTEX * sizeof(f32) +
-                                            TANGENTS_PER_VERTEX * sizeof(f32) +
-                                            BITANGENTS_PER_VERTEX * sizeof(f32) +
-                                            SpaceForBones +
-                                            IndexCount * sizeof(i32));
-
-    u8 *Data = (u8 *) calloc(1, BytesToAllocate);
-
-    if (Data)
-    {
-        Result.Data = Data;
-        Result.VertexCount = VertexCount;
-        Result.IndexCount = IndexCount;
-        Result.Positions = (f32 *) (Data);
-        Result.UVs = (f32 *) (Result.Positions + VertexCount * POSITIONS_PER_VERTEX);
-        Result.Normals = (f32 *) (Result.UVs + VertexCount * UVS_PER_VERTEX);
-        Result.Tangents = (f32 *) (Result.Normals + VertexCount * NORMALS_PER_VERTEX);
-        Result.Bitangents = (f32 *) (Result.Tangents + VertexCount * TANGENTS_PER_VERTEX);
-        if (IncludeBones)
-        {
-            Result.BoneIDs = (i32 *) (Result.Bitangents + VertexCount * BITANGENTS_PER_VERTEX);
-            Result.BoneWeights = (f32 *) (Result.BoneIDs + VertexCount * MAX_BONES_PER_VERTEX);
-            Result.Indices = (i32 *) (Result.BoneWeights + VertexCount * MAX_BONES_PER_VERTEX);
-        }
-        else
-        {
-            Result.BoneIDs = 0;
-            Result.BoneWeights = 0;
-            Result.Indices = (i32 *) (Result.Bitangents + VertexCount * BITANGENTS_PER_VERTEX);
-        }
-    }
-    else
-    {
-        // TODO: Logging
-    }
-
-    return Result;
-}
-
-void FreeMeshInternalData(mesh_internal_data *MeshInternalData)
-{
-    free(MeshInternalData->Data);
-    memset(MeshInternalData, 0, sizeof(mesh_internal_data));
-}
-
-skinned_model LoadSkinnedModel(const char *Path)
+skinned_model
+LoadSkinnedModel(const char *Path)
 {
     std::cout << "Loading skinned model at: " << Path << '\n';
 
@@ -253,50 +214,207 @@ skinned_model LoadSkinnedModel(const char *Path)
     return Model;
 }
 
-model LoadModel(const char *Path)
+// Model rendering
+// ---------------
+
+void
+RenderModel(model *Model, u32 Shader)
 {
-    std::cout << "Loading model at: " << Path << '\n';
+    glUseProgram(Shader);
 
-    model Model{ };
+    // Render model's meshes
+    // ---------------------
+    RenderMeshList(Model->Meshes, Model->MeshCount);
 
-    const aiScene *AssimpScene = ASSIMP_ImportFile(Path);
-
-    // Scene mesh data
-    // ---------------
-    Model.MeshCount = AssimpScene->mNumMeshes;
-    // TODO: LEAK
-    Model.Meshes = (mesh *) calloc(1, Model.MeshCount * sizeof(mesh));
-    Assert(Model.Meshes);
-
-    for (i32 MeshIndex = 0; MeshIndex < Model.MeshCount; ++MeshIndex)
-    {
-        aiMesh *AssimpMesh = AssimpScene->mMeshes[MeshIndex];
-
-        mesh Mesh{ };
-
-        i32 VertexCount = AssimpMesh->mNumVertices;
-        i32 IndexCount = AssimpMesh->mNumFaces * 3;
-        mesh_internal_data InternalData = InitializeMeshInternalData(VertexCount, IndexCount, false);
-
-        ASSIMP_ParseMeshVertexIndexData(AssimpMesh, &InternalData);
-
-        PrepareMeshRenderData(InternalData, &Mesh);
-
-        FreeMeshInternalData(&InternalData);
-
-        LoadTexturesForMesh(&Mesh, Path, AssimpScene->mMaterials[AssimpMesh->mMaterialIndex]);
-
-        Model.Meshes[MeshIndex] = Mesh;
-    }
-
-    // Done with assimp data, free
-    // ---------------------------
-    aiReleaseImport(AssimpScene);
-
-    return Model;
+    glUseProgram(0);
 }
 
-void ASSIMP_ParseMeshVertexIndexData(aiMesh *AssimpMesh, mesh_internal_data *Out_InternalData)
+void
+RenderSkinnedModel(skinned_model *Model, u32 Shader, f32 DeltaTime)
+{
+    glUseProgram(Shader);
+
+    // Process animation transforms
+    // ----------------------------
+    animation *CurrentAnimationA = &Model->Animations[Model->AnimationState.CurrentAnimationA];
+    animation *CurrentAnimationB = &Model->Animations[Model->AnimationState.CurrentAnimationB];
+
+    UpdateAnimationState(CurrentAnimationA, DeltaTime);
+    UpdateAnimationState(CurrentAnimationB, DeltaTime);
+
+    // Find current animation keyframes
+    i32 NextKeyA = FindNextAnimationKey(CurrentAnimationA);
+    i32 NextKeyB = FindNextAnimationKey(CurrentAnimationB);
+
+    // Find the lerp ratio that will be used to determine the place between the current key and the next key
+    f32 LerpRatioA = CalculateLerpRatioBetweenTwoFrames(CurrentAnimationA, NextKeyA);
+    f32 LerpRatioB = CalculateLerpRatioBetweenTwoFrames(CurrentAnimationB, NextKeyB);
+
+    // Calculate animation transforms for each of the animation channels
+    // NOTE: All animations have the same channel count
+    i32 ChannelCount = CurrentAnimationA->ChannelCount;
+    for (i32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
+    {
+        i32 BoneID = ChannelIndex + 1;
+
+        animation_key InterpolatedKeyA = LerpAnimationKeys(CurrentAnimationA->Keys[(NextKeyA-1)*ChannelCount + ChannelIndex],
+                                                           CurrentAnimationA->Keys[NextKeyA*ChannelCount + ChannelIndex],
+                                                           LerpRatioA);
+        // NOTE: This is causing some weird jumping in some animations
+        //       E.g. the second shape in atlbeta10.gltf (BONETREE.blend)
+        //       Something with 360 rotation?
+        // TODO: Investigate (should be easier when there's texture loaded and debugging ui)
+        animation_key InterpolatedKeyB = LerpAnimationKeys(CurrentAnimationB->Keys[(NextKeyB-1)*ChannelCount + ChannelIndex],
+                                                           CurrentAnimationB->Keys[NextKeyB*ChannelCount + ChannelIndex],
+                                                           LerpRatioB);
+        //animation_key InterpolatedKeyA = GetRestAnimationKeyForBone(Model->Bones[BoneID]);
+
+        // Blend between 2 animations
+        animation_key BlendedKey = LerpAnimationKeys(InterpolatedKeyA, InterpolatedKeyB, Model->AnimationState.BlendingFactor);
+
+        glm::mat4 Transform = GetTransformationForAnimationKey(BlendedKey);
+
+        if (Model->Bones[BoneID].ParentID > 0)
+        {
+            i32 ParentBoneChannelID = Model->Bones[BoneID].ParentID - 1;
+            Assert(ParentBoneChannelID < ChannelCount);
+            Transform = Model->AnimationState.TransientChannelTransformData[ParentBoneChannelID] * Transform;
+        }
+
+        Model->AnimationState.TransientChannelTransformData[ChannelIndex] = Transform;
+    }
+
+    // Pass the bone transforms to the shader
+    // Skip bone #0 (DummyBone)
+    for (i32 BoneIndex = 1; BoneIndex < Model->BoneCount; ++BoneIndex)
+    {
+        i32 ChannelID = BoneIndex - 1;
+        Assert(ChannelID < ChannelCount);
+        glm::mat4 Transform = (Model->AnimationState.TransientChannelTransformData[ChannelID] *
+                               Model->Bones[BoneIndex].InverseBindTransform);
+
+        // TODO: This should probably use a UBO...
+        char LocationStringBuffer[32] = { };
+        // TODO: This is probably very slow...
+        sprintf_s(LocationStringBuffer, "BoneTransforms[%d]", BoneIndex);
+        //Transform = glm::mat4(1.0f);
+        glUniformMatrix4fv(glGetUniformLocation(Shader, LocationStringBuffer), 1, GL_FALSE, glm::value_ptr(Transform));
+    }
+
+    // Render model's meshes
+    // ---------------------
+    RenderMeshList(Model->Meshes, Model->MeshCount);
+
+    glUseProgram(0);
+}
+
+// -----------------------------
+// INTERNAL FUNCTION DEFINITIONS
+// -----------------------------
+
+static const aiScene *
+ASSIMP_ImportFile(const char *Path)
+{
+    const aiScene *AssimpScene = aiImportFile(Path,
+                                              aiProcess_CalcTangentSpace |
+                                              aiProcess_Triangulate |
+                                              aiProcess_JoinIdenticalVertices |
+                                              aiProcess_FlipUVs);
+
+    Assert(AssimpScene);
+    Assert(!(AssimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE));
+    Assert(AssimpScene->mRootNode);
+
+    if (!AssimpScene || AssimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !AssimpScene->mRootNode)
+    {
+        // TODO: Logging
+        return 0;
+    }
+}
+
+static void
+ASSIMP_GetArmatureInfo(aiNode *RootNode, aiNode **Out_ArmatureNode, i32 *Out_BoneCount)
+{
+    // Allocate for one extra bone, so the bone indexed 0 can count as no bone
+    // TODO: Deal with assimp's "neutral_bone" for some models
+    *Out_BoneCount = 1;
+    *Out_ArmatureNode = 0;
+
+    // TODO: Now I want to get rid of recursion again...
+    ASSIMP_GetArmatureInfoHelper(RootNode, Out_ArmatureNode, Out_BoneCount);
+}
+
+static void
+ASSIMP_GetArmatureInfoHelper(aiNode *Node, aiNode **Out_ArmatureNode, i32 *Out_BoneCount)
+{
+    if (strcmp(Node->mName.C_Str(), "Armature") == 0)
+    {
+        *Out_ArmatureNode = Node;
+    }
+    else if (*Out_ArmatureNode)
+    {
+        ++(*Out_BoneCount);
+    }
+
+    for (i32 Index = 0; Index < (i32) Node->mNumChildren; ++Index)
+    {
+        ASSIMP_GetArmatureInfoHelper(Node->mChildren[Index], Out_ArmatureNode, Out_BoneCount);
+    }
+}
+
+static bone *
+ASSIMP_ParseBones(aiNode *ArmatureNode, i32 BoneCount)
+{
+    Assert(BoneCount > 0);
+    Assert(BoneCount < 128);
+
+    i32 CurrentBoneIndex = 0;
+    // TODO: LEAK
+    bone *Bones = (bone *) calloc(1, (BoneCount) * sizeof(bone));
+    Assert(Bones);
+
+    aiNode *NodeQueue[128] = { };
+    i32 ParentIDHelperQueue[128] = { };
+    i32 QueueStart = 0;
+    i32 QueueEnd = 0;
+    NodeQueue[QueueEnd++] = ArmatureNode;
+
+    while (QueueStart != QueueEnd)
+    {
+        aiNode *CurrentNode = NodeQueue[QueueStart];
+
+        bone Bone { };
+        // First bone is a dummy bone
+        if (CurrentBoneIndex == 0)
+        {
+            strncpy_s(Bone.Name, "DummyBone", MAX_INTERNAL_NAME_LENGTH -1);
+        }
+        else
+        {
+            strncpy_s(Bone.Name, CurrentNode->mName.C_Str(), MAX_INTERNAL_NAME_LENGTH -1);
+            Bone.ParentID = ParentIDHelperQueue[QueueStart];
+        }
+        Bone.ID = CurrentBoneIndex;
+        Bone.TransformToParent = ASSIMP_Mat4ToGLM(CurrentNode->mTransformation);
+
+        for (i32 ChildIndex = 0; ChildIndex < (i32) CurrentNode->mNumChildren; ++ChildIndex)
+        {
+            NodeQueue[QueueEnd] = CurrentNode->mChildren[ChildIndex];
+            ParentIDHelperQueue[QueueEnd] = CurrentBoneIndex;
+            Bone.ChildrenIDs[Bone.ChildrenCount++] = QueueEnd;
+            ++QueueEnd;
+        }
+
+        Bones[CurrentBoneIndex++] = Bone;
+
+        ++QueueStart;
+    }
+
+    return Bones;
+}
+
+static void
+ASSIMP_ParseMeshVertexIndexData(aiMesh *AssimpMesh, mesh_internal_data *Out_InternalData)
 {
     i32 VertexCount = AssimpMesh->mNumVertices;
 
@@ -345,7 +463,8 @@ void ASSIMP_ParseMeshVertexIndexData(aiMesh *AssimpMesh, mesh_internal_data *Out
     }
 }
 
-void ASSIMP_ParseMeshBoneData(aiMesh *AssimpMesh, skinned_model *Out_Model, mesh_internal_data *Out_InternalData)
+static void
+ASSIMP_ParseMeshBoneData(aiMesh *AssimpMesh, skinned_model *Out_Model, mesh_internal_data *Out_InternalData)
 {
     for (i32 AssimpBoneIndex = 0; AssimpBoneIndex < (i32) AssimpMesh->mNumBones; ++AssimpBoneIndex)
     {
@@ -389,7 +508,8 @@ void ASSIMP_ParseMeshBoneData(aiMesh *AssimpMesh, skinned_model *Out_Model, mesh
     }
 }
 
-animation ASSIMP_ParseAnimation(aiAnimation *AssimpAnimation, bone *Bones, i32 BoneCount)
+static animation
+ASSIMP_ParseAnimation(aiAnimation *AssimpAnimation, bone *Bones, i32 BoneCount)
 {
     animation Result{ };
 
@@ -479,58 +599,8 @@ animation ASSIMP_ParseAnimation(aiAnimation *AssimpAnimation, bone *Bones, i32 B
     return Result;
 }
 
-const aiScene *ASSIMP_ImportFile(const char *Path)
-{
-    const aiScene *AssimpScene = aiImportFile(Path,
-                                              aiProcess_CalcTangentSpace |
-                                              aiProcess_Triangulate |
-                                              aiProcess_JoinIdenticalVertices |
-                                              aiProcess_FlipUVs);
-
-    Assert(AssimpScene);
-    Assert(!(AssimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE));
-    Assert(AssimpScene->mRootNode);
-
-    if (!AssimpScene || AssimpScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !AssimpScene->mRootNode)
-    {
-        // TODO: Logging
-        return 0;
-    }
-}
-
-void LoadTexturesForMesh(mesh *Mesh, const char *ModelPath, aiMaterial *AssimpMaterial)
-{
-    char ModelPathOnStack[MAX_PATH_LENGTH];
-    strncpy_s(ModelPathOnStack, ModelPath, MAX_PATH_LENGTH - 1);
-    i32 ModelPathCount = GetNullTerminatedStringLength(ModelPathOnStack);
-    char ModelDirectory[MAX_PATH_LENGTH];
-    i32 ModelDirectoryCount;
-    GetFileDirectory(ModelPathOnStack, ModelPathCount, ModelDirectory, &ModelDirectoryCount, MAX_PATH_LENGTH);
-
-    aiTextureType TextureTypes[] = { 
-        aiTextureType_DIFFUSE, aiTextureType_SPECULAR,
-        aiTextureType_EMISSIVE, aiTextureType_HEIGHT };
-
-    char TextureFilename[MAX_FILENAME_LENGTH]; i32 TextureFilenameCount;
-    char TexturePath[MAX_PATH_LENGTH];
-    for (i32 TextureType = 0; TextureType < 4; ++TextureType)
-    {
-        ASSIMP_GetTextureFilename(AssimpMaterial, TextureTypes[TextureType],
-                                  TextureFilename, &TextureFilenameCount, MAX_FILENAME_LENGTH);
-
-        TexturePath[0] = '\0';
-
-        if (TextureFilenameCount > 0)
-        {
-            CatStrings(ModelDirectory, ModelDirectoryCount,
-                       TextureFilename, TextureFilenameCount,
-                       TexturePath, MAX_PATH_LENGTH);
-            Mesh->TextureIDs[TextureType] = LoadTexture(TexturePath);
-        }
-    }
-}
-
-glm::mat4 ASSIMP_Mat4ToGLM(aiMatrix4x4 AssimpMat)
+static inline glm::mat4
+ASSIMP_Mat4ToGLM(aiMatrix4x4 AssimpMat)
 {
     glm::mat4 Result{ };
 
@@ -542,7 +612,8 @@ glm::mat4 ASSIMP_Mat4ToGLM(aiMatrix4x4 AssimpMat)
     return Result;
 }
 
-glm::vec3 ASSIMP_Vec3ToGLM(aiVector3D AssimpVector)
+static inline glm::vec3
+ASSIMP_Vec3ToGLM(aiVector3D AssimpVector)
 {
     glm::vec3 Result{ };
 
@@ -553,7 +624,8 @@ glm::vec3 ASSIMP_Vec3ToGLM(aiVector3D AssimpVector)
     return Result;
 }
 
-glm::quat ASSIMP_QuatToGLM(aiQuaternion AssimpQuat)
+static inline glm::quat
+ASSIMP_QuatToGLM(aiQuaternion AssimpQuat)
 {
     glm::quat Result{ };
 
@@ -565,7 +637,139 @@ glm::quat ASSIMP_QuatToGLM(aiQuaternion AssimpQuat)
     return Result;
 }
 
-void PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh)
+static void
+ASSIMP_GetTextureFilename(aiMaterial *AssimpMaterial, aiTextureType TextureType,
+                               char *Out_Filename, i32 *Out_FilenameCount,
+                               i32 FilenameBufferSize)
+{
+    if (aiGetMaterialTextureCount(AssimpMaterial, TextureType) > 0)
+    {
+        aiString AssimpTextureFilename;
+        aiGetMaterialString(AssimpMaterial,
+                            AI_MATKEY_TEXTURE(TextureType, 0),
+                            &AssimpTextureFilename);
+        strncpy_s(Out_Filename, FilenameBufferSize,
+                  AssimpTextureFilename.C_Str(), FilenameBufferSize - 1);
+
+        *Out_FilenameCount = AssimpTextureFilename.length;
+    }
+    else
+    {
+        Out_Filename[0] = '\0';
+        *Out_FilenameCount = 0;
+    }
+}
+
+static mesh_internal_data
+InitializeMeshInternalData(i32 VertexCount, i32 IndexCount, bool IncludeBones)
+{
+    // TODO: I think this needs to be reworked
+    mesh_internal_data Result{ };
+
+    size_t SpaceForBones = 0;
+    if (IncludeBones)
+    {
+        SpaceForBones = MAX_BONES_PER_VERTEX * (sizeof(i32) + sizeof(f32));
+    }
+
+    size_t BytesToAllocate = VertexCount * (POSITIONS_PER_VERTEX * sizeof(f32) +
+                                            UVS_PER_VERTEX * sizeof(f32) +
+                                            NORMALS_PER_VERTEX * sizeof(f32) +
+                                            TANGENTS_PER_VERTEX * sizeof(f32) +
+                                            BITANGENTS_PER_VERTEX * sizeof(f32) +
+                                            SpaceForBones +
+                                            IndexCount * sizeof(i32));
+
+    u8 *Data = (u8 *) calloc(1, BytesToAllocate);
+
+    if (Data)
+    {
+        Result.Data = Data;
+        Result.VertexCount = VertexCount;
+        Result.IndexCount = IndexCount;
+        Result.Positions = (f32 *) (Data);
+        Result.UVs = (f32 *) (Result.Positions + VertexCount * POSITIONS_PER_VERTEX);
+        Result.Normals = (f32 *) (Result.UVs + VertexCount * UVS_PER_VERTEX);
+        Result.Tangents = (f32 *) (Result.Normals + VertexCount * NORMALS_PER_VERTEX);
+        Result.Bitangents = (f32 *) (Result.Tangents + VertexCount * TANGENTS_PER_VERTEX);
+        if (IncludeBones)
+        {
+            Result.BoneIDs = (i32 *) (Result.Bitangents + VertexCount * BITANGENTS_PER_VERTEX);
+            Result.BoneWeights = (f32 *) (Result.BoneIDs + VertexCount * MAX_BONES_PER_VERTEX);
+            Result.Indices = (i32 *) (Result.BoneWeights + VertexCount * MAX_BONES_PER_VERTEX);
+        }
+        else
+        {
+            Result.BoneIDs = 0;
+            Result.BoneWeights = 0;
+            Result.Indices = (i32 *) (Result.Bitangents + VertexCount * BITANGENTS_PER_VERTEX);
+        }
+    }
+    else
+    {
+        // TODO: Logging
+    }
+
+    return Result;
+}
+
+static void
+FreeMeshInternalData(mesh_internal_data *MeshInternalData)
+{
+    free(MeshInternalData->Data);
+    memset(MeshInternalData, 0, sizeof(mesh_internal_data));
+}
+
+static void
+PrepareMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh)
+{
+    u32 VAO;
+    glGenVertexArrays(1, &VAO);
+    u32 VBO;
+    glGenBuffers(1, &VBO);
+    u32 EBO;
+    glGenBuffers(1, &EBO);
+
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    size_t BufferSize = MeshInternalData.VertexCount * (POSITIONS_PER_VERTEX * sizeof(f32) +
+                                                        UVS_PER_VERTEX * sizeof(f32) +
+                                                        NORMALS_PER_VERTEX * sizeof(f32) +
+                                                        TANGENTS_PER_VERTEX * sizeof(f32) +
+                                                        BITANGENTS_PER_VERTEX * sizeof(f32));
+    glBufferData(GL_ARRAY_BUFFER, BufferSize, MeshInternalData.Data, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, MeshInternalData.IndexCount * sizeof(i32), MeshInternalData.Indices, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, POSITIONS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          POSITIONS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.Positions - MeshInternalData.Data));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, UVS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          UVS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.UVs - MeshInternalData.Data));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, NORMALS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          NORMALS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.Normals - MeshInternalData.Data));
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(3, TANGENTS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          TANGENTS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.Tangents - MeshInternalData.Data));
+    glEnableVertexAttribArray(4);
+    glVertexAttribPointer(4, BITANGENTS_PER_VERTEX, GL_FLOAT, GL_FALSE,
+                          BITANGENTS_PER_VERTEX * sizeof(f32),
+                          (void *) ((u8 *) MeshInternalData.Bitangents - MeshInternalData.Data));
+
+    glBindVertexArray(0);
+
+    Out_Mesh->VAO = VAO;
+    Out_Mesh->IndexCount = MeshInternalData.IndexCount;
+}
+
+static void
+PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh)
 {
     u32 VAO;
     glGenVertexArrays(1, &VAO);
@@ -622,143 +826,41 @@ void PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out
     Out_Mesh->IndexCount = MeshInternalData.IndexCount;
 }
 
-void PrepareMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh)
+static void
+LoadTexturesForMesh(mesh *Mesh, const char *ModelPath, aiMaterial *AssimpMaterial)
 {
-    u32 VAO;
-    glGenVertexArrays(1, &VAO);
-    u32 VBO;
-    glGenBuffers(1, &VBO);
-    u32 EBO;
-    glGenBuffers(1, &EBO);
+    char ModelPathOnStack[MAX_PATH_LENGTH];
+    strncpy_s(ModelPathOnStack, ModelPath, MAX_PATH_LENGTH - 1);
+    i32 ModelPathCount = GetNullTerminatedStringLength(ModelPathOnStack);
+    char ModelDirectory[MAX_PATH_LENGTH];
+    i32 ModelDirectoryCount;
+    GetFileDirectory(ModelPathOnStack, ModelPathCount, ModelDirectory, &ModelDirectoryCount, MAX_PATH_LENGTH);
 
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    size_t BufferSize = MeshInternalData.VertexCount * (POSITIONS_PER_VERTEX * sizeof(f32) +
-                                                        UVS_PER_VERTEX * sizeof(f32) +
-                                                        NORMALS_PER_VERTEX * sizeof(f32) +
-                                                        TANGENTS_PER_VERTEX * sizeof(f32) +
-                                                        BITANGENTS_PER_VERTEX * sizeof(f32));
-    glBufferData(GL_ARRAY_BUFFER, BufferSize, MeshInternalData.Data, GL_STATIC_DRAW);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, MeshInternalData.IndexCount * sizeof(i32), MeshInternalData.Indices, GL_STATIC_DRAW);
+    aiTextureType TextureTypes[] = { 
+        aiTextureType_DIFFUSE, aiTextureType_SPECULAR,
+        aiTextureType_EMISSIVE, aiTextureType_HEIGHT };
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, POSITIONS_PER_VERTEX, GL_FLOAT, GL_FALSE,
-                          POSITIONS_PER_VERTEX * sizeof(f32),
-                          (void *) ((u8 *) MeshInternalData.Positions - MeshInternalData.Data));
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, UVS_PER_VERTEX, GL_FLOAT, GL_FALSE,
-                          UVS_PER_VERTEX * sizeof(f32),
-                          (void *) ((u8 *) MeshInternalData.UVs - MeshInternalData.Data));
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, NORMALS_PER_VERTEX, GL_FLOAT, GL_FALSE,
-                          NORMALS_PER_VERTEX * sizeof(f32),
-                          (void *) ((u8 *) MeshInternalData.Normals - MeshInternalData.Data));
-    glEnableVertexAttribArray(3);
-    glVertexAttribPointer(3, TANGENTS_PER_VERTEX, GL_FLOAT, GL_FALSE,
-                          TANGENTS_PER_VERTEX * sizeof(f32),
-                          (void *) ((u8 *) MeshInternalData.Tangents - MeshInternalData.Data));
-    glEnableVertexAttribArray(4);
-    glVertexAttribPointer(4, BITANGENTS_PER_VERTEX, GL_FLOAT, GL_FALSE,
-                          BITANGENTS_PER_VERTEX * sizeof(f32),
-                          (void *) ((u8 *) MeshInternalData.Bitangents - MeshInternalData.Data));
-
-    glBindVertexArray(0);
-
-    Out_Mesh->VAO = VAO;
-    Out_Mesh->IndexCount = MeshInternalData.IndexCount;
-}
-
-void RenderSkinnedModel(skinned_model *Model, u32 Shader, f32 DeltaTime)
-{
-    glUseProgram(Shader);
-
-    // Process animation transforms
-    // ----------------------------
-    animation *CurrentAnimationA = &Model->Animations[Model->AnimationState.CurrentAnimationA];
-    animation *CurrentAnimationB = &Model->Animations[Model->AnimationState.CurrentAnimationB];
-
-    UpdateAnimationState(CurrentAnimationA, DeltaTime);
-    UpdateAnimationState(CurrentAnimationB, DeltaTime);
-
-    // Find current animation keyframes
-    i32 NextKeyA = FindNextAnimationKey(CurrentAnimationA);
-    i32 NextKeyB = FindNextAnimationKey(CurrentAnimationB);
-
-    // Find the lerp ratio that will be used to determine the place between the current key and the next key
-    f32 LerpRatioA = CalculateLerpRatioBetweenTwoFrames(CurrentAnimationA, NextKeyA);
-    f32 LerpRatioB = CalculateLerpRatioBetweenTwoFrames(CurrentAnimationB, NextKeyB);
-
-    // Calculate animation transforms for each of the animation channels
-    // NOTE: All animations have the same channel count
-    i32 ChannelCount = CurrentAnimationA->ChannelCount;
-    for (i32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
+    char TextureFilename[MAX_FILENAME_LENGTH]; i32 TextureFilenameCount;
+    char TexturePath[MAX_PATH_LENGTH];
+    for (i32 TextureType = 0; TextureType < 4; ++TextureType)
     {
-        i32 BoneID = ChannelIndex + 1;
+        ASSIMP_GetTextureFilename(AssimpMaterial, TextureTypes[TextureType],
+                                  TextureFilename, &TextureFilenameCount, MAX_FILENAME_LENGTH);
 
-        animation_key InterpolatedKeyA = LerpAnimationKeys(CurrentAnimationA->Keys[(NextKeyA-1)*ChannelCount + ChannelIndex],
-                                                           CurrentAnimationA->Keys[NextKeyA*ChannelCount + ChannelIndex],
-                                                           LerpRatioA);
-        // NOTE: This is causing some weird jumping in some animations
-        //       E.g. the second shape in atlbeta10.gltf (BONETREE.blend)
-        //       Something with 360 rotation?
-        // TODO: Investigate (should be easier when there's texture loaded and debugging ui)
-        animation_key InterpolatedKeyB = LerpAnimationKeys(CurrentAnimationB->Keys[(NextKeyB-1)*ChannelCount + ChannelIndex],
-                                                           CurrentAnimationB->Keys[NextKeyB*ChannelCount + ChannelIndex],
-                                                           LerpRatioB);
-        //animation_key InterpolatedKeyA = GetRestAnimationKeyForBone(Model->Bones[BoneID]);
+        TexturePath[0] = '\0';
 
-        // Blend between 2 animations
-        animation_key BlendedKey = LerpAnimationKeys(InterpolatedKeyA, InterpolatedKeyB, Model->AnimationState.BlendingFactor);
-
-        glm::mat4 Transform = GetTransformationForAnimationKey(BlendedKey);
-
-        if (Model->Bones[BoneID].ParentID > 0)
+        if (TextureFilenameCount > 0)
         {
-            i32 ParentBoneChannelID = Model->Bones[BoneID].ParentID - 1;
-            Assert(ParentBoneChannelID < ChannelCount);
-            Transform = Model->AnimationState.TransientChannelTransformData[ParentBoneChannelID] * Transform;
+            CatStrings(ModelDirectory, ModelDirectoryCount,
+                       TextureFilename, TextureFilenameCount,
+                       TexturePath, MAX_PATH_LENGTH);
+            Mesh->TextureIDs[TextureType] = LoadTexture(TexturePath);
         }
-
-        Model->AnimationState.TransientChannelTransformData[ChannelIndex] = Transform;
     }
-
-    // Pass the bone transforms to the shader
-    // Skip bone #0 (DummyBone)
-    for (i32 BoneIndex = 1; BoneIndex < Model->BoneCount; ++BoneIndex)
-    {
-        i32 ChannelID = BoneIndex - 1;
-        Assert(ChannelID < ChannelCount);
-        glm::mat4 Transform = (Model->AnimationState.TransientChannelTransformData[ChannelID] *
-                               Model->Bones[BoneIndex].InverseBindTransform);
-
-        // TODO: This should probably use a UBO...
-        char LocationStringBuffer[32] = { };
-        // TODO: This is probably very slow...
-        sprintf_s(LocationStringBuffer, "BoneTransforms[%d]", BoneIndex);
-        //Transform = glm::mat4(1.0f);
-        glUniformMatrix4fv(glGetUniformLocation(Shader, LocationStringBuffer), 1, GL_FALSE, glm::value_ptr(Transform));
-    }
-
-    // Render model's meshes
-    // ---------------------
-    RenderMeshList(Model->Meshes, Model->MeshCount);
- 
-    glUseProgram(0);
 }
 
-void RenderModel(model *Model, u32 Shader)
-{
-    glUseProgram(Shader);
-
-    // Render model's meshes
-    // ---------------------
-    RenderMeshList(Model->Meshes, Model->MeshCount);
- 
-    glUseProgram(0);
-}
-
-inline void RenderMeshList(mesh *Meshes, i32 MeshCount)
+static inline void
+RenderMeshList(mesh *Meshes, i32 MeshCount)
 {
     for (i32 MeshIndex = 0; MeshIndex < (i32) MeshCount; ++MeshIndex)
     {
@@ -788,7 +890,63 @@ inline void RenderMeshList(mesh *Meshes, i32 MeshCount)
     }
 }
 
-inline animation_key GetRestAnimationKeyForBone(bone Bone)
+static inline void
+UpdateAnimationState(animation *Animation, f32 DeltaTime)
+{
+    // Update current animation time to the beginning of the game loop
+    Animation->CurrentTicks += DeltaTime * Animation->TicksPerSecond;
+
+    // Loop animation around if past end
+    if (Animation->CurrentTicks >= Animation->TicksDuration)
+    {
+        Animation->CurrentTicks -= Animation->TicksDuration;
+    }
+}
+
+static inline i32
+FindNextAnimationKey(animation *Animation)
+{
+    i32 Result = -1;
+
+    for (i32 KeyIndex = 1; KeyIndex < Animation->KeyCount; KeyIndex++)
+    {
+        if (Animation->CurrentTicks <= Animation->KeyTimes[KeyIndex])
+        {
+            Result = KeyIndex;
+            break;
+        }
+    }
+    Assert(Result >= 1 && Result < Animation->KeyCount);
+
+    return Result;
+}
+
+static inline f32 
+CalculateLerpRatioBetweenTwoFrames(animation *Animation, i32 NextKey)
+{
+    f32 Result;
+
+    Result = ((Animation->CurrentTicks - Animation->KeyTimes[NextKey-1]) /
+              (Animation->KeyTimes[NextKey] - Animation->KeyTimes[NextKey-1]));
+
+    return Result;
+}
+
+// TODO: Is it better to copy here, or deal with aliasing with 2 animation_key pointers?
+static inline animation_key
+LerpAnimationKeys(animation_key KeyA, animation_key KeyB, f32 LerpRatio)
+{
+    animation_key Result{ };
+
+    Result.Position = KeyA.Position + LerpRatio * (KeyB.Position - KeyA.Position);
+    Result.Rotation = glm::slerp(KeyA.Rotation, KeyB.Rotation, LerpRatio);
+    Result.Scale = KeyA.Scale + LerpRatio * (KeyB.Scale - KeyA.Scale);
+
+    return Result;
+}
+
+static inline animation_key
+GetRestAnimationKeyForBone(bone Bone)
 {
     animation_key Result{ };
 
@@ -814,7 +972,8 @@ inline animation_key GetRestAnimationKeyForBone(bone Bone)
     return Result;
 }
 
-inline glm::mat4 GetTransformationForAnimationKey(animation_key Key)
+static inline glm::mat4
+GetTransformationForAnimationKey(animation_key Key)
 {
     glm::mat4 Result{ };
 
@@ -824,77 +983,4 @@ inline glm::mat4 GetTransformationForAnimationKey(animation_key Key)
     Result = TranslateTransform * RotateTransform * ScaleTransform;
 
     return Result;
-}
-
-// TODO: Is it better to copy here, or deal with aliasing with 2 animation_key pointers?
-inline animation_key LerpAnimationKeys(animation_key KeyA, animation_key KeyB, f32 LerpRatio)
-{
-    animation_key Result{ };
-    
-    Result.Position = KeyA.Position + LerpRatio * (KeyB.Position - KeyA.Position);
-    Result.Rotation = glm::slerp(KeyA.Rotation, KeyB.Rotation, LerpRatio);
-    Result.Scale = KeyA.Scale + LerpRatio * (KeyB.Scale - KeyA.Scale);
-
-    return Result;
-}
-
-inline void UpdateAnimationState(animation *Animation, f32 DeltaTime)
-{
-    // Update current animation time to the beginning of the game loop
-    Animation->CurrentTicks += DeltaTime * Animation->TicksPerSecond;
-
-    // Loop animation around if past end
-    if (Animation->CurrentTicks >= Animation->TicksDuration)
-    {
-        Animation->CurrentTicks -= Animation->TicksDuration;
-    }
-}
-
-inline i32 FindNextAnimationKey(animation *Animation)
-{
-    i32 Result = -1;
-
-    for (i32 KeyIndex = 1; KeyIndex < Animation->KeyCount; KeyIndex++)
-    {
-        if (Animation->CurrentTicks <= Animation->KeyTimes[KeyIndex])
-        {
-            Result = KeyIndex;
-            break;
-        }
-    }
-    Assert(Result >= 1 && Result < Animation->KeyCount);
-
-    return Result;
-}
-
-inline f32 CalculateLerpRatioBetweenTwoFrames(animation *Animation, i32 NextKey)
-{
-    f32 Result;
-
-    Result = ((Animation->CurrentTicks - Animation->KeyTimes[NextKey-1]) /
-              (Animation->KeyTimes[NextKey] - Animation->KeyTimes[NextKey-1]));
-
-    return Result;
-}
-
-void ASSIMP_GetTextureFilename(aiMaterial *AssimpMaterial, aiTextureType TextureType,
-                               char *Out_Filename, i32 *Out_FilenameCount,
-                               i32 FilenameBufferSize)
-{
-    if (aiGetMaterialTextureCount(AssimpMaterial, TextureType) > 0)
-    {
-        aiString AssimpTextureFilename;
-        aiGetMaterialString(AssimpMaterial,
-                            AI_MATKEY_TEXTURE(TextureType, 0),
-                            &AssimpTextureFilename);
-        strncpy_s(Out_Filename, FilenameBufferSize,
-                  AssimpTextureFilename.C_Str(), FilenameBufferSize - 1);
-
-        *Out_FilenameCount = AssimpTextureFilename.length;
-    }
-    else
-    {
-        Out_Filename[0] = '\0';
-        *Out_FilenameCount = 0;
-    }
 }
