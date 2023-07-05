@@ -18,18 +18,33 @@
     <ClCompile Include="src\Playground.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Model.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Util.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="dlls\assimp-vc143-mtd.dll" />
     <None Include="dlls\SDL2.dll" />
-    <None Include="resources\shaders\Basic.vs" />
-    <None Include="resources\shaders\Basic.fs" />
+    <None Include="resources\shaders\StaticMesh.vs" />
+    <None Include="resources\shaders\BasicMesh.fs" />
     <None Include=".gitattributes" />
     <None Include=".gitignore" />
     <None Include="README.md" />
+    <None Include="resources\shaders\DebugBone.fs" />
+    <None Include="resources\shaders\SkinnedMesh.vs" />
+    <None Include=".editorconfig" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Model.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Util.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

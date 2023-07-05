@@ -16,4 +16,10 @@ typedef uint64_t u64;
 typedef float f32;
 typedef double f64;
 
+#define Assert(Expression) if (!(Expression)) { *(int *) 0 = 0; }
+
+#define MAX_INTERNAL_NAME_LENGTH 32
+#define MAX_FILENAME_LENGTH 64
+#define MAX_PATH_LENGTH 256
+
 #endif
