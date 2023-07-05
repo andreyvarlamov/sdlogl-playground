@@ -8,11 +8,8 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include <cstdio>
 #include <cstring>
-#include <iostream>
-#include <queue>
-#include <stack>
-#include <unordered_map>
 
 #include "Util.h"
 
@@ -94,7 +91,7 @@ GetTransformationForAnimationKey(animation_key Key);
 model
 LoadModel(const char *Path)
 {
-    std::cout << "Loading model at: " << Path << '\n';
+    printf("Loading model at: %s\n", Path);
 
     model Model{ };
 
@@ -138,7 +135,7 @@ LoadModel(const char *Path)
 skinned_model
 LoadSkinnedModel(const char *Path)
 {
-    std::cout << "Loading skinned model at: " << Path << '\n';
+    printf("Loading skinned model at: %s\n", Path);
 
     skinned_model Model{ };
 
@@ -330,6 +327,8 @@ ASSIMP_ImportFile(const char *Path)
         // TODO: Logging
         return 0;
     }
+
+    return AssimpScene;
 }
 
 static void
