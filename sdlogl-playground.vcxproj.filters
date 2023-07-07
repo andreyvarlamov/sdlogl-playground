@@ -39,6 +39,42 @@
     <None Include="resources\shaders\DebugBone.fs" />
     <None Include="resources\shaders\SkinnedMesh.vs" />
     <None Include=".editorconfig" />
+    <None Include="dlls\SDL2_ttf.dll" />
+    <None Include="resources\models\animtest\animtest_embedded.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded2.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded3.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded4.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded5.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded6.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded7.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded8.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded9.gltf" />
+    <None Include="resources\models\animtest\atlbeta00.gltf" />
+    <None Include="resources\models\animtest\atlbeta01.gltf" />
+    <None Include="resources\models\animtest\atlbeta02.gltf" />
+    <None Include="resources\models\animtest\atlbeta03.gltf" />
+    <None Include="resources\models\animtest\atlbeta04.gltf" />
+    <None Include="resources\models\animtest\atlbeta05.gltf" />
+    <None Include="resources\models\animtest\atlbeta06.gltf" />
+    <None Include="resources\models\animtest\atlbeta07.gltf" />
+    <None Include="resources\models\animtest\atlbeta08.gltf" />
+    <None Include="resources\models\animtest\atlbeta09.gltf" />
+    <None Include="resources\models\animtest\atlbeta10.gltf" />
+    <None Include="resources\models\animtest\atlbeta12.bin">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\models\animtest\atlbeta12.gltf" />
+    <None Include="resources\models\animtest\atlbetabin00.glb" />
+    <None Include="resources\models\animtest\atlbetafbx00.fbx" />
+    <None Include="resources\models\animtest\atlbetafbx01.fbx" />
+    <None Include="resources\models\animtest\atlbetafbx02.fbx" />
+    <None Include="resources\models\animtest\bonetree00.gltf" />
+    <None Include="resources\models\primitives\floor.gltf" />
+    <None Include="resources\models\primitives\quad.gltf" />
+    <None Include="resources\models\snowman\snowman.mtl" />
+    <None Include="resources\models\snowman\snowman.objm" />
+    <None Include="resources\models\container\container.mtl" />
+    <None Include="resources\models\container\container.objm" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Common.h">
@@ -73,5 +109,41 @@
     <Image Include="resources\textures\eye_emission.png">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="resources\models\animtest\Beta.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\models\animtest\Flesh.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\models\animtest\Head.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\models\snowman\base_cube_diffuse.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\models\snowman\icosphere_diffuse.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\models\snowman\middle_cube_diffuse.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\models\container\container.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\models\container\container_emission.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\models\container\container_normal.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\models\container\container_specular.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="resources\models\container\white.png">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Font Include="resources\fonts\ContrailOne-Regular.ttf" />
   </ItemGroup>
 </Project>

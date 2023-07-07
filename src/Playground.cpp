@@ -1,5 +1,6 @@
 #include <glad/glad.h>
 #include <sdl2/SDL.h>
+#include <sdl2/SDL_ttf.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -77,6 +78,14 @@ main(int Argc, char *Argv[])
                 SDL_GetWindowSize(Window, &WindowWidth, &WindowHeight);
                 glViewport(0, 0, WindowWidth, WindowHeight);
 
+                // Load fonts
+                // ----------
+                TTF_Font *Font = NULL;
+                i32 FontSizePoints = 20;
+                Font = TTF_OpenFont("resources/fonts/ContrailOne-Regular.ttf", FontSizePoints);
+                SDL_Color TextColor = { 0, 0, 0 };
+                TTF_RenderText_Solid(Font, "test", TextColor);
+
                 // Load shaders
                 // ------------
                 u32 StaticMeshShader =
@@ -93,7 +102,7 @@ main(int Argc, char *Argv[])
                 AtlbetaModel.AnimationState.CurrentAnimationB = 1;
                 AtlbetaModel.AnimationState.BlendingFactor = 0.0f;
                 model SnowmanModel = LoadModel("resources/models/snowman/snowman.objm");
-                model ContainerModel = LoadModel("resources/models/container/container.obj");
+                model ContainerModel = LoadModel("resources/models/container/container.objm");
                 model FloorModel = LoadModel("resources/models/primitives/floor.gltf");
                 FloorModel.Meshes[0].DiffuseMapID = LoadTexture("resources/textures/grass.jpg");
                 model WallModel = LoadModel("resources/models/primitives/quad.gltf");

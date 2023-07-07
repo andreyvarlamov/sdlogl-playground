@@ -104,7 +104,7 @@ ReadFile(const char *Path, size_t *Out_Size)
     char *Result = 0;
 
     FILE *File;
-    File = fopen(Path, "rb");
+    fopen_s(&File, Path, "rb");
     Assert(File);
 
     fseek(File, 0, SEEK_END);

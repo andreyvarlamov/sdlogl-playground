@@ -110,7 +110,7 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>SDL2.lib;SDL2main.lib;opengl32.lib;assimp-vc143-mtd.lib;glad.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>SDL2.lib;SDL2main.lib;SDL2_ttf.lib;opengl32.lib;assimp-vc143-mtd.lib;glad.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ForceSymbolReferences>
       </ForceSymbolReferences>
     </Link>
@@ -143,7 +143,41 @@
     <None Include=".gitignore" />
     <None Include="dlls\assimp-vc143-mtd.dll" />
     <None Include="dlls\SDL2.dll" />
+    <None Include="dlls\SDL2_ttf.dll" />
     <None Include="README.md" />
+    <None Include="resources\models\animtest\animtest_embedded.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded2.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded3.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded4.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded5.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded6.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded7.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded8.gltf" />
+    <None Include="resources\models\animtest\animtest_embedded9.gltf" />
+    <None Include="resources\models\animtest\atlbeta00.gltf" />
+    <None Include="resources\models\animtest\atlbeta01.gltf" />
+    <None Include="resources\models\animtest\atlbeta02.gltf" />
+    <None Include="resources\models\animtest\atlbeta03.gltf" />
+    <None Include="resources\models\animtest\atlbeta04.gltf" />
+    <None Include="resources\models\animtest\atlbeta05.gltf" />
+    <None Include="resources\models\animtest\atlbeta06.gltf" />
+    <None Include="resources\models\animtest\atlbeta07.gltf" />
+    <None Include="resources\models\animtest\atlbeta08.gltf" />
+    <None Include="resources\models\animtest\atlbeta09.gltf" />
+    <None Include="resources\models\animtest\atlbeta10.gltf" />
+    <None Include="resources\models\animtest\atlbeta12.bin" />
+    <None Include="resources\models\animtest\atlbeta12.gltf" />
+    <None Include="resources\models\animtest\atlbetabin00.glb" />
+    <None Include="resources\models\animtest\atlbetafbx00.fbx" />
+    <None Include="resources\models\animtest\atlbetafbx01.fbx" />
+    <None Include="resources\models\animtest\atlbetafbx02.fbx" />
+    <None Include="resources\models\animtest\bonetree00.gltf" />
+    <None Include="resources\models\container\container.mtl" />
+    <None Include="resources\models\container\container.objm" />
+    <None Include="resources\models\primitives\floor.gltf" />
+    <None Include="resources\models\primitives\quad.gltf" />
+    <None Include="resources\models\snowman\snowman.mtl" />
+    <None Include="resources\models\snowman\snowman.objm" />
     <None Include="resources\shaders\BasicMesh.fs" />
     <None Include="resources\shaders\StaticMesh.vs" />
     <None Include="resources\shaders\DebugBone.fs" />
@@ -156,12 +190,26 @@
     <ClInclude Include="src\Util.h" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="resources\models\animtest\Beta.png" />
+    <Image Include="resources\models\animtest\Flesh.png" />
+    <Image Include="resources\models\animtest\Head.png" />
+    <Image Include="resources\models\container\container.png" />
+    <Image Include="resources\models\container\container_emission.png" />
+    <Image Include="resources\models\container\container_normal.png" />
+    <Image Include="resources\models\container\container_specular.png" />
+    <Image Include="resources\models\container\white.png" />
+    <Image Include="resources\models\snowman\base_cube_diffuse.png" />
+    <Image Include="resources\models\snowman\icosphere_diffuse.png" />
+    <Image Include="resources\models\snowman\middle_cube_diffuse.png" />
     <Image Include="resources\textures\brickwall.jpg" />
     <Image Include="resources\textures\brickwall_normal.jpg" />
     <Image Include="resources\textures\container.png" />
     <Image Include="resources\textures\container_specular.png" />
     <Image Include="resources\textures\eye_emission.png" />
     <Image Include="resources\textures\grass.jpg" />
+  </ItemGroup>
+  <ItemGroup>
+    <Font Include="resources\fonts\ContrailOne-Regular.ttf" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
