@@ -8,9 +8,11 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 
+#include "Shader.h"
 #include "Util.h"
 
 // ------------------------------
@@ -222,8 +224,6 @@ RenderModel(model *Model, u32 Shader)
     // Render model's meshes
     // ---------------------
     RenderMeshList(Model->Meshes, Model->MeshCount);
-
-    glUseProgram(0);
 }
 
 void
@@ -294,15 +294,12 @@ RenderSkinnedModel(skinned_model *Model, u32 Shader, f32 DeltaTime)
         char LocationStringBuffer[32] = { };
         // TODO: This is probably very slow...
         sprintf_s(LocationStringBuffer, "BoneTransforms[%d]", BoneIndex);
-        //Transform = glm::mat4(1.0f);
-        glUniformMatrix4fv(glGetUniformLocation(Shader, LocationStringBuffer), 1, GL_FALSE, glm::value_ptr(Transform));
+        SetUniformMat4F(Shader, LocationStringBuffer, false, glm::value_ptr(Transform));
     }
 
     // Render model's meshes
     // ---------------------
     RenderMeshList(Model->Meshes, Model->MeshCount);
-
-    glUseProgram(0);
 }
 
 // -----------------------------

@@ -6,10 +6,12 @@
 #include <glm/gtx/string_cast.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+#include <cstdlib>
 #include <cstdio>
 
 #include "Common.h"
 #include "Model.h"
+#include "Shader.h"
 #include "Util.h"
 
 #define SCREEN_WIDTH 1280
@@ -77,8 +79,12 @@ main(int Argc, char *Argv[])
 
                 // Load shaders
                 // ------------
-                u32 StaticMeshShader = buildShader("resources/shaders/StaticMesh.vs", "resources/shaders/BasicMesh.fs");
-                u32 SkinnedMeshShader = buildShader("resources/shaders/SkinnedMesh.vs", "resources/shaders/BasicMesh.fs");
+                u32 StaticMeshShader =
+                    BuildShaderProgram("resources/shaders/StaticMesh.vs",
+                                       "resources/shaders/BasicMesh.fs");
+                u32 SkinnedMeshShader =
+                    BuildShaderProgram("resources/shaders/SkinnedMesh.vs",
+                                       "resources/shaders/BasicMesh.fs");
 
                 // Load models
                 // -----------
@@ -96,25 +102,21 @@ main(int Argc, char *Argv[])
 
                 // Shader global uniforms
                 // ----------------------
-                glUseProgram(StaticMeshShader);
-                glUniform1i(glGetUniformLocation(StaticMeshShader, "DiffuseMap"), 0);
-                glUniform1i(glGetUniformLocation(StaticMeshShader, "SpecularMap"), 1);
-                glUniform1i(glGetUniformLocation(StaticMeshShader, "EmissionMap"), 2);
-                glUniform1i(glGetUniformLocation(StaticMeshShader, "NormalMap"), 3);
+                SetUniformInt(StaticMeshShader, "DiffuseMap", true, 0);
+                SetUniformInt(StaticMeshShader, "SpecularMap", false, 1);
+                SetUniformInt(StaticMeshShader, "EmissionMap", false, 2);
+                SetUniformInt(StaticMeshShader, "NormalMap", false, 3);
 
-                glUseProgram(SkinnedMeshShader);
-                glUniform1i(glGetUniformLocation(SkinnedMeshShader, "DiffuseMap"), 0);
-                glUniform1i(glGetUniformLocation(SkinnedMeshShader, "SpecularMap"), 1);
-                glUniform1i(glGetUniformLocation(SkinnedMeshShader, "EmissionMap"), 2);
-                glUniform1i(glGetUniformLocation(SkinnedMeshShader, "NormalMap"), 3);
+                SetUniformInt(SkinnedMeshShader, "DiffuseMap", true, 0);
+                SetUniformInt(SkinnedMeshShader, "SpecularMap", false, 1);
+                SetUniformInt(SkinnedMeshShader, "EmissionMap", false, 2);
+                SetUniformInt(SkinnedMeshShader, "NormalMap", false, 3);
 
                 // Light configuration
                 // -------------------
                 glm::vec3 LightDir = glm::normalize(glm::vec3(-1.0f, -1.0f, -0.33f));
-                glUseProgram(StaticMeshShader);
-                glUniform3fv(glGetUniformLocation(StaticMeshShader, "LightDirection"), 1, &LightDir[0]);
-                glUseProgram(SkinnedMeshShader);
-                glUniform3fv(glGetUniformLocation(SkinnedMeshShader, "LightDirection"), 1, &LightDir[0]);
+                SetUniformVec3F(StaticMeshShader, "LightDirection", true, &LightDir[0]);
+                SetUniformVec3F(SkinnedMeshShader, "LightDirection", true, &LightDir[0]);
 
                 // Game Loop
                 // ---------
@@ -234,75 +236,60 @@ main(int Argc, char *Argv[])
                     // Per-frame shader uniforms
                     // -------------------------
 
-                    // perspective projection
+                    // Common transform matrices
                     glm::mat4 ProjectionTransform = glm::perspective(glm::radians(CameraFov / 2.0f), (f32)SCREEN_WIDTH / (f32)SCREEN_HEIGHT, 0.1f, 100.0f);
-                    glUseProgram(StaticMeshShader);
-                    glUniformMatrix4fv(glGetUniformLocation(StaticMeshShader, "Projection"), 1, GL_FALSE, glm::value_ptr(ProjectionTransform));
-                    glUseProgram(SkinnedMeshShader);
-                    glUniformMatrix4fv(glGetUniformLocation(SkinnedMeshShader, "Projection"), 1, GL_FALSE, glm::value_ptr(ProjectionTransform));
-                    // camera view matrix
                     glm::mat4 ViewTransform = glm::lookAt(CameraPosition, CameraPosition + CameraFront, CameraUp);
-                    glUseProgram(StaticMeshShader);
-                    glUniformMatrix4fv(glGetUniformLocation(StaticMeshShader, "View"), 1, GL_FALSE, glm::value_ptr(ViewTransform));
-                    glUseProgram(SkinnedMeshShader);
-                    glUniformMatrix4fv(glGetUniformLocation(SkinnedMeshShader, "View"), 1, GL_FALSE, glm::value_ptr(ViewTransform));
-                    // view position for light calculation
-                    glUseProgram(StaticMeshShader);
-                    glUniform3fv(glGetUniformLocation(StaticMeshShader, "ViewPosition"), 1, &CameraPosition[0]);
-                    glUseProgram(SkinnedMeshShader);
-                    glUniform3fv(glGetUniformLocation(SkinnedMeshShader, "ViewPosition"), 1, &CameraPosition[0]);
-                    glUseProgram(0);
+
+                    SetUniformMat4F(StaticMeshShader, "Projection", true, glm::value_ptr(ProjectionTransform));
+                    SetUniformMat4F(StaticMeshShader, "View", false, glm::value_ptr(ViewTransform));
+                    SetUniformVec3F(StaticMeshShader, "ViewPosition", false, &CameraPosition[0]);
+
+                    SetUniformMat4F(SkinnedMeshShader, "Projection", true, glm::value_ptr(ProjectionTransform));
+                    SetUniformMat4F(SkinnedMeshShader, "View", false, glm::value_ptr(ViewTransform));
+                    SetUniformVec3F(SkinnedMeshShader, "ViewPosition", false, &CameraPosition[0]);
 
                     // Render models
                     // -------------
 
                     // floor
                     glm::mat4 ModelTransform = glm::mat4(1.0f);
-                    glUseProgram(StaticMeshShader);
-                    glUniformMatrix4fv(glGetUniformLocation(StaticMeshShader, "Model"), 1, GL_FALSE, glm::value_ptr(ModelTransform));
-                    //normalMatrix = glm::transpose(glm::inverse(glm::mat3(ModelTransform)));
-                    //glUniformMatrix3fv(glGetUniformLocation(StaticMeshShader, "normalMatrix"), 1, GL_FALSE, glm::value_ptr(normalMatrix));
+                    SetUniformMat4F(StaticMeshShader, "Model", true, glm::value_ptr(ModelTransform));
+                    //glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(ModelTransform)));
                     RenderModel(&FloorModel, StaticMeshShader);
                     // container 1
                     ModelTransform = glm::mat4(1.0f);
                     ModelTransform = glm::rotate(ModelTransform, CurrentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
                     ModelTransform = glm::scale(ModelTransform, glm::vec3(1.0f));
-                    glUseProgram(StaticMeshShader);
-                    glUniformMatrix4fv(glGetUniformLocation(StaticMeshShader, "Model"), 1, GL_FALSE, glm::value_ptr(ModelTransform));
+                    SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
                     RenderModel(&ContainerModel, StaticMeshShader);
                     // container 2
                     ModelTransform = glm::mat4(1.0f);
                     ModelTransform = glm::translate(ModelTransform, glm::vec3(-1.5f, 2.0f, -2.0f));
                     ModelTransform = glm::scale(ModelTransform, glm::vec3(0.70f));
-                    glUseProgram(StaticMeshShader);
-                    glUniformMatrix4fv(glGetUniformLocation(StaticMeshShader, "Model"), 1, GL_FALSE, glm::value_ptr(ModelTransform));
+                    SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
                     RenderModel(&ContainerModel, StaticMeshShader);
                     // quad wall
                     ModelTransform = glm::mat4(1.0f);
                     ModelTransform = glm::translate(ModelTransform, glm::vec3(-10.0f, 0.0f, 0.0f));
                     ModelTransform = glm::rotate(ModelTransform, CurrentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-                    glUseProgram(StaticMeshShader);
-                    glUniformMatrix4fv(glGetUniformLocation(StaticMeshShader, "Model"), 1, GL_FALSE, glm::value_ptr(ModelTransform));
+                    SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
                     RenderModel(&WallModel, StaticMeshShader);
                     // other side of wall (no z-fighting because faces are culled)
                     ModelTransform = glm::rotate(ModelTransform, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                    glUseProgram(StaticMeshShader);
-                    glUniformMatrix4fv(glGetUniformLocation(StaticMeshShader, "Model"), 1, GL_FALSE, glm::value_ptr(ModelTransform));
+                    SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
                     RenderModel(&WallModel, StaticMeshShader);
                     // snowman
                     ModelTransform = glm::mat4(1.0f);
                     ModelTransform = glm::translate(ModelTransform, glm::vec3(0.0f, 0.0f, -5.0f));
                     ModelTransform = glm::rotate(ModelTransform, CurrentFrame / 500.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-                    glUseProgram(StaticMeshShader);
-                    glUniformMatrix4fv(glGetUniformLocation(StaticMeshShader, "Model"), 1, GL_FALSE, glm::value_ptr(ModelTransform));
+                    SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
                     RenderModel(&SnowmanModel, StaticMeshShader);
                     // animtest
-                    glUseProgram(SkinnedMeshShader);
                     ModelTransform = glm::mat4(1.0f);
                     ModelTransform = glm::translate(ModelTransform, glm::vec3(-5.0f, 0.0f, 3.0f));
                     ModelTransform = glm::rotate(ModelTransform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
                     ModelTransform = glm::scale(ModelTransform, glm::vec3(0.5f));
-                    glUniformMatrix4fv(glGetUniformLocation(SkinnedMeshShader, "Model"), 1, GL_FALSE, glm::value_ptr(ModelTransform));
+                    SetUniformMat4F(SkinnedMeshShader, "Model", true, glm::value_ptr(ModelTransform));
                     RenderSkinnedModel(&AtlbetaModel, SkinnedMeshShader, DeltaTime);
 
                     // Swap buffer

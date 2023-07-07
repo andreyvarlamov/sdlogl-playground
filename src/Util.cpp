@@ -4,10 +4,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
-#include <string>
-#include <fstream>
-#include <sstream>
-#include <iostream>
+#include <cstdlib>
+#include <cstdio>
 
 #define LOADED_TEXTURE_CACHE_BLOCK_SIZE 32
 struct loaded_textures_cache_block
@@ -25,17 +23,22 @@ struct loaded_textures_cache
 
 static loaded_textures_cache LoadedTexturesCache;
 
-void InitializeLoadedTexturesCache();
-u32 GetTextureFromCache(char *TexturePath);
-bool AddLoadedTexturesCacheBlock();
-void AddTextureToCache(char *TexturePath, u32 TextureID);
+static void
+InitializeLoadedTexturesCache();
+static u32
+GetTextureFromCache(char *TexturePath);
+static bool
+AddLoadedTexturesCacheBlock();
+static void
+AddTextureToCache(char *TexturePath, u32 TextureID);
 
 // ------------------------
 // TEXTURES ---------------
 // ------------------------
 
 // TODO: STBI is too slow; switch back to SDL image
-u32 LoadTexture(const char* Path)
+u32
+LoadTexture(const char* Path)
 {
     char PathOnStack[MAX_PATH_LENGTH];
     strncpy_s(PathOnStack, Path, MAX_PATH_LENGTH - 1);
@@ -64,7 +67,7 @@ u32 LoadTexture(const char* Path)
         }
         else
         {
-            std::cerr << "Unknown texture format at path: " << Path << '\n';
+            fprintf(stderr, "Unknown texture format at path: %s\n", Path);
             stbi_image_free(Data);
             return 0;
         }
@@ -86,79 +89,36 @@ u32 LoadTexture(const char* Path)
     }
     else
     {
-        std::cerr << "Texture failed to load at path: " << Path << '\n';
+        fprintf(stderr, "Texture failed to load at path: %s\n", Path);
         return 0;
     }
 }
 
 // ------------------------
-// SHADERS ----------------
+// FILE IO ----------------
 // ------------------------
 
-std::string readFile(const char *path)
+char *
+ReadFile(const char *Path, size_t *Out_Size)
 {
-    std::string content;
-    std::ifstream fileStream;
-    fileStream.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-    try
-    {
-        fileStream.open(path);
-        std::stringstream contentStream;
-        contentStream << fileStream.rdbuf();
-        fileStream.close();
-        content = contentStream.str();
-    }
-    catch (std::ifstream::failure &e)
-    {
-        std::cerr << "ERROR::SHADER::FILE_NOT_READ: " << e.what() << '\n';
-    }
+    char *Result = 0;
 
-    return content;
-}
+    FILE *File;
+    File = fopen(Path, "rb");
+    Assert(File);
 
-u32 buildShader(const char *vertexPath, const char *fragmentPath)
-{
-    u32 vertexShader;
-    vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    std::string vertexShaderSource = readFile(vertexPath);
-    const char *vertexShaderSourceCStr = vertexShaderSource.c_str();
-    glShaderSource(vertexShader, 1, &vertexShaderSourceCStr, 0);
-    glCompileShader(vertexShader);
-    int success;
-    char infoLog[512];
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-    if (!success)
-    {
-        glGetShaderInfoLog(vertexShader, 512, 0, infoLog);
-        std::cerr << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << '\n';
-    }
-    u32 fragmentShader;
-    fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    std::string fragmentShaderSource = readFile(fragmentPath);
-    const char *fragmentShaderSourceCStr = fragmentShaderSource.c_str();
-    glShaderSource(fragmentShader, 1, &fragmentShaderSourceCStr, 0);
-    glCompileShader(fragmentShader);
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-    if (!success)
-    {
-        glGetShaderInfoLog(fragmentShader, 512, 0, infoLog);
-        std::cerr << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << '\n';
-    }
-    u32 shaderProgram;
-    shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-    glGetProgramiv(shaderProgram, GL_LINK_STATUS, &success);
-    if (!success)
-    {
-        glGetProgramInfoLog(shaderProgram, 512, 0, infoLog);
-        std::cerr << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << '\n';
-    }
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
+    fseek(File, 0, SEEK_END);
+    size_t Size = ftell(File);
+    fseek(File, 0, SEEK_SET);
 
-    return shaderProgram;
+    Result = (char *)malloc(Size + 1);
+    Assert(Result);
+    fread(Result, Size, 1, File);
+    fclose(File);
+    Result[Size] = '\0';
+
+    *Out_Size = Size;
+    return Result;
 }
 
 // ------------------------
@@ -166,7 +126,8 @@ u32 buildShader(const char *vertexPath, const char *fragmentPath)
 // ------------------------
 
 #define MAX_NULL_TERMINATED_SEARCH_LENGTH 1024
-i32 GetNullTerminatedStringLength(char *String)
+i32
+GetNullTerminatedStringLength(char *String)
 {
     i32 Length = 0;
 
@@ -181,7 +142,8 @@ i32 GetNullTerminatedStringLength(char *String)
     return Length;
 }
 
-void CatStrings(char *SourceA, i32 SourceACount,
+void
+CatStrings(char *SourceA, i32 SourceACount,
                 char *SourceB, i32 SourceBCount,
                 char *Out_Dest, i32 DestBufferSize)
 {
@@ -201,7 +163,8 @@ void CatStrings(char *SourceA, i32 SourceACount,
     Out_Dest[DestIndex] = '\0';
 }
 
-void GetFileDirectory(char *FilePath, i32 FilePathCount,
+void
+GetFileDirectory(char *FilePath, i32 FilePathCount,
                       char *Out_FileDirectory, i32 *Out_FileDirectoryCount,
                       i32 FileDirectoryBufferSize)
 {
@@ -231,7 +194,8 @@ void GetFileDirectory(char *FilePath, i32 FilePathCount,
 // INTERNAL HELPERS -----------
 // ----------------------------
 
-void InitializeLoadedTexturesCache()
+static void
+InitializeLoadedTexturesCache()
 {
     if (LoadedTexturesCache.BlockCount == 0)
     {
@@ -250,7 +214,8 @@ void InitializeLoadedTexturesCache()
     }
 }
 
-u32 GetTextureFromCache(char *TexturePath)
+static u32
+GetTextureFromCache(char *TexturePath)
 {
     if (LoadedTexturesCache.BlockCount == 0)
     {
@@ -273,7 +238,8 @@ u32 GetTextureFromCache(char *TexturePath)
     return 0;
 }
 
-bool AddLoadedTexturesCacheBlock()
+static bool
+AddLoadedTexturesCacheBlock()
 {
     LoadedTexturesCache.Blocks = ((loaded_textures_cache_block **)
                                   realloc(LoadedTexturesCache.Blocks,
@@ -304,7 +270,8 @@ bool AddLoadedTexturesCacheBlock()
     }
 }
 
-void AddTextureToCache(char *TexturePath, u32 TextureID)
+static void
+AddTextureToCache(char *TexturePath, u32 TextureID)
 {
     if (LoadedTexturesCache.BlockCount > 0)
     {
