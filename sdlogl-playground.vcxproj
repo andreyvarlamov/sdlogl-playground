@@ -135,6 +135,7 @@
     <ClCompile Include="src\Model.cpp" />
     <ClCompile Include="src\Playground.cpp" />
     <ClCompile Include="src\Shader.cpp" />
+    <ClCompile Include="src\Text.cpp" />
     <ClCompile Include="src\Util.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -187,6 +188,7 @@
     <ClInclude Include="src\Model.h" />
     <ClInclude Include="src\Common.h" />
     <ClInclude Include="src\Shader.h" />
+    <ClInclude Include="src\Text.h" />
     <ClInclude Include="src\Util.h" />
   </ItemGroup>
   <ItemGroup>
