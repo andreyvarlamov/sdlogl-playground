@@ -13,6 +13,7 @@
 #include "Common.h"
 #include "Model.h"
 #include "Shader.h"
+#include "Text.h"
 #include "Util.h"
 
 #define SCREEN_WIDTH 1280
@@ -80,11 +81,7 @@ main(int Argc, char *Argv[])
 
                 // Load fonts
                 // ----------
-                TTF_Font *Font = NULL;
-                i32 FontSizePoints = 20;
-                Font = TTF_OpenFont("resources/fonts/ContrailOne-Regular.ttf", FontSizePoints);
-                SDL_Color TextColor = { 0, 0, 0 };
-                TTF_RenderText_Solid(Font, "test", TextColor);
+                LoadFont("resources/fonts/ContrailOne-Regular.ttf");
 
                 // Load shaders
                 // ------------
