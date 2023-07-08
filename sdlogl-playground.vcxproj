@@ -180,6 +180,8 @@
     <None Include="resources\models\snowman\snowman.mtl" />
     <None Include="resources\models\snowman\snowman.objm" />
     <None Include="resources\shaders\BasicMesh.fs" />
+    <None Include="resources\shaders\BasicText.fs" />
+    <None Include="resources\shaders\BasicText.vs" />
     <None Include="resources\shaders\StaticMesh.vs" />
     <None Include="resources\shaders\DebugBone.fs" />
     <None Include="resources\shaders\SkinnedMesh.vs" />

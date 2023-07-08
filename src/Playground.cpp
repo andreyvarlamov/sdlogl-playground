@@ -81,7 +81,10 @@ main(int Argc, char *Argv[])
 
                 // Load fonts
                 // ----------
-                LoadFont("resources/fonts/ContrailOne-Regular.ttf");
+                Assert(TTF_Init() != -1);
+                u32 RenderedTextTexture =
+                    DEBUG_RenderTextIntoTexture("resources/fonts/ContrailOne-Regular.ttf",
+                                                "test text");
 
                 // Load shaders
                 // ------------
@@ -91,6 +94,40 @@ main(int Argc, char *Argv[])
                 u32 SkinnedMeshShader =
                     BuildShaderProgram("resources/shaders/SkinnedMesh.vs",
                                        "resources/shaders/BasicMesh.fs");
+
+                u32 BasicTextShader =
+                    BuildShaderProgram("resources/shaders/BasicText.vs",
+                                       "resources/shaders/BasicText.fs");
+                f32 BasicTextVertices[] = {
+                    -1.0,  1.0,  0.0,  1.0,
+                     1.0,  1.0,  1.0,  1.0,
+                    -1.0, -1.0,  0.0,  0.0,
+                     1.0, -1.0,  1.0,  0.0
+                };
+                u32 BasicTextIndices[] = {
+                    1, 0, 2,
+                    1, 2, 3
+                };
+                u32 BasicTextVAO;
+                glGenVertexArrays(1, &BasicTextVAO);
+                glBindVertexArray(BasicTextVAO);
+                u32 BasicTextVBO;
+                glGenBuffers(1, &BasicTextVBO);
+                glBindBuffer(GL_ARRAY_BUFFER, BasicTextVBO);
+                glBufferData(GL_ARRAY_BUFFER, sizeof(BasicTextVertices), BasicTextVertices, GL_STATIC_DRAW);
+                u32 BasicTextEBO;
+                glGenBuffers(1, &BasicTextEBO);
+                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, BasicTextEBO);
+                glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(BasicTextIndices), BasicTextIndices, GL_STATIC_DRAW);
+
+                glEnableVertexAttribArray(0);
+                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(f32), (void *) 0);
+                glEnableVertexAttribArray(1);
+                glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(f32), (void *) (2 * sizeof(f32)));
+
+                glBindVertexArray(0);
+
+                SetUniformInt(BasicTextShader, "Text", true, 0);
 
                 // Load models
                 // -----------
@@ -297,6 +334,19 @@ main(int Argc, char *Argv[])
                     ModelTransform = glm::scale(ModelTransform, glm::vec3(0.5f));
                     SetUniformMat4F(SkinnedMeshShader, "Model", true, glm::value_ptr(ModelTransform));
                     RenderSkinnedModel(&AtlbetaModel, SkinnedMeshShader, DeltaTime);
+
+                    // Render UI
+                    // ---------
+
+                    UseShader(BasicTextShader);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, RenderedTextTexture);
+                    glBindVertexArray(BasicTextVAO);
+                    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+                    glBindVertexArray(0);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    UseShader(0);
 
                     // Swap buffer
                     // -----------

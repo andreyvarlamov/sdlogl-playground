@@ -78,6 +78,8 @@
     <None Include="resources\models\snowman\snowman.objm" />
     <None Include="resources\models\container\container.mtl" />
     <None Include="resources\models\container\container.objm" />
+    <None Include="resources\shaders\BasicText.fs" />
+    <None Include="resources\shaders\BasicText.vs" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Common.h">

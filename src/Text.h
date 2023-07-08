@@ -3,7 +3,7 @@
 
 #include "Common.h"
 
-void
-LoadFont(const char *Path);
+u32
+DEBUG_RenderTextIntoTexture(const char *FontPath, const char *Text);
 
 #endif

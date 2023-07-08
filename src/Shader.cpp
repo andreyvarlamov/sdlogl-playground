@@ -138,3 +138,9 @@ LinkShaderProgramAndCleanShaders(u32 *Shaders, i32 ShaderCount)
 
     return ShaderProgram;
 }
+
+void
+UseShader(u32 Shader)
+{
+    glUseProgram(Shader);
+}

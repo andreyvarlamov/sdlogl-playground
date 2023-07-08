@@ -15,4 +15,7 @@ SetUniformMat3F(u32 Shader, const char *UniformName, bool UseProgram, f32 *Value
 void
 SetUniformMat4F(u32 Shader, const char *UniformName, bool UseProgram, f32 *Value);
 
+void
+UseShader(u32 Shader);
+
 #endif
