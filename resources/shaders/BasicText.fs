@@ -10,5 +10,10 @@ uniform sampler2D Text;
 
 void main()
 {
-    Out_FragColor = vec4(texture(Text, In.UVs));
+    vec4 texel = texture(Text, In.UVs);
+    if (texel.a < 0.1)
+    {
+        discard;
+    }
+    Out_FragColor = texel;
 }
