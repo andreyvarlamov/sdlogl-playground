@@ -2,6 +2,7 @@
 layout (location = 0) in vec2 In_Position;
 layout (location = 1) in vec2 In_UVs;
 
+uniform mat4 TextScale;
 
 out vertex_shader_out
 {
@@ -10,6 +11,6 @@ out vertex_shader_out
 
 void main()
 {
-    gl_Position = vec4(In_Position, 0.0, 1.0);
+    gl_Position = TextScale * vec4(In_Position, 0.0, 1.0);
     Out.UVs = In_UVs;
 }

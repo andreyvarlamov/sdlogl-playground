@@ -84,9 +84,12 @@ main(int Argc, char *Argv[])
                 // Load fonts
                 // ----------
                 Assert(TTF_Init() != -1);
+                glm::mat4 TextScale;
+
                 u32 RenderedTextTexture =
                     DEBUG_RenderTextIntoTexture("resources/fonts/ContrailOne-Regular.ttf",
-                                                "test text");
+                                                "test text",
+                                                &TextScale);
 
                 // Load shaders
                 // ------------
@@ -130,6 +133,8 @@ main(int Argc, char *Argv[])
                 glBindVertexArray(0);
 
                 SetUniformInt(BasicTextShader, "Text", true, 0);
+
+                SetUniformMat4F(BasicTextShader, "TextScale", false, glm::value_ptr(TextScale));
 
                 // Load models
                 // -----------
