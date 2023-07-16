@@ -30,10 +30,13 @@ DEBUG_RenderTextIntoTexture(const char *FontPath, const char *Text, glm::mat4 *O
     i32 FontHeight = TTF_FontHeight(Font);
 
     glyph_info GlyphInfos[128];
+    SDL_Surface *RenderedGlyphs[128];
+
+    SDL_Color WhiteColor = { 255, 0,0,255 };
 
     i32 MaxGlyphWidth = 0;
     i32 MaxGlyphHeight = FontHeight;
-    for (u8 Glyph = 32; Glyph < 127; ++Glyph)
+    for (u8 Glyph = 32; Glyph < 33; ++Glyph)
     {
         i32 *MinX = &(GlyphInfos[Glyph].MinX);
         i32 *MaxX = &(GlyphInfos[Glyph].MaxX);
@@ -42,16 +45,18 @@ DEBUG_RenderTextIntoTexture(const char *FontPath, const char *Text, glm::mat4 *O
         i32 *Advance = &(GlyphInfos[Glyph].Advance);
         TTF_GlyphMetrics(Font, Glyph, MinX, MaxX, MinY, MaxY, Advance);
 
-        i32 Width = *MaxX - *MinX;
-        if (Width > MaxGlyphWidth)
+        SDL_Surface *RenderedGlyph = TTF_RenderGlyph_Blended(Font, 'A', WhiteColor);
+        SDL_SaveBMP(RenderedGlyph, "g.bmp");
+        if (RenderedGlyph->w > MaxGlyphWidth)
         {
-            MaxGlyphWidth = Width;
+            MaxGlyphWidth = RenderedGlyph->w;
         }
-        i32 Height = *MaxY - *MinY;
-        if (Height > MaxGlyphHeight)
+        if (RenderedGlyph->h > MaxGlyphHeight)
         {
-            MaxGlyphHeight = Height;
+            MaxGlyphHeight = RenderedGlyph->h;
         }
+        
+        RenderedGlyphs[Glyph] = RenderedGlyph;
     }
 
     // 12x8 = 96 -> for 95 (visible) glyphs
@@ -69,17 +74,19 @@ DEBUG_RenderTextIntoTexture(const char *FontPath, const char *Text, glm::mat4 *O
     Assert(FontAtlas->format->BytesPerPixel == BytesPerPixel);
     Assert((FontAtlas->pitch) == (FontAtlas->w * FontAtlas->format->BytesPerPixel));
 
-    SDL_Color WhiteColor = { 255, 255, 255, 255 };
-
     i32 CurrentAtlasIndex = 0;
-    for (u8 Glyph = 32; Glyph < 127; ++Glyph)
+    for (u8 Glyph = 32; Glyph < 33; ++Glyph)
     {
-        SDL_Surface *RenderedGlyph = TTF_RenderGlyph_Blended(Font, Glyph, WhiteColor);
+        SDL_Surface *RenderedGlyph = RenderedGlyphs[Glyph];
         Assert(RenderedGlyph);
         Assert(RenderedGlyph->format->BytesPerPixel == BytesPerPixel);
 
         i32 GlyphWidth = RenderedGlyph->w;
         i32 GlyphHeight = RenderedGlyph->h;
+        //printf("%c: W:%d; H:%d;\tCalc: X:Mx:%d,Mn:%d,W:%d;\tY:Mx:%d,Mn:%d,H:%d\n",
+        //       Glyph, GlyphWidth, GlyphHeight,
+        //       GlyphInfos[Glyph].MaxX, GlyphInfos[Glyph].MinX, GlyphInfos[Glyph].MaxX - GlyphInfos[Glyph].MinX,
+        //       GlyphInfos[Glyph].MaxY, GlyphInfos[Glyph].MinY, GlyphInfos[Glyph].MaxY - GlyphInfos[Glyph].MinY);
         Assert(GlyphWidth <= MaxGlyphWidth);
         Assert(GlyphHeight <= MaxGlyphHeight);
 
@@ -88,12 +95,11 @@ DEBUG_RenderTextIntoTexture(const char *FontPath, const char *Text, glm::mat4 *O
         i32 GlyphRowOffset = CurrentAtlasRow * MaxGlyphHeight;
         i32 GlyphColOffset = CurrentAtlasCol * MaxGlyphWidth;
         i32 GlyphOffset = GlyphRowOffset + GlyphColOffset;
-        i32 ByteOffset = GlyphOffset * BytesPerPixel;
+        i32 ByteOffsetToPositionInAtlas = GlyphOffset * BytesPerPixel;
 
-        u8 *DestBytes = ((u8 *) FontAtlas->pixels);
-        DestBytes += ByteOffset;
-        u8 *SourceBytes = (u8 *) RenderedGlyph->pixels;
-        for (i32 GlyphRow = 0; GlyphRow < GlyphHeight; + GlyphRow)
+        u8 *DestBytes = ((u8 *) FontAtlas->pixels) + ByteOffsetToPositionInAtlas;
+        u8 *SourceBytes = ((u8 *) RenderedGlyph->pixels) + RenderedGlyph->pitch * GlyphHeight;
+        for (i32 GlyphRow = 0; GlyphRow < GlyphHeight; ++GlyphRow)
         {
             for (i32 GlyphCol = 0; GlyphCol < GlyphWidth; ++GlyphCol)
             {
@@ -104,11 +110,12 @@ DEBUG_RenderTextIntoTexture(const char *FontPath, const char *Text, glm::mat4 *O
                     *DestPixelByte++ = *SourcePixelByte++;
                 }
             }
-            SourceBytes += RenderedGlyph->pitch * BytesPerPixel;
-            DestBytes -= MaxGlyphWidth * BytesPerPixel;
+            SourceBytes -= RenderedGlyph->pitch;
+            DestBytes += FontAtlas->pitch;
         }
 
-        SDL_FreeSurface(RenderedGlyph);
+        SDL_FreeSurface(RenderedGlyphs[Glyph]);
+        RenderedGlyphs[Glyph] = 0;
     }
     SDL_SaveBMP(FontAtlas, "test.bmp");
 
