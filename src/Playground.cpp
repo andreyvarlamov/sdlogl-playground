@@ -138,10 +138,10 @@ main(int Argc, char *Argv[])
 
                 // Load models
                 // -----------
-                skinned_model AtlbetaModel = LoadSkinnedModel("resources/models/animtest/atlbeta12.gltf");
-                AtlbetaModel.AnimationState.CurrentAnimationA = 0;
-                AtlbetaModel.AnimationState.CurrentAnimationB = 1;
-                AtlbetaModel.AnimationState.BlendingFactor = 0.0f;
+                //skinned_model AtlbetaModel = LoadSkinnedModel("resources/models/animtest/atlbeta12.gltf");
+                //AtlbetaModel.AnimationState.CurrentAnimationA = 0;
+                //AtlbetaModel.AnimationState.CurrentAnimationB = 1;
+                //AtlbetaModel.AnimationState.BlendingFactor = 0.0f;
                 model SnowmanModel = LoadModel("resources/models/snowman/snowman.objm");
                 model ContainerModel = LoadModel("resources/models/container/container.objm");
                 model FloorModel = LoadModel("resources/models/primitives/floor.gltf");
@@ -149,6 +149,12 @@ main(int Argc, char *Argv[])
                 model WallModel = LoadModel("resources/models/primitives/quad.gltf");
                 WallModel.Meshes[0].DiffuseMapID = LoadTexture("resources/textures/brickwall.jpg");
                 WallModel.Meshes[0].NormalMapID = LoadTexture("resources/textures/brickwall_normal.jpg");
+                skinned_model AdamModel = LoadSkinnedModel("resources/models/adam05/adam.gltf");
+                AdamModel.AnimationState.CurrentAnimationA = 2;
+                AdamModel.AnimationState.CurrentAnimationB = 3;
+                AdamModel.AnimationState.BlendingFactor = 0.0f;
+                glm::vec3 AdamPosition(-5.0f, 0.0f, 3.0f);
+                glm::vec3 AdamVelocity(2.0f, 0.0f, 0.0f);
 
                 // Shader global uniforms
                 // ----------------------
@@ -210,21 +216,21 @@ main(int Argc, char *Argv[])
                     }
                     if (CurrentKeyStates[SDL_SCANCODE_Y])
                     {
-                        AtlbetaModel.AnimationState.BlendingFactor -= DeltaTime;
-                        if (AtlbetaModel.AnimationState.BlendingFactor < 0.0f)
+                        AdamModel.AnimationState.BlendingFactor -= DeltaTime;
+                        if (AdamModel.AnimationState.BlendingFactor < 0.0f)
                         {
-                            AtlbetaModel.AnimationState.BlendingFactor = 0.0f;
+                            AdamModel.AnimationState.BlendingFactor = 0.0f;
                         }
-                        printf("Animation factor: %f\n", AtlbetaModel.AnimationState.BlendingFactor);
+                        printf("Animation factor: %f\n", AdamModel.AnimationState.BlendingFactor);
                     }
                     if (CurrentKeyStates[SDL_SCANCODE_U])
                     {
-                        AtlbetaModel.AnimationState.BlendingFactor += DeltaTime;
-                        if (AtlbetaModel.AnimationState.BlendingFactor > 1.0f)
+                        AdamModel.AnimationState.BlendingFactor += DeltaTime;
+                        if (AdamModel.AnimationState.BlendingFactor > 1.0f)
                         {
-                            AtlbetaModel.AnimationState.BlendingFactor = 1.0f;
+                            AdamModel.AnimationState.BlendingFactor = 1.0f;
                         }
-                        printf("Animation factor: %f\n", AtlbetaModel.AnimationState.BlendingFactor);
+                        printf("Animation factor: %f\n", AdamModel.AnimationState.BlendingFactor);
                     }
                     i32 MouseDeltaX, MouseDeltaY;
                     u32 MouseButtons = SDL_GetRelativeMouseState(&MouseDeltaX, &MouseDeltaY);
@@ -335,12 +341,20 @@ main(int Argc, char *Argv[])
                     SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
                     RenderModel(&SnowmanModel, StaticMeshShader);
                     // animtest
+                    //ModelTransform = glm::mat4(1.0f);
+                    //ModelTransform = glm::translate(ModelTransform, glm::vec3(5.0f, 0.0f, 3.0f));
+                    //ModelTransform = glm::rotate(ModelTransform, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    //ModelTransform = glm::scale(ModelTransform, glm::vec3(0.5f));
+                    //SetUniformMat4F(SkinnedMeshShader, "Model", true, glm::value_ptr(ModelTransform));
+                    //RenderSkinnedModel(&AtlbetaModel, SkinnedMeshShader, DeltaTime);
+                    // adam
                     ModelTransform = glm::mat4(1.0f);
-                    ModelTransform = glm::translate(ModelTransform, glm::vec3(-5.0f, 0.0f, 3.0f));
+                    AdamPosition += AdamVelocity * DeltaTime;
+                    ModelTransform = glm::translate(ModelTransform, AdamPosition);
                     ModelTransform = glm::rotate(ModelTransform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                    ModelTransform = glm::scale(ModelTransform, glm::vec3(0.5f));
+                    //ModelTransform = glm::scale(ModelTransform, glm::vec3(0.5f));
                     SetUniformMat4F(SkinnedMeshShader, "Model", true, glm::value_ptr(ModelTransform));
-                    RenderSkinnedModel(&AtlbetaModel, SkinnedMeshShader, DeltaTime);
+                    RenderSkinnedModel(&AdamModel, SkinnedMeshShader, DeltaTime);
 
                     // Render UI
                     // ---------
