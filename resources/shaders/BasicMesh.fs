@@ -32,13 +32,13 @@ void main()
 
     // ambient
     // -------
-    fragBrightness += 0.1;
+    fragBrightness += 0.3;
 
     // diffuse
     // -------
     vec3 normalizedLightDirection = normalize(-In.LightDirectionTangentSpace);
     float diffuseBrightness = max(dot(normalizedLightDirection, normal), 0.0);
-    fragBrightness += diffuseBrightness;
+    fragBrightness += diffuseBrightness * 0.8;
 
     // specular
     // --------
@@ -58,4 +58,5 @@ void main()
     vec3 fragColor = texture(DiffuseMap, In.UVs).rgb;
     
     Out_FragColor = vec4(fragBrightness * fragColor + specularColor + emissionColor, 1.0);
+//    Out_FragColor = Out_FragColor * 0.00001 + vec4(fragColor, 1.0);
 }

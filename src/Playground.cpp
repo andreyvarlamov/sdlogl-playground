@@ -16,8 +16,8 @@
 #include "Text.h"
 #include "Util.h"
 
-#define SCREEN_WIDTH 1280
-#define SCREEN_HEIGHT 720
+#define SCREEN_WIDTH 1920
+#define SCREEN_HEIGHT 1080
 
 glm::vec3 CameraPosition = glm::vec3(0.0f, 1.7f, 0.0f);
 glm::vec3 CameraFront = glm::vec3(0.0f, 0.0f, 1.0f);
@@ -149,9 +149,9 @@ main(int Argc, char *Argv[])
                 model WallModel = LoadModel("resources/models/primitives/quad.gltf");
                 WallModel.Meshes[0].DiffuseMapID = LoadTexture("resources/textures/brickwall.jpg");
                 WallModel.Meshes[0].NormalMapID = LoadTexture("resources/textures/brickwall_normal.jpg");
-                skinned_model AdamModel = LoadSkinnedModel("resources/models/adam05/adam.gltf");
-                AdamModel.AnimationState.CurrentAnimationA = 2;
-                AdamModel.AnimationState.CurrentAnimationB = 3;
+                skinned_model AdamModel = LoadSkinnedModel("resources/models/adam/adam.gltf");
+                AdamModel.AnimationState.CurrentAnimationA = 0;
+                AdamModel.AnimationState.CurrentAnimationB = 2;
                 AdamModel.AnimationState.BlendingFactor = 0.0f;
                 glm::vec3 AdamPosition(-5.0f, 0.0f, 3.0f);
                 glm::vec3 AdamVelocity(2.0f, 0.0f, 0.0f);
@@ -293,7 +293,7 @@ main(int Argc, char *Argv[])
                     // -------------------------
 
                     // Common transform matrices
-                    glm::mat4 ProjectionTransform = glm::perspective(glm::radians(CameraFov / 2.0f), (f32)SCREEN_WIDTH / (f32)SCREEN_HEIGHT, 0.1f, 100.0f);
+                    glm::mat4 ProjectionTransform = glm::perspective(glm::radians(CameraFov / 2.0f), (f32)SCREEN_WIDTH / (f32)SCREEN_HEIGHT, 0.1f, 1000.0f);
                     glm::mat4 ViewTransform = glm::lookAt(CameraPosition, CameraPosition + CameraFront, CameraUp);
 
                     SetUniformMat4F(StaticMeshShader, "Projection", true, glm::value_ptr(ProjectionTransform));
@@ -349,7 +349,7 @@ main(int Argc, char *Argv[])
                     //RenderSkinnedModel(&AtlbetaModel, SkinnedMeshShader, DeltaTime);
                     // adam
                     ModelTransform = glm::mat4(1.0f);
-                    AdamPosition += AdamVelocity * DeltaTime;
+                    //AdamPosition += AdamVelocity * DeltaTime;
                     ModelTransform = glm::translate(ModelTransform, AdamPosition);
                     ModelTransform = glm::rotate(ModelTransform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
                     //ModelTransform = glm::scale(ModelTransform, glm::vec3(0.5f));

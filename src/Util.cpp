@@ -38,7 +38,7 @@ AddTextureToCache(char *TexturePath, u32 TextureID);
 
 // TODO: STBI is too slow; switch back to SDL image
 u32
-LoadTexture(const char* Path)
+LoadTexture(const char *Path)
 {
     char PathOnStack[MAX_PATH_LENGTH];
     strncpy_s(PathOnStack, Path, MAX_PATH_LENGTH - 1);
@@ -57,7 +57,7 @@ LoadTexture(const char* Path)
         {
             Format = GL_RED;
         }
-        else if(ComponentCount == 3)
+        else if (ComponentCount == 3)
         {
             Format = GL_RGB;
         }
@@ -75,10 +75,11 @@ LoadTexture(const char* Path)
         glGenTextures(1, &TextureID);
         glBindTexture(GL_TEXTURE_2D, TextureID);
         glTexImage2D(GL_TEXTURE_2D, 0, Format, Width, Height, 0, Format, GL_UNSIGNED_BYTE, Data);
-        glGenerateMipmap(GL_TEXTURE_2D);
+        //glGenerateMipmap(GL_TEXTURE_2D);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glBindTexture(GL_TEXTURE_2D, 0);
 
@@ -111,7 +112,7 @@ ReadFile(const char *Path, size_t *Out_Size)
     size_t Size = ftell(File);
     fseek(File, 0, SEEK_SET);
 
-    Result = (char *)malloc(Size + 1);
+    Result = (char *) malloc(Size + 1);
     Assert(Result);
     fread(Result, Size, 1, File);
     fclose(File);
@@ -137,15 +138,15 @@ GetNullTerminatedStringLength(char *String)
         ++Length;
     }
 
-    Assert (Length < MAX_NULL_TERMINATED_SEARCH_LENGTH);
+    Assert(Length < MAX_NULL_TERMINATED_SEARCH_LENGTH);
 
     return Length;
 }
 
 void
 CatStrings(char *SourceA, i32 SourceACount,
-                char *SourceB, i32 SourceBCount,
-                char *Out_Dest, i32 DestBufferSize)
+           char *SourceB, i32 SourceBCount,
+           char *Out_Dest, i32 DestBufferSize)
 {
     Assert(SourceACount + SourceBCount < DestBufferSize);
 
@@ -156,7 +157,7 @@ CatStrings(char *SourceA, i32 SourceACount,
         Out_Dest[DestIndex] = SourceA[SourceAIndex];
     }
     i32 SourceBIndex = 0;
-    for(; SourceBIndex < SourceBCount; ++SourceBIndex, ++DestIndex)
+    for (; SourceBIndex < SourceBCount; ++SourceBIndex, ++DestIndex)
     {
         Out_Dest[DestIndex] = SourceB[SourceBIndex];
     }
@@ -165,8 +166,8 @@ CatStrings(char *SourceA, i32 SourceACount,
 
 void
 GetFileDirectory(char *FilePath, i32 FilePathCount,
-                      char *Out_FileDirectory, i32 *Out_FileDirectoryCount,
-                      i32 FileDirectoryBufferSize)
+                 char *Out_FileDirectory, i32 *Out_FileDirectoryCount,
+                 i32 FileDirectoryBufferSize)
 {
     i32 LastSlashIndex = FilePathCount - 1;
     for (; LastSlashIndex >= 0; --LastSlashIndex)
@@ -244,12 +245,12 @@ AddLoadedTexturesCacheBlock()
     LoadedTexturesCache.Blocks = ((loaded_textures_cache_block **)
                                   realloc(LoadedTexturesCache.Blocks,
                                           (LoadedTexturesCache.BlockCount + 1) *
-                                          sizeof (loaded_textures_cache_block *)));
+                                          sizeof(loaded_textures_cache_block *)));
 
     Assert(LoadedTexturesCache.Blocks);
     if (LoadedTexturesCache.Blocks)
     {
-        LoadedTexturesCache.Blocks[LoadedTexturesCache.BlockCount] = 
+        LoadedTexturesCache.Blocks[LoadedTexturesCache.BlockCount] =
             (loaded_textures_cache_block *) malloc(sizeof(loaded_textures_cache_block));
         Assert(LoadedTexturesCache.Blocks[LoadedTexturesCache.BlockCount]);
         if (LoadedTexturesCache.Blocks[LoadedTexturesCache.BlockCount])
@@ -275,7 +276,7 @@ AddTextureToCache(char *TexturePath, u32 TextureID)
 {
     if (LoadedTexturesCache.BlockCount > 0)
     {
-        loaded_textures_cache_block *Block = 
+        loaded_textures_cache_block *Block =
             LoadedTexturesCache.Blocks[LoadedTexturesCache.BlockCount - 1];
 
         if (Block->Count >= LOADED_TEXTURE_CACHE_BLOCK_SIZE)
