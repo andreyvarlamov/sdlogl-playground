@@ -38,7 +38,7 @@ AddTextureToCache(char *TexturePath, u32 TextureID);
 
 // TODO: STBI is too slow; switch back to SDL image
 u32
-LoadTexture(const char *Path)
+LoadTexture(const char *Path, bool GenerateMipmap)
 {
     char PathOnStack[MAX_PATH_LENGTH];
     strncpy_s(PathOnStack, Path, MAX_PATH_LENGTH - 1);
@@ -75,11 +75,20 @@ LoadTexture(const char *Path)
         glGenTextures(1, &TextureID);
         glBindTexture(GL_TEXTURE_2D, TextureID);
         glTexImage2D(GL_TEXTURE_2D, 0, Format, Width, Height, 0, Format, GL_UNSIGNED_BYTE, Data);
-        //glGenerateMipmap(GL_TEXTURE_2D);
+        if (GenerateMipmap)
+        {
+            glGenerateMipmap(GL_TEXTURE_2D);
+        }
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-        //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        if (GenerateMipmap)
+        {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        }
+        else
+        {
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        }
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glBindTexture(GL_TEXTURE_2D, 0);
 

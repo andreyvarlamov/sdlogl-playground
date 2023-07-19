@@ -120,9 +120,9 @@ struct mesh_internal_data
 // -------------
 
 model
-LoadModel(const char *Path);
+LoadModel(const char *Path, bool GenerateMipmap);
 skinned_model
-LoadSkinnedModel(const char *Path);
+LoadSkinnedModel(const char *Path, bool GenerateMipmap);
 
 // Model rendering
 // ---------------

@@ -59,7 +59,7 @@ PrepareMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh);
 static void
 PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh);
 static void
-LoadTexturesForMesh(mesh *Mesh, const char *ModelPath, aiMaterial *AssimpMaterial);
+LoadTexturesForMesh(mesh *Mesh, const char *ModelPath, aiMaterial *AssimpMaterial, bool GenerateMipmap);
 
 // Render helpers
 // --------------
@@ -91,7 +91,7 @@ GetTransformationForAnimationKey(animation_key Key);
 // -------------
 
 model
-LoadModel(const char *Path)
+LoadModel(const char *Path, bool GenerateMipmap)
 {
     printf("Loading model at: %s\n", Path);
 
@@ -122,7 +122,7 @@ LoadModel(const char *Path)
 
         FreeMeshInternalData(&InternalData);
 
-        LoadTexturesForMesh(&Mesh, Path, AssimpScene->mMaterials[AssimpMesh->mMaterialIndex]);
+        LoadTexturesForMesh(&Mesh, Path, AssimpScene->mMaterials[AssimpMesh->mMaterialIndex], GenerateMipmap);
 
         Model.Meshes[MeshIndex] = Mesh;
     }
@@ -135,7 +135,7 @@ LoadModel(const char *Path)
 }
 
 skinned_model
-LoadSkinnedModel(const char *Path)
+LoadSkinnedModel(const char *Path, bool GenerateMipmap)
 {
     printf("Loading skinned model at: %s\n", Path);
 
@@ -178,7 +178,7 @@ LoadSkinnedModel(const char *Path)
 
         FreeMeshInternalData(&InternalData);
 
-        LoadTexturesForMesh(&Mesh, Path, AssimpScene->mMaterials[AssimpMesh->mMaterialIndex]);
+        LoadTexturesForMesh(&Mesh, Path, AssimpScene->mMaterials[AssimpMesh->mMaterialIndex], GenerateMipmap);
         
         Model.Meshes[MeshIndex] = Mesh;
     }
@@ -823,7 +823,7 @@ PrepareSkinnedMeshRenderData(mesh_internal_data MeshInternalData, mesh *Out_Mesh
 }
 
 static void
-LoadTexturesForMesh(mesh *Mesh, const char *ModelPath, aiMaterial *AssimpMaterial)
+LoadTexturesForMesh(mesh *Mesh, const char *ModelPath, aiMaterial *AssimpMaterial, bool GenerateMipmap)
 {
     char ModelPathOnStack[MAX_PATH_LENGTH];
     strncpy_s(ModelPathOnStack, ModelPath, MAX_PATH_LENGTH - 1);
@@ -850,7 +850,7 @@ LoadTexturesForMesh(mesh *Mesh, const char *ModelPath, aiMaterial *AssimpMateria
             CatStrings(ModelDirectory, ModelDirectoryCount,
                        TextureFilename, TextureFilenameCount,
                        TexturePath, MAX_PATH_LENGTH);
-            Mesh->TextureIDs[TextureType] = LoadTexture(TexturePath);
+            Mesh->TextureIDs[TextureType] = LoadTexture(TexturePath, GenerateMipmap);
         }
     }
 }

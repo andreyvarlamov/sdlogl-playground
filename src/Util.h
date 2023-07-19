@@ -4,7 +4,7 @@
 #include "Common.h"
 
 u32
-LoadTexture(const char* Path);
+LoadTexture(const char *Path, bool GenerateMipmap);
 char *
 ReadFile(const char *Path, size_t *Out_Size);
 
