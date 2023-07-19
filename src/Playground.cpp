@@ -31,6 +31,11 @@ f32 CameraPitch = 0.0f;
 bool CameraFPSMode = true;
 
 bool CameraFPSModeButtonPressed = false;
+bool AdamMovementStateButtonPressed = false;
+
+glm::vec3 AdamPosition(-1.0f, 0.0f, -4.0f);
+f32 AdamYaw = 0.0f;
+i32 AdamMovementState = 0;
 
 int
 main(int Argc, char *Argv[])
@@ -153,8 +158,6 @@ main(int Argc, char *Argv[])
                 AdamModel.AnimationState.CurrentAnimationA = 0;
                 AdamModel.AnimationState.CurrentAnimationB = 2;
                 AdamModel.AnimationState.BlendingFactor = 0.0f;
-                glm::vec3 AdamPosition(-5.0f, 0.0f, 3.0f);
-                glm::vec3 AdamVelocity(2.0f, 0.0f, 0.0f);
 
                 // Shader global uniforms
                 // ----------------------
@@ -216,21 +219,44 @@ main(int Argc, char *Argv[])
                     }
                     if (CurrentKeyStates[SDL_SCANCODE_Y])
                     {
-                        AdamModel.AnimationState.BlendingFactor -= DeltaTime;
-                        if (AdamModel.AnimationState.BlendingFactor < 0.0f)
+                        AdamYaw += DeltaTime * 180.0f;
+                        if (AdamYaw > 360.0f)
                         {
-                            AdamModel.AnimationState.BlendingFactor = 0.0f;
+                            AdamYaw -= 360.0f;
                         }
-                        printf("Animation factor: %f\n", AdamModel.AnimationState.BlendingFactor);
                     }
                     if (CurrentKeyStates[SDL_SCANCODE_U])
                     {
-                        AdamModel.AnimationState.BlendingFactor += DeltaTime;
-                        if (AdamModel.AnimationState.BlendingFactor > 1.0f)
+                        AdamYaw -= DeltaTime * 180.0f;
+                        if (AdamYaw < 0.0f)
                         {
-                            AdamModel.AnimationState.BlendingFactor = 1.0f;
+                            AdamYaw += 360.0f;
                         }
-                        printf("Animation factor: %f\n", AdamModel.AnimationState.BlendingFactor);
+                    }
+                    if (CurrentKeyStates[SDL_SCANCODE_T] && !AdamMovementStateButtonPressed)
+                    {
+                        AdamMovementState++;
+                        if (AdamMovementState > 2)
+                        {
+                            AdamMovementState = 0;
+                        }
+                        if (AdamMovementState == 0)
+                        {
+                            AdamModel.AnimationState.CurrentAnimationA = 0;
+                        }
+                        if (AdamMovementState == 1)
+                        {
+                            AdamModel.AnimationState.CurrentAnimationA = 3;
+                        }
+                        if (AdamMovementState == 2)
+                        {
+                            AdamModel.AnimationState.CurrentAnimationA = 2;
+                        }
+                        AdamMovementStateButtonPressed = true;
+                    }
+                    else if (!CurrentKeyStates[SDL_SCANCODE_T])
+                    {
+                        AdamMovementStateButtonPressed = false;
                     }
                     i32 MouseDeltaX, MouseDeltaY;
                     u32 MouseButtons = SDL_GetRelativeMouseState(&MouseDeltaX, &MouseDeltaY);
@@ -349,9 +375,26 @@ main(int Argc, char *Argv[])
                     //RenderSkinnedModel(&AtlbetaModel, SkinnedMeshShader, DeltaTime);
                     // adam
                     ModelTransform = glm::mat4(1.0f);
-                    //AdamPosition += AdamVelocity * DeltaTime;
+                    glm::vec3 AdamPositionDelta(0.0f);
+                    if (AdamMovementState == 1 || AdamMovementState == 2)
+                    {
+                        f32 Velocity;
+                        if (AdamMovementState == 1)
+                        {
+                            Velocity = 1.0f;
+                        }
+                        else
+                        {
+                            Velocity = 4.0f;
+                        }
+
+                        glm::vec3 Direction(sin(glm::radians(AdamYaw)), 0.0f, cos(glm::radians(AdamYaw)));
+
+                        AdamPositionDelta = Velocity * DeltaTime * Direction;
+                    }
+                    AdamPosition += AdamPositionDelta;
                     ModelTransform = glm::translate(ModelTransform, AdamPosition);
-                    ModelTransform = glm::rotate(ModelTransform, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+                    ModelTransform = glm::rotate(ModelTransform, glm::radians(AdamYaw), glm::vec3(0.0f, 1.0f, 0.0f));
                     //ModelTransform = glm::scale(ModelTransform, glm::vec3(0.5f));
                     SetUniformMat4F(SkinnedMeshShader, "Model", true, glm::value_ptr(ModelTransform));
                     RenderSkinnedModel(&AdamModel, SkinnedMeshShader, DeltaTime);
