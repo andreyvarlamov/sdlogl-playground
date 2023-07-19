@@ -91,10 +91,10 @@ main(int Argc, char *Argv[])
                 Assert(TTF_Init() != -1);
                 glm::mat4 TextScale;
 
-                //u32 RenderedTextTexture =
-                //    DEBUG_RenderTextIntoTexture("resources/fonts/ContrailOne-Regular.ttf",
-                //                                "test text",
-                //                                &TextScale);
+                u32 RenderedTextTexture =
+                    DEBUG_RenderTextIntoTexture("resources/fonts/ContrailOne-Regular.ttf",
+                                                "test text",
+                                                &TextScale);
 
                 // Load shaders
                 // ------------
@@ -402,15 +402,15 @@ main(int Argc, char *Argv[])
                     // Render UI
                     // ---------
 
-                    //UseShader(BasicTextShader);
-                    //glActiveTexture(GL_TEXTURE0);
-                    //glBindTexture(GL_TEXTURE_2D, RenderedTextTexture);
-                    //glBindVertexArray(BasicTextVAO);
-                    //glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-                    //glBindVertexArray(0);
-                    //glActiveTexture(GL_TEXTURE0);
-                    //glBindTexture(GL_TEXTURE_2D, 0);
-                    //UseShader(0);
+                    UseShader(BasicTextShader);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, RenderedTextTexture);
+                    glBindVertexArray(BasicTextVAO);
+                    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+                    glBindVertexArray(0);
+                    glActiveTexture(GL_TEXTURE0);
+                    glBindTexture(GL_TEXTURE_2D, 0);
+                    UseShader(0);
 
                     // Swap buffer
                     // -----------

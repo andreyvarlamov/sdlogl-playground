@@ -5,7 +5,14 @@
 
 #include "Common.h"
 
+i32
+DEBUG_RasterizeFontIntoGLTexture(const char *FontPath, i32 FontSizePoints);
+
 u32
-DEBUG_RenderTextIntoTexture(const char *FontPath, const char *Text, glm::mat4 *Out_NativeScaleTransform);
+DEBUG_PrepareRenderDataForString(i32 FontID, const char *Text, i32 TextCount,
+                                 i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight);
+
+void
+DEBUG_DrawString(u32 VAO, i32 FontID);
 
 #endif
