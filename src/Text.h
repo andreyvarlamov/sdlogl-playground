@@ -13,6 +13,6 @@ DEBUG_PrepareRenderDataForString(i32 FontID, const char *Text, i32 TextCount,
                                  i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight);
 
 void
-DEBUG_DrawString(u32 VAO, i32 FontID);
+DEBUG_RenderStringVAO(u32 VAO, i32 TextCount, i32 FontID);
 
 #endif

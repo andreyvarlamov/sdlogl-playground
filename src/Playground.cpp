@@ -89,12 +89,11 @@ main(int Argc, char *Argv[])
                 // Load fonts
                 // ----------
                 Assert(TTF_Init() != -1);
-                glm::mat4 TextScale;
 
-                u32 RenderedTextTexture =
-                    DEBUG_RenderTextIntoTexture("resources/fonts/ContrailOne-Regular.ttf",
-                                                "test text",
-                                                &TextScale);
+                u32 FontContrailOne24 =
+                    DEBUG_RasterizeFontIntoGLTexture("resources/fonts/ContrailOne-Regular.ttf", 24);
+                u32 TestString = 
+                    DEBUG_PrepareRenderDataForString(FontContrailOne24, "teststringsss", 13, 10, 10, SCREEN_WIDTH, SCREEN_HEIGHT);
 
                 // Load shaders
                 // ------------
@@ -139,7 +138,7 @@ main(int Argc, char *Argv[])
 
                 SetUniformInt(BasicTextShader, "Text", true, 0);
 
-                SetUniformMat4F(BasicTextShader, "TextScale", false, glm::value_ptr(TextScale));
+                //SetUniformMat4F(BasicTextShader, "TextScale", false, glm::value_ptr(TextScale));
 
                 // Load models
                 // -----------
@@ -403,13 +402,7 @@ main(int Argc, char *Argv[])
                     // ---------
 
                     UseShader(BasicTextShader);
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, RenderedTextTexture);
-                    glBindVertexArray(BasicTextVAO);
-                    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-                    glBindVertexArray(0);
-                    glActiveTexture(GL_TEXTURE0);
-                    glBindTexture(GL_TEXTURE_2D, 0);
+                    DEBUG_RenderStringVAO(TestString, 13, FontContrailOne24);
                     UseShader(0);
 
                     // Swap buffer

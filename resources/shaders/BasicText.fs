@@ -16,4 +16,5 @@ void main()
         discard;
     }
     Out_FragColor = texel;
+    Out_FragColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
 }
