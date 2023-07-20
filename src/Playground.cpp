@@ -92,8 +92,9 @@ main(int Argc, char *Argv[])
 
                 u32 FontContrailOne24 =
                     DEBUG_RasterizeFontIntoGLTexture("resources/fonts/ContrailOne-Regular.ttf", 24);
+                i32 TestStringSize = 9;
                 u32 TestString = 
-                    DEBUG_PrepareRenderDataForString(FontContrailOne24, "teststringsss", 13, 10, 10, SCREEN_WIDTH, SCREEN_HEIGHT);
+                    DEBUG_PrepareRenderDataForString(FontContrailOne24, "aeovldhbp", TestStringSize, 10, 10, SCREEN_WIDTH, SCREEN_HEIGHT);
 
                 // Load shaders
                 // ------------
@@ -136,7 +137,7 @@ main(int Argc, char *Argv[])
 
                 glBindVertexArray(0);
 
-                SetUniformInt(BasicTextShader, "Text", true, 0);
+                SetUniformInt(BasicTextShader, "FontAtlas", true, 0);
 
                 //SetUniformMat4F(BasicTextShader, "TextScale", false, glm::value_ptr(TextScale));
 
@@ -402,7 +403,7 @@ main(int Argc, char *Argv[])
                     // ---------
 
                     UseShader(BasicTextShader);
-                    DEBUG_RenderStringVAO(TestString, 13, FontContrailOne24);
+                    DEBUG_RenderStringVAO(TestString, TestStringSize, FontContrailOne24);
                     UseShader(0);
 
                     // Swap buffer

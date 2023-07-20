@@ -6,15 +6,19 @@ in vertex_shader_out
     vec2 UVs;
 } In;
 
-uniform sampler2D Text;
+uniform sampler2D FontAtlas;
 
 void main()
 {
-    vec4 texel = texture(Text, In.UVs);
+    vec4 texel = texture(FontAtlas, In.UVs);
     if (texel.a < 0.1)
     {
-        discard;
+//        discard;
+        Out_FragColor = vec4(0.5, 0.5, 0.7, 1.0);
     }
-    Out_FragColor = texel;
-    Out_FragColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    else
+    {
+        Out_FragColor = texel;
+    }
+//    Out_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
 }

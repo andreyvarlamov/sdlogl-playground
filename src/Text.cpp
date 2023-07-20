@@ -81,6 +81,8 @@ DEBUG_RasterizeFontIntoGLTexture(const char *FontPath, i32 FontSizePoints)
     i32 AtlasRows = 8;
     i32 AtlasWidth = AtlasColumns * AtlasCellWidth;
     i32 AtlasHeight = AtlasRows * AtlasCellHeight;
+    FontInfos[FontID].AtlasWidth = AtlasWidth;
+    FontInfos[FontID].AtlasHeight = AtlasHeight;
     SDL_Surface *FontAtlas = SDL_CreateRGBSurface(0,
                                                   AtlasWidth,
                                                   AtlasHeight,
@@ -181,7 +183,7 @@ DEBUG_PrepareRenderDataForString(i32 FontID, const char *Text, i32 TextCount,
 
     for (i32 TextIndex = 0; TextIndex < TextCount; ++TextIndex)
     {
-        u8 Glyph = Text[TextCount];
+        u8 Glyph = Text[TextIndex];
 
         if (Glyph == '\n')
         {
@@ -194,21 +196,29 @@ DEBUG_PrepareRenderDataForString(i32 FontID, const char *Text, i32 TextCount,
 
         i32 OnScreenX = CurrentX + GlyphInfo->MinX;
         i32 OnScreenY = CurrentY + FontInfo->Ascent - GlyphInfo->MaxY;
-        i32 OnScreenWidth = GlyphInfo->MaxX - GlyphInfo->MinX;
-        i32 OnScreenHeight = GlyphInfo->MaxY - GlyphInfo->MinY;
+        i32 OnScreenWidth = GlyphInfo->MaxX - GlyphInfo->MinX; OnScreenWidth *= 10.0f;
+        i32 OnScreenHeight = GlyphInfo->MaxY - GlyphInfo->MinY; OnScreenHeight *= 10.0f;
         f32 NDCLeft = ((f32) OnScreenX / HalfScreenWidth) - 1.0f;
-        f32 NDCTop = ((f32) -OnScreenY / HalfScreenHeight) - 1.0f;
+        f32 NDCTop = -(((f32) OnScreenY / HalfScreenHeight) - 1.0f);
         f32 NDCRight = ((f32) (OnScreenX + OnScreenWidth) / HalfScreenWidth) - 1.0f;
-        f32 NDCBottom = ((f32) -(OnScreenY + OnScreenHeight) / HalfScreenHeight) - 1.0f;
+        f32 NDCBottom = -(((f32) (OnScreenY + OnScreenHeight) / HalfScreenHeight) - 1.0f);
+        //NDCLeft = -1.0f;
+        //NDCTop = 1.0f;
+        //NDCRight = 1.0f;
+        //NDCBottom = -1.0f;
 
         i32 TextureX = GlyphInfo->AtlasPosX;
         i32 TextureY = GlyphInfo->AtlasPosY;
-        i32 TextureWidth = TextureX + OnScreenWidth;
+        i32 TextureWidth = GlyphInfo->MaxX;
         i32 TextureHeight = FontInfo->Height;
         f32 UVLeft = (f32) TextureX / AtlasWidth;
         f32 UVTop = (f32) TextureY / AtlasHeight;
         f32 UVRight = (f32) (TextureX + TextureWidth) / AtlasWidth;
-        f32 UVBottom = (f32) -(TextureY + TextureHeight) / AtlasHeight;
+        f32 UVBottom = (f32) (TextureY + TextureHeight) / AtlasHeight;
+        //UVLeft = 0.0f;
+        //UVTop = 1.0f;
+        //UVRight = 1.0f;
+        //UVBottom = 0.0f;
 
         Positions[TextIndex * 12 + 0]  = NDCLeft;  Positions[TextIndex * 12 + 1]  = NDCTop;
         Positions[TextIndex * 12 + 2]  = NDCLeft;  Positions[TextIndex * 12 + 3]  = NDCBottom;
@@ -224,7 +234,7 @@ DEBUG_PrepareRenderDataForString(i32 FontID, const char *Text, i32 TextCount,
         UVs[TextIndex * 12 + 8]  = UVLeft;  UVs[TextIndex * 12 + 9]  = UVBottom;
         UVs[TextIndex * 12 + 10] = UVRight; UVs[TextIndex * 12 + 11] = UVBottom;
 
-        CurrentX += GlyphInfo->Advance;
+        CurrentX += GlyphInfo->Advance * 10.0f;
     }
 
     u32 VAO;
