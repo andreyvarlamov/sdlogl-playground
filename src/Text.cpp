@@ -161,10 +161,9 @@ PrepareUIString(const char *Text, font_info *FontInfo,
                                Result.Positions, Result.UVs);
 
     glGenVertexArrays(1, &Result.VAO);
-    u32 VBO;
-    glGenBuffers(1, &VBO);
+    glGenBuffers(1, &Result.VBO);
     glBindVertexArray(Result.VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, Result.VBO);
     glBufferData(GL_ARRAY_BUFFER, Result.PositionsBufferSize + Result.UVsBufferSize, 0, GL_STATIC_DRAW); // TODO: Dynamic?
     glBufferSubData(GL_ARRAY_BUFFER, 0, Result.PositionsBufferSize, Result.Positions);
     glBufferSubData(GL_ARRAY_BUFFER, Result.PositionsBufferSize, Result.UVsBufferSize, Result.UVs);
@@ -203,16 +202,18 @@ UpdateUIString(ui_string UIString, const char *NewText)
                                UIString.XPos, UIString.YPos, UIString.ScreenWidth, UIString.ScreenHeight,
                                UIString.Positions, UIString.UVs);
 
+    glBindBuffer(GL_ARRAY_BUFFER, UIString.VBO);
     glBufferSubData(GL_ARRAY_BUFFER, 0, UIString.PositionsBufferSize, UIString.Positions);
     glBufferSubData(GL_ARRAY_BUFFER, UIString.PositionsBufferSize, UIString.UVsBufferSize, UIString.UVs);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 void
-PrepareRenderDataForString(const char *String, i32 StringLength, i32 OldStringLength, font_info *FontInfo, 
+PrepareRenderDataForString(const char *String, i32 StringLength, i32 BufferLength, font_info *FontInfo, 
                         i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight,
                         f32 *Out_Positions, f32 *Out_UVs)
 {
-    Assert(StringLength <= OldStringLength);
+    Assert(StringLength <= BufferLength);
 
     f32 HalfScreenWidth = (f32) ScreenWidth / 2.0f;
     f32 HalfScreenHeight = (f32) ScreenHeight / 2.0f;
@@ -221,20 +222,23 @@ PrepareRenderDataForString(const char *String, i32 StringLength, i32 OldStringLe
 
     i32 CurrentX = XPos;
     i32 CurrentY = YPos;
-    for (i32 TextIndex = 0; TextIndex < OldStringLength; ++TextIndex)
+    for (i32 TextIndex = 0; TextIndex < BufferLength; ++TextIndex)
     {
-        u8 Glyph = String[TextIndex];
+        u8 Glyph;
+        if (TextIndex < StringLength)
+        {
+            Glyph = String[TextIndex];
+        }
+        else
+        {
+            Glyph = ' ';
+        }
 
         if (Glyph == '\n')
         {
             CurrentX = XPos;
             CurrentY += FontInfo->Height;
             continue;
-        }
-
-        if (TextIndex >= StringLength)
-        {
-            Glyph = ' ';
         }
 
         glyph_info *GlyphInfo = &FontInfo->GlyphInfos[Glyph];

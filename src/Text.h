@@ -41,6 +41,7 @@ struct ui_string
     i32 StringLength;
 
     u32 VAO;
+    u32 VBO;
 
     size_t PositionsBufferSize;
     f32 *Positions;

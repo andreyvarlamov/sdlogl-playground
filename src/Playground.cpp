@@ -92,8 +92,12 @@ main(int Argc, char *Argv[])
 
                 font_info *FontContrailOne24 =
                     RasterizeAndProcessFont("resources/fonts/ContrailOne-Regular.ttf", 24);
+                char TestCounterBuffer[64];
+                i32 TestCounter = 0;
+                f32 TestCounterAccumulator = 0.0f;
+                sprintf(TestCounterBuffer, "Counter: %d       ", TestCounter);
                 ui_string TestUIString = 
-                    PrepareUIString("Hello, World!\nFPS: 321.123\nhehehaha           j\n'''***()()(&&&&{}{||\\\\$$",
+                    PrepareUIString(TestCounterBuffer,
                                     FontContrailOne24, 10, 10, SCREEN_WIDTH, SCREEN_HEIGHT);
 
                 // Load shaders
@@ -403,6 +407,14 @@ main(int Argc, char *Argv[])
                     // ---------
 
                     UseShader(BasicTextShader);
+                    TestCounterAccumulator += DeltaTime;
+                    if (TestCounterAccumulator >= 0.01f)
+                    {
+                        TestCounterAccumulator = 0.0f;
+                        TestCounter++;
+                        sprintf(TestCounterBuffer, "Counter: %d", TestCounter);
+                        UpdateUIString(TestUIString, TestCounterBuffer);
+                    }
                     RenderUIString(TestUIString);
                     UseShader(0);
 
