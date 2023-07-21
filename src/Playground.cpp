@@ -92,9 +92,9 @@ main(int Argc, char *Argv[])
 
                 u32 FontContrailOne24 =
                     DEBUG_RasterizeFontIntoGLTexture("resources/fonts/ContrailOne-Regular.ttf", 24);
-                i32 TestStringSize = 9;
+                i32 TestStringSize = 71;
                 u32 TestString = 
-                    DEBUG_PrepareRenderDataForString(FontContrailOne24, "aeovldhbp", TestStringSize, 10, 10, SCREEN_WIDTH, SCREEN_HEIGHT);
+                    DEBUG_PrepareRenderDataForString(FontContrailOne24, "Hello World!\nFPS: 321.123\nhehehaha           j\n'''***()()(&&&&{}{||\\\\$$", TestStringSize, 10, 10, SCREEN_WIDTH, SCREEN_HEIGHT);
 
                 // Load shaders
                 // ------------

@@ -144,6 +144,7 @@ DEBUG_RasterizeFontIntoGLTexture(const char *FontPath, i32 FontSizePoints)
 
     glGenTextures(1, &FontInfos[FontID].AtlasGLID);
     glBindTexture(GL_TEXTURE_2D, FontInfos[FontID].AtlasGLID);
+    // TODO: Don't really need all 4 channels, just need alpha, and can color in the shader with custom color
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
                  AtlasWidth, AtlasHeight,
                  0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
@@ -161,7 +162,6 @@ DEBUG_RasterizeFontIntoGLTexture(const char *FontPath, i32 FontSizePoints)
     return FontID;
 }
 
-#if 1
 u32
 DEBUG_PrepareRenderDataForString(i32 FontID, const char *Text, i32 TextCount,
                                  i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight)
@@ -181,6 +181,7 @@ DEBUG_PrepareRenderDataForString(i32 FontID, const char *Text, i32 TextCount,
     f32 AtlasWidth = (f32) FontInfo->AtlasWidth;
     f32 AtlasHeight = (f32) FontInfo->AtlasHeight;
 
+    // TODO: Shouldn't need TextCount
     for (i32 TextIndex = 0; TextIndex < TextCount; ++TextIndex)
     {
         u8 Glyph = Text[TextIndex];
@@ -194,31 +195,27 @@ DEBUG_PrepareRenderDataForString(i32 FontID, const char *Text, i32 TextCount,
 
         glyph_info *GlyphInfo = &FontInfo->GlyphInfos[Glyph];
 
-        i32 OnScreenX = CurrentX + GlyphInfo->MinX;
-        i32 OnScreenY = CurrentY + FontInfo->Ascent - GlyphInfo->MaxY;
-        i32 OnScreenWidth = GlyphInfo->MaxX - GlyphInfo->MinX; OnScreenWidth *= 10.0f;
-        i32 OnScreenHeight = GlyphInfo->MaxY - GlyphInfo->MinY; OnScreenHeight *= 10.0f;
+        // NOTE: It seems that SDL_ttf embeds MinX into the rendered glyph, but also it's ignored if it's less than 0
+        //       Need to shift where to place glyph if MinX is negative, but if not negative, it's already included
+        //       in the rendered glyph. This works but seems very finicky
+        // TODO: Just use freetype directly or stb (or direct GPU render from ttf????????)
+        i32 OnScreenX = ((GlyphInfo->MinX >= 0) ? (CurrentX) : (CurrentX + GlyphInfo->MinX));
+        i32 OnScreenY = CurrentY;
+        i32 OnScreenWidth = ((GlyphInfo->MinX >= 0) ? (GlyphInfo->MaxX) : (GlyphInfo->MaxX - GlyphInfo->MinX));
+        i32 OnScreenHeight = FontInfo->Height;
         f32 NDCLeft = ((f32) OnScreenX / HalfScreenWidth) - 1.0f;
         f32 NDCTop = -(((f32) OnScreenY / HalfScreenHeight) - 1.0f);
         f32 NDCRight = ((f32) (OnScreenX + OnScreenWidth) / HalfScreenWidth) - 1.0f;
         f32 NDCBottom = -(((f32) (OnScreenY + OnScreenHeight) / HalfScreenHeight) - 1.0f);
-        //NDCLeft = -1.0f;
-        //NDCTop = 1.0f;
-        //NDCRight = 1.0f;
-        //NDCBottom = -1.0f;
 
         i32 TextureX = GlyphInfo->AtlasPosX;
         i32 TextureY = GlyphInfo->AtlasPosY;
-        i32 TextureWidth = GlyphInfo->MaxX;
+        i32 TextureWidth = ((GlyphInfo->MinX >= 0) ? (GlyphInfo->MaxX) : (GlyphInfo->MaxX - GlyphInfo->MinX));
         i32 TextureHeight = FontInfo->Height;
         f32 UVLeft = (f32) TextureX / AtlasWidth;
         f32 UVTop = (f32) TextureY / AtlasHeight;
         f32 UVRight = (f32) (TextureX + TextureWidth) / AtlasWidth;
         f32 UVBottom = (f32) (TextureY + TextureHeight) / AtlasHeight;
-        //UVLeft = 0.0f;
-        //UVTop = 1.0f;
-        //UVRight = 1.0f;
-        //UVBottom = 0.0f;
 
         Positions[TextIndex * 12 + 0]  = NDCLeft;  Positions[TextIndex * 12 + 1]  = NDCTop;
         Positions[TextIndex * 12 + 2]  = NDCLeft;  Positions[TextIndex * 12 + 3]  = NDCBottom;
@@ -234,7 +231,7 @@ DEBUG_PrepareRenderDataForString(i32 FontID, const char *Text, i32 TextCount,
         UVs[TextIndex * 12 + 8]  = UVLeft;  UVs[TextIndex * 12 + 9]  = UVBottom;
         UVs[TextIndex * 12 + 10] = UVRight; UVs[TextIndex * 12 + 11] = UVBottom;
 
-        CurrentX += GlyphInfo->Advance * 10.0f;
+        CurrentX += GlyphInfo->Advance;
     }
 
     u32 VAO;
@@ -257,6 +254,7 @@ DEBUG_PrepareRenderDataForString(i32 FontID, const char *Text, i32 TextCount,
     free(Positions);
     free(UVs);
 
+    // TODO: Should embed in a struct with more info: number of vertices, font atlas id
     return VAO;
 }
 
@@ -272,4 +270,3 @@ DEBUG_RenderStringVAO(u32 VAO, i32 TextCount, i32 FontID)
 
     glBindTexture(GL_TEXTURE_2D, 0);
 }
-#endif

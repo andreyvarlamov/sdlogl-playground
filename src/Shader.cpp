@@ -38,7 +38,7 @@ SetUniformInt(u32 Shader, const char *UniformName, bool UseProgram, i32 Value)
     }
 
     i32 UniformLocation = glGetUniformLocation(Shader, UniformName);
-    //Assert(UniformLocation != -1);
+    Assert(UniformLocation != -1);
 
     glUniform1i(UniformLocation, Value);
 }
