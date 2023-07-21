@@ -137,7 +137,7 @@ ReadFile(const char *Path, size_t *Out_Size)
 
 #define MAX_NULL_TERMINATED_SEARCH_LENGTH 1024
 i32
-GetNullTerminatedStringLength(char *String)
+GetNullTerminatedStringLength(const char *String)
 {
     i32 Length = 0;
 

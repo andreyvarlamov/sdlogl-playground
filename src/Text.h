@@ -5,14 +5,66 @@
 
 #include "Common.h"
 
-i32
-DEBUG_RasterizeFontIntoGLTexture(const char *FontPath, i32 FontSizePoints);
+struct glyph_info
+{
+    i32 AtlasPosX;
+    i32 AtlasPosY;
 
-u32
-DEBUG_PrepareRenderDataForString(i32 FontID, const char *Text, i32 TextCount,
-                                 i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight);
+    i32 MinX;
+    i32 MaxX;
+    i32 MinY;
+    i32 MaxY;
+
+    i32 Advance;
+};
+
+struct font_info
+{
+    u32 AtlasGLID;
+
+    i32 AtlasWidth;
+    i32 AtlasHeight;
+
+    i32 Points;
+    i32 Height;
+
+    glyph_info GlyphInfos[128];
+};
+
+struct ui_string
+{
+    i32 XPos;
+    i32 YPos;
+    i32 ScreenWidth;
+    i32 ScreenHeight;
+    font_info *FontInfo;
+    i32 StringLength;
+
+    u32 VAO;
+
+    size_t PositionsBufferSize;
+    f32 *Positions;
+    size_t UVsBufferSize;
+    f32 *UVs;
+};
+
+font_info *
+RasterizeAndProcessFont(const char *FontPath, i32 FontSizePoints);
+
+ui_string
+PrepareUIString(const char *Text, font_info *FontInfo,
+                i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight);
 
 void
-DEBUG_RenderStringVAO(u32 VAO, i32 TextCount, i32 FontID);
+RenderUIString(ui_string UIString);
+
+void
+UpdateUIString(ui_string UIString, const char *NewText);
+
+//void
+//FreeFontInfoAndUnloadFromGPU(font_info *FontInfo);
+
+void
+UnloadUIStringFromGPU(ui_string UIString);
 
 #endif

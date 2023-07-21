@@ -90,11 +90,11 @@ main(int Argc, char *Argv[])
                 // ----------
                 Assert(TTF_Init() != -1);
 
-                u32 FontContrailOne24 =
-                    DEBUG_RasterizeFontIntoGLTexture("resources/fonts/ContrailOne-Regular.ttf", 24);
-                i32 TestStringSize = 71;
-                u32 TestString = 
-                    DEBUG_PrepareRenderDataForString(FontContrailOne24, "Hello World!\nFPS: 321.123\nhehehaha           j\n'''***()()(&&&&{}{||\\\\$$", TestStringSize, 10, 10, SCREEN_WIDTH, SCREEN_HEIGHT);
+                font_info *FontContrailOne24 =
+                    RasterizeAndProcessFont("resources/fonts/ContrailOne-Regular.ttf", 24);
+                ui_string TestUIString = 
+                    PrepareUIString("Hello, World!\nFPS: 321.123\nhehehaha           j\n'''***()()(&&&&{}{||\\\\$$",
+                                    FontContrailOne24, 10, 10, SCREEN_WIDTH, SCREEN_HEIGHT);
 
                 // Load shaders
                 // ------------
@@ -403,7 +403,7 @@ main(int Argc, char *Argv[])
                     // ---------
 
                     UseShader(BasicTextShader);
-                    DEBUG_RenderStringVAO(TestString, TestStringSize, FontContrailOne24);
+                    RenderUIString(TestUIString);
                     UseShader(0);
 
                     // Swap buffer

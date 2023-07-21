@@ -9,7 +9,7 @@ char *
 ReadFile(const char *Path, size_t *Out_Size);
 
 i32
-GetNullTerminatedStringLength(char *String);
+GetNullTerminatedStringLength(const char *String);
 void 
 CatStrings(char *SourceA, i32 SourceACount,
            char *SourceB, i32 SourceBCount,

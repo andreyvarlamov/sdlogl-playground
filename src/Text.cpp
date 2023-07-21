@@ -9,54 +9,27 @@
 #include <cstdio>
 #include <cstdlib>
 
-struct glyph_info
+#include "Util.h"
+
+void
+PrepareRenderDataForString(const char *String, i32 StringLength, i32 OldStringLength, font_info *FontInfo, 
+                           i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight,
+                           f32 *Out_Positions, f32 *Out_UVs);
+
+font_info *
+RasterizeAndProcessFont(const char *FontPath, i32 FontSizePoints)
 {
-    i32 AtlasPosX;
-    i32 AtlasPosY;
-
-    i32 MinX;
-    i32 MaxX;
-    i32 MinY;
-    i32 MaxY;
-
-    i32 Advance;
-};
-
-#define FONT_COUNT 4
-#define GLYPH_COUNT 128
-
-struct font_info
-{
-    u32 AtlasGLID;
-    i32 AtlasWidth;
-    i32 AtlasHeight;
-
-    i32 Points;
-    i32 Height;
-    i32 Ascent;
-
-    glyph_info GlyphInfos[GLYPH_COUNT];
-};
-
-font_info FontInfos[FONT_COUNT];
-i32 NextUnusedFontID = 0;
-
-i32
-DEBUG_RasterizeFontIntoGLTexture(const char *FontPath, i32 FontSizePoints)
-{
-    Assert(NextUnusedFontID < FONT_COUNT);
-    i32 FontID = NextUnusedFontID++;
+    font_info *Result = (font_info *) malloc(sizeof(font_info));
 
     TTF_Font *Font = NULL;
     Font = TTF_OpenFont(FontPath, FontSizePoints);
-    FontInfos[FontID].Ascent = TTF_FontAscent(Font);
-    FontInfos[FontID].Height = TTF_FontHeight(Font);
+    Result->Height = TTF_FontHeight(Font);
 
-    glyph_info *GlyphInfos = FontInfos[FontID].GlyphInfos;
+    glyph_info *GlyphInfos = Result->GlyphInfos;
     SDL_Surface *RenderedGlyphs[128];
     SDL_Color WhiteColor = { 255, 255, 255,255 };
     i32 AtlasCellWidth = 0;
-    i32 AtlasCellHeight = FontInfos[FontID].Height;
+    i32 AtlasCellHeight = Result->Height;
     for (u8 Glyph = 32; Glyph < 128; ++Glyph)
     {
         i32 *MinX = &(GlyphInfos[Glyph].MinX);
@@ -81,8 +54,8 @@ DEBUG_RasterizeFontIntoGLTexture(const char *FontPath, i32 FontSizePoints)
     i32 AtlasRows = 8;
     i32 AtlasWidth = AtlasColumns * AtlasCellWidth;
     i32 AtlasHeight = AtlasRows * AtlasCellHeight;
-    FontInfos[FontID].AtlasWidth = AtlasWidth;
-    FontInfos[FontID].AtlasHeight = AtlasHeight;
+    Result->AtlasWidth = AtlasWidth;
+    Result->AtlasHeight = AtlasHeight;
     SDL_Surface *FontAtlas = SDL_CreateRGBSurface(0,
                                                   AtlasWidth,
                                                   AtlasHeight,
@@ -99,7 +72,7 @@ DEBUG_RasterizeFontIntoGLTexture(const char *FontPath, i32 FontSizePoints)
     for (u8 Glyph = 32; Glyph < 128; ++Glyph)
     {
         SDL_Surface *RenderedGlyph = RenderedGlyphs[Glyph];
-        glyph_info *GlyphInfo = &FontInfos[FontID].GlyphInfos[Glyph];
+        glyph_info *GlyphInfo = &Result->GlyphInfos[Glyph];
 
         Assert(RenderedGlyph);
         Assert(RenderedGlyph->format->BytesPerPixel == BytesPerPixel);
@@ -142,8 +115,8 @@ DEBUG_RasterizeFontIntoGLTexture(const char *FontPath, i32 FontSizePoints)
         RenderedGlyphs[Glyph] = 0;
     }
 
-    glGenTextures(1, &FontInfos[FontID].AtlasGLID);
-    glBindTexture(GL_TEXTURE_2D, FontInfos[FontID].AtlasGLID);
+    glGenTextures(1, &Result->AtlasGLID);
+    glBindTexture(GL_TEXTURE_2D, Result->AtlasGLID);
     // TODO: Don't really need all 4 channels, just need alpha, and can color in the shader with custom color
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8,
                  AtlasWidth, AtlasHeight,
@@ -159,38 +132,109 @@ DEBUG_RasterizeFontIntoGLTexture(const char *FontPath, i32 FontSizePoints)
     //SDL_SaveBMP(FontAtlas, "font_atlas_test.bmp");
     SDL_FreeSurface(FontAtlas);
 
-    return FontID;
+    return Result;
 }
 
-u32
-DEBUG_PrepareRenderDataForString(i32 FontID, const char *Text, i32 TextCount,
-                                 i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight)
+ui_string
+PrepareUIString(const char *Text, font_info *FontInfo,
+                i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight)
 {
-    font_info *FontInfo = &FontInfos[FontID];
+    ui_string Result;
 
-    i32 CurrentX = XPos;
-    i32 CurrentY = YPos;
+    Result.XPos = XPos;
+    Result.YPos = YPos;
+    Result.ScreenWidth = ScreenWidth;
+    Result.ScreenHeight = ScreenHeight;
+    Result.FontInfo = FontInfo;
 
-    size_t PositionsBufferSize = TextCount * 12 * sizeof(f32);
-    f32 *Positions = (f32 *)malloc(PositionsBufferSize);
-    size_t UVsBufferSize = TextCount * 12 * sizeof(f32);
-    f32 *UVs = (f32 *)malloc(UVsBufferSize);
+
+
+    Result.StringLength = GetNullTerminatedStringLength(Text);
+
+    Result.PositionsBufferSize = Result.StringLength * 12 * sizeof(f32);
+    Result.Positions = (f32 *) malloc(Result.PositionsBufferSize);
+    Result.UVsBufferSize = Result.StringLength * 12 * sizeof(f32);
+    Result.UVs = (f32 *) malloc(Result.UVsBufferSize);
+
+    PrepareRenderDataForString(Text, Result.StringLength, Result.StringLength, FontInfo,
+                               Result.XPos, Result.YPos, Result.ScreenWidth, Result.ScreenHeight,
+                               Result.Positions, Result.UVs);
+
+    glGenVertexArrays(1, &Result.VAO);
+    u32 VBO;
+    glGenBuffers(1, &VBO);
+    glBindVertexArray(Result.VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, Result.PositionsBufferSize + Result.UVsBufferSize, 0, GL_STATIC_DRAW); // TODO: Dynamic?
+    glBufferSubData(GL_ARRAY_BUFFER, 0, Result.PositionsBufferSize, Result.Positions);
+    glBufferSubData(GL_ARRAY_BUFFER, Result.PositionsBufferSize, Result.UVsBufferSize, Result.UVs);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(f32), (void *) 0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(f32), (void *) Result.PositionsBufferSize);
+
+    glBindVertexArray(0);
+
+    return Result;
+}
+
+void
+RenderUIString(ui_string UIString)
+{
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, UIString.FontInfo->AtlasGLID);
+
+    glBindVertexArray(UIString.VAO);
+    glDrawArrays(GL_TRIANGLES, 0, UIString.StringLength * 6);
+    glBindVertexArray(0);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void
+UpdateUIString(ui_string UIString, const char *NewText)
+{
+    i32 NewTextLength = GetNullTerminatedStringLength(NewText);
+    Assert(NewTextLength <= UIString.StringLength);
+
+    // NOTE: Do not want to update text length in UIString, because the buffer is capable of holding
+    //       the same length of strings throughout its lifetime.
+    PrepareRenderDataForString(NewText, NewTextLength, UIString.StringLength, UIString.FontInfo,
+                               UIString.XPos, UIString.YPos, UIString.ScreenWidth, UIString.ScreenHeight,
+                               UIString.Positions, UIString.UVs);
+
+    glBufferSubData(GL_ARRAY_BUFFER, 0, UIString.PositionsBufferSize, UIString.Positions);
+    glBufferSubData(GL_ARRAY_BUFFER, UIString.PositionsBufferSize, UIString.UVsBufferSize, UIString.UVs);
+}
+
+void
+PrepareRenderDataForString(const char *String, i32 StringLength, i32 OldStringLength, font_info *FontInfo, 
+                        i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight,
+                        f32 *Out_Positions, f32 *Out_UVs)
+{
+    Assert(StringLength <= OldStringLength);
 
     f32 HalfScreenWidth = (f32) ScreenWidth / 2.0f;
     f32 HalfScreenHeight = (f32) ScreenHeight / 2.0f;
     f32 AtlasWidth = (f32) FontInfo->AtlasWidth;
     f32 AtlasHeight = (f32) FontInfo->AtlasHeight;
 
-    // TODO: Shouldn't need TextCount
-    for (i32 TextIndex = 0; TextIndex < TextCount; ++TextIndex)
+    i32 CurrentX = XPos;
+    i32 CurrentY = YPos;
+    for (i32 TextIndex = 0; TextIndex < OldStringLength; ++TextIndex)
     {
-        u8 Glyph = Text[TextIndex];
+        u8 Glyph = String[TextIndex];
 
         if (Glyph == '\n')
         {
             CurrentX = XPos;
             CurrentY += FontInfo->Height;
             continue;
+        }
+
+        if (TextIndex >= StringLength)
+        {
+            Glyph = ' ';
         }
 
         glyph_info *GlyphInfo = &FontInfo->GlyphInfos[Glyph];
@@ -217,56 +261,20 @@ DEBUG_PrepareRenderDataForString(i32 FontID, const char *Text, i32 TextCount,
         f32 UVRight = (f32) (TextureX + TextureWidth) / AtlasWidth;
         f32 UVBottom = (f32) (TextureY + TextureHeight) / AtlasHeight;
 
-        Positions[TextIndex * 12 + 0]  = NDCLeft;  Positions[TextIndex * 12 + 1]  = NDCTop;
-        Positions[TextIndex * 12 + 2]  = NDCLeft;  Positions[TextIndex * 12 + 3]  = NDCBottom;
-        Positions[TextIndex * 12 + 4]  = NDCRight; Positions[TextIndex * 12 + 5]  = NDCTop;
-        Positions[TextIndex * 12 + 6]  = NDCRight; Positions[TextIndex * 12 + 7]  = NDCTop;
-        Positions[TextIndex * 12 + 8]  = NDCLeft;  Positions[TextIndex * 12 + 9]  = NDCBottom;
-        Positions[TextIndex * 12 + 10] = NDCRight; Positions[TextIndex * 12 + 11] = NDCBottom;
+        Out_Positions[TextIndex * 12 + 0]  = NDCLeft;  Out_Positions[TextIndex * 12 + 1]  = NDCTop;
+        Out_Positions[TextIndex * 12 + 2]  = NDCLeft;  Out_Positions[TextIndex * 12 + 3]  = NDCBottom;
+        Out_Positions[TextIndex * 12 + 4]  = NDCRight; Out_Positions[TextIndex * 12 + 5]  = NDCTop;
+        Out_Positions[TextIndex * 12 + 6]  = NDCRight; Out_Positions[TextIndex * 12 + 7]  = NDCTop;
+        Out_Positions[TextIndex * 12 + 8]  = NDCLeft;  Out_Positions[TextIndex * 12 + 9]  = NDCBottom;
+        Out_Positions[TextIndex * 12 + 10] = NDCRight; Out_Positions[TextIndex * 12 + 11] = NDCBottom;
 
-        UVs[TextIndex * 12 + 0]  = UVLeft;  UVs[TextIndex * 12 + 1]  = UVTop;
-        UVs[TextIndex * 12 + 2]  = UVLeft;  UVs[TextIndex * 12 + 3]  = UVBottom;
-        UVs[TextIndex * 12 + 4]  = UVRight; UVs[TextIndex * 12 + 5]  = UVTop;
-        UVs[TextIndex * 12 + 6]  = UVRight; UVs[TextIndex * 12 + 7]  = UVTop;
-        UVs[TextIndex * 12 + 8]  = UVLeft;  UVs[TextIndex * 12 + 9]  = UVBottom;
-        UVs[TextIndex * 12 + 10] = UVRight; UVs[TextIndex * 12 + 11] = UVBottom;
+        Out_UVs[TextIndex * 12 + 0]  = UVLeft;  Out_UVs[TextIndex * 12 + 1]  = UVTop;
+        Out_UVs[TextIndex * 12 + 2]  = UVLeft;  Out_UVs[TextIndex * 12 + 3]  = UVBottom;
+        Out_UVs[TextIndex * 12 + 4]  = UVRight; Out_UVs[TextIndex * 12 + 5]  = UVTop;
+        Out_UVs[TextIndex * 12 + 6]  = UVRight; Out_UVs[TextIndex * 12 + 7]  = UVTop;
+        Out_UVs[TextIndex * 12 + 8]  = UVLeft;  Out_UVs[TextIndex * 12 + 9]  = UVBottom;
+        Out_UVs[TextIndex * 12 + 10] = UVRight; Out_UVs[TextIndex * 12 + 11] = UVBottom;
 
         CurrentX += GlyphInfo->Advance;
     }
-
-    u32 VAO;
-    glGenVertexArrays(1, &VAO);
-    u32 VBO;
-    glGenBuffers(1, &VBO);
-
-    glBindVertexArray(VAO);
-    glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, PositionsBufferSize + UVsBufferSize, 0, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 0, PositionsBufferSize, Positions);
-    glBufferSubData(GL_ARRAY_BUFFER, PositionsBufferSize, UVsBufferSize, UVs);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(f32), (void *) 0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(f32), (void *) PositionsBufferSize);
-
-    glBindVertexArray(0);
-
-    free(Positions);
-    free(UVs);
-
-    // TODO: Should embed in a struct with more info: number of vertices, font atlas id
-    return VAO;
-}
-
-void
-DEBUG_RenderStringVAO(u32 VAO, i32 TextCount, i32 FontID)
-{
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, FontInfos[FontID].AtlasGLID);
-
-    glBindVertexArray(VAO);
-    glDrawArrays(GL_TRIANGLES, 0, TextCount * 6);
-    glBindVertexArray(0);
-
-    glBindTexture(GL_TEXTURE_2D, 0);
 }
