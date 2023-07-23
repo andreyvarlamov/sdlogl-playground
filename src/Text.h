@@ -62,11 +62,13 @@ RenderUIString(ui_string UIString);
 void
 UpdateUIString(ui_string UIString, const char *NewText);
 
+// TODO:
 //void
 //FreeFontInfoAndUnloadFromGPU(font_info *FontInfo);
 
-void
-UnloadUIStringFromGPU(ui_string UIString);
+// TODO:
+//void
+//UnloadUIStringFromGPU(ui_string UIString);
 
 void
 CalculateUIStringOffsetPosition(i32 XPos, i32 YPos, const char *OffsetColsByString, i32 OffsetRows,

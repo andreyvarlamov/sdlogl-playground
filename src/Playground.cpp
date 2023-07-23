@@ -30,8 +30,11 @@ f32 CameraYaw = -90.0f;
 f32 CameraPitch = 0.0f;
 bool CameraFPSMode = true;
 
+bool DebugUIToggle = false;
+
 bool CameraFPSModeButtonPressed = false;
 bool AdamMovementStateButtonPressed = false;
+bool DebugUIToggleButtonPressed = false;
 
 glm::vec3 AdamPosition(-1.0f, 0.0f, -4.0f);
 f32 AdamYaw = 0.0f;
@@ -177,24 +180,6 @@ main(int Argc, char *Argv[])
                 char DebugUI_DeltaTimeNumberBuffer[] = "000.00  ";
                 ui_string DebugUI_DeltaTimeNumber = PrepareUIString(DebugUI_DeltaTimeNumberBuffer, FontContrailOne24,
                                                                      DebugUI_DeltaTimeNumber_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
-                i32 DebugUI_WorkTimeText_X;
-                CalculateUIStringOffsetPosition(DebugUI_DeltaTimeNumber_X, DebugUI_Line2_Y, DebugUI_DeltaTimeNumberBuffer, 0, FontContrailOne24,
-                                                &DebugUI_WorkTimeText_X, NULL);
-                char DebugUI_WorkTimeTextBuffer[] = "| Work: ";
-                ui_string DebugUI_WorkTimeText = PrepareUIString(DebugUI_WorkTimeTextBuffer, FontContrailOne24,
-                                                                 DebugUI_WorkTimeText_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
-                i32 DebugUI_WorkTimeNumber_X;
-                CalculateUIStringOffsetPosition(DebugUI_WorkTimeText_X, DebugUI_Line2_Y, DebugUI_WorkTimeTextBuffer, 0, FontContrailOne24,
-                                                &DebugUI_WorkTimeNumber_X, NULL);
-                char DebugUI_WorkTimeNumberBuffer[] = "000.00  ";
-                ui_string DebugUI_WorkTimeNumber = PrepareUIString(DebugUI_WorkTimeNumberBuffer, FontContrailOne24,
-                                                                    DebugUI_WorkTimeNumber_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
-                i32 DebugUI_WorkTimePercent_X;
-                CalculateUIStringOffsetPosition(DebugUI_WorkTimeNumber_X, DebugUI_Line2_Y, DebugUI_WorkTimeNumberBuffer, 0, FontContrailOne24,
-                                                &DebugUI_WorkTimePercent_X, NULL);
-                char DebugUI_WorkTimePercentBuffer[] = "(100%)  ";
-                ui_string DebugUI_WorkTimePercent = PrepareUIString(DebugUI_WorkTimePercentBuffer, FontContrailOne24,
-                                                                    DebugUI_WorkTimePercent_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
 
                 // Timing data
                 // -----------
@@ -202,11 +187,9 @@ main(int Argc, char *Argv[])
                 u64 LastCounter = SDL_GetPerformanceCounter();
                 f64 PrevFrameDeltaTimeSec = 0.0f;
                 f64 FPS = 0.0f;
-                f64 PrevFrameWorkTimeSec = 0.0f;
                 i32 CurrentTimingSample = 0;
                 f64 DeltaTimeSamples[DEBUG_TIMING_AVG_SAMPLES] = {};
                 f64 FPSSamples[DEBUG_TIMING_AVG_SAMPLES] = {};
-                f64 WorkTimeSamples[DEBUG_TIMING_AVG_SAMPLES] = {};
                 // TODO: Remove this temp variable which is used for testing animations
                 f64 ElapsedTime = 0.0f;
 
@@ -226,8 +209,6 @@ main(int Argc, char *Argv[])
                             ShouldQuit = true;
                         }
                     }
-
-                    u64 WorkCounterStart = SDL_GetPerformanceCounter();
 
                     // Process input
                     // -------------
@@ -285,6 +266,15 @@ main(int Argc, char *Argv[])
                     else if (!CurrentKeyStates[SDL_SCANCODE_T])
                     {
                         AdamMovementStateButtonPressed = false;
+                    }
+                    if (CurrentKeyStates[SDL_SCANCODE_F3] && !DebugUIToggleButtonPressed)
+                    {
+                        DebugUIToggleButtonPressed = true;
+                        DebugUIToggle = !DebugUIToggle;
+                    }
+                    else if (!CurrentKeyStates[SDL_SCANCODE_F3])
+                    {
+                        DebugUIToggleButtonPressed = false;
                     }
                     i32 MouseDeltaX, MouseDeltaY;
                     u32 MouseButtons = SDL_GetRelativeMouseState(&MouseDeltaX, &MouseDeltaY);
@@ -351,13 +341,6 @@ main(int Argc, char *Argv[])
                     glm::mat4 ViewTransform = glm::lookAt(CameraPosition, CameraPosition + CameraFront, CameraUp);
 
                     SetUniformMat4F(StaticMeshShader, "Projection", true, glm::value_ptr(ProjectionTransform));
-
-                    u64 BeforeFlipCounter = SDL_GetPerformanceCounter();
-                    u64 BeforeFlipCounterElapsed = BeforeFlipCounter - WorkCounterStart;
-                    PrevFrameWorkTimeSec = (f64) BeforeFlipCounterElapsed / (f64) PerfCounterFrequency;
-                    printf("%f\n", PrevFrameWorkTimeSec);
-                    WorkTimeSamples[CurrentTimingSample] = PrevFrameWorkTimeSec;
-
                     SetUniformMat4F(StaticMeshShader, "View", false, glm::value_ptr(ViewTransform));
                     SetUniformVec3F(StaticMeshShader, "ViewPosition", false, &CameraPosition[0]);
 
@@ -396,15 +379,11 @@ main(int Argc, char *Argv[])
                     SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
                     RenderModel(&WallModel, StaticMeshShader);
                     // snowman
-                    for (i32 Index = 0; Index < 1; ++Index)
-                    {
-                        ModelTransform = glm::mat4(1.0f);
-                        f32 Offset = (f32) Index / 1000.0f;
-                        ModelTransform = glm::translate(ModelTransform, glm::vec3(Offset, 0.0f, -5.0f));
-                        ModelTransform = glm::rotate(ModelTransform, (f32) ElapsedTime * 2.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-                        SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
-                        RenderModel(&SnowmanModel, StaticMeshShader);
-                    }
+                    ModelTransform = glm::mat4(1.0f);
+                    ModelTransform = glm::translate(ModelTransform, glm::vec3(0.0f, 0.0f, -5.0f));
+                    ModelTransform = glm::rotate(ModelTransform, (f32) ElapsedTime * 2.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+                    SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
+                    RenderModel(&SnowmanModel, StaticMeshShader);
                     // adam
                     ModelTransform = glm::mat4(1.0f);
                     glm::vec3 AdamPositionDelta(0.0f);
@@ -434,60 +413,36 @@ main(int Argc, char *Argv[])
                     // Render Debug UI
                     // ---------------
 
-                    UseShader(BasicTextShader);
-
-                    if (CurrentTimingSample == 0)
+                    if (DebugUIToggle)
                     {
-                        f64 FPSAverage = 0.0f;
-                        f64 DeltaTimeAverage = 0.0f;
-                        f64 WorkTimeAverage = 0.0f;
-                        for (i32 Index = 0; Index < DEBUG_TIMING_AVG_SAMPLES; ++Index)
+                        UseShader(BasicTextShader);
+
+                        if (CurrentTimingSample == 0)
                         {
-                            FPSAverage += FPSSamples[Index];
-                            DeltaTimeAverage += DeltaTimeSamples[Index];
-                            WorkTimeAverage += WorkTimeSamples[Index];
-                        }
-                        FPSAverage = FPSAverage / (f64) DEBUG_TIMING_AVG_SAMPLES;
-                        DeltaTimeAverage = DeltaTimeAverage / (f64) DEBUG_TIMING_AVG_SAMPLES;
-                        WorkTimeAverage = WorkTimeAverage / (f64) DEBUG_TIMING_AVG_SAMPLES;
-                        f32 WorkPercent;
-                        if (DeltaTimeAverage > 0.0f)
-                        {
-                            WorkPercent = (f32) (WorkTimeAverage / DeltaTimeAverage * 100.0);
-                        }
-                        else
-                        {
-                            WorkPercent = 0.0f;
+                            f64 FPSAverage = 0.0f;
+                            f64 DeltaTimeAverage = 0.0f;
+                            for (i32 Index = 0; Index < DEBUG_TIMING_AVG_SAMPLES; ++Index)
+                            {
+                                FPSAverage += FPSSamples[Index];
+                                DeltaTimeAverage += DeltaTimeSamples[Index];
+                            }
+                            FPSAverage = FPSAverage / (f64) DEBUG_TIMING_AVG_SAMPLES;
+                            DeltaTimeAverage = DeltaTimeAverage / (f64) DEBUG_TIMING_AVG_SAMPLES;
+
+                            sprintf_s(DebugUI_FPSCounterNumberBuffer, "%.2f", FPSAverage);
+                            UpdateUIString(DebugUI_FPSCounterNumber, DebugUI_FPSCounterNumberBuffer);
+                            sprintf_s(DebugUI_DeltaTimeNumberBuffer, "%.2f", DeltaTimeAverage * 1000.0);
+                            UpdateUIString(DebugUI_DeltaTimeNumber, DebugUI_DeltaTimeNumberBuffer);
                         }
 
-                        sprintf_s(DebugUI_FPSCounterNumberBuffer, "%.2f", FPSAverage);
-                        UpdateUIString(DebugUI_FPSCounterNumber, DebugUI_FPSCounterNumberBuffer);
-                        sprintf_s(DebugUI_DeltaTimeNumberBuffer, "%.2f", DeltaTimeAverage * 1000.0);
-                        UpdateUIString(DebugUI_DeltaTimeNumber, DebugUI_DeltaTimeNumberBuffer);
-                        sprintf_s(DebugUI_WorkTimeNumberBuffer, "%.2f", WorkTimeAverage * 1000.0);
-                        UpdateUIString(DebugUI_WorkTimeNumber, DebugUI_WorkTimeNumberBuffer);
-                        sprintf_s(DebugUI_WorkTimePercentBuffer, "(%.0f%%)", WorkPercent);
-                        UpdateUIString(DebugUI_WorkTimePercent, DebugUI_WorkTimePercentBuffer);
+                        RenderUIString(DebugUI_GLInfo);
+                        RenderUIString(DebugUI_FPSCounterText);
+                        RenderUIString(DebugUI_FPSCounterNumber);
+                        RenderUIString(DebugUI_DeltaTimeText);
+                        RenderUIString(DebugUI_DeltaTimeNumber);
+                    
+                        UseShader(0);
                     }
-
-                    RenderUIString(DebugUI_GLInfo);
-                    RenderUIString(DebugUI_FPSCounterText);
-                    RenderUIString(DebugUI_FPSCounterNumber);
-                    RenderUIString(DebugUI_DeltaTimeText);
-                    RenderUIString(DebugUI_DeltaTimeNumber);
-                    RenderUIString(DebugUI_WorkTimeText);
-                    RenderUIString(DebugUI_WorkTimeNumber);
-                    RenderUIString(DebugUI_WorkTimePercent);
-
-                    UseShader(0);
-
-                    // Timing before frame flip
-                    // ------------------------
-                    //u64 BeforeFlipCounter = SDL_GetPerformanceCounter();
-                    //u64 BeforeFlipCounterElapsed = BeforeFlipCounter - WorkCounterStart;
-                    //PrevFrameWorkTimeSec = (f64) BeforeFlipCounterElapsed / (f64) PerfCounterFrequency;
-                    //printf("%f\n", PrevFrameWorkTimeSec);
-                    //WorkTimeSamples[CurrentTimingSample] = PrevFrameWorkTimeSec;
 
                     // Swap buffer
                     // -----------
@@ -495,11 +450,11 @@ main(int Argc, char *Argv[])
 
                     // Timing
                     // ------
-                    u64 AfterFlipCounter = SDL_GetPerformanceCounter();
-                    u64 AfterFlipCounterElapsed = AfterFlipCounter - LastCounter;
-                    LastCounter = AfterFlipCounter;
-                    PrevFrameDeltaTimeSec = (f64) AfterFlipCounterElapsed / (f64) PerfCounterFrequency;
-                    FPS = (f64) PerfCounterFrequency / (f64) AfterFlipCounterElapsed;
+                    u64 CurrentCounter = SDL_GetPerformanceCounter();
+                    u64 CounterElapsed = CurrentCounter - LastCounter;
+                    LastCounter = CurrentCounter;
+                    PrevFrameDeltaTimeSec = (f64) CounterElapsed / (f64) PerfCounterFrequency;
+                    FPS = (f64) PerfCounterFrequency / (f64) CounterElapsed;
                     DeltaTimeSamples[CurrentTimingSample] = PrevFrameDeltaTimeSec;
                     FPSSamples[CurrentTimingSample] = FPS;
                     ++CurrentTimingSample;
