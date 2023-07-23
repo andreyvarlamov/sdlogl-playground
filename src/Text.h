@@ -68,4 +68,8 @@ UpdateUIString(ui_string UIString, const char *NewText);
 void
 UnloadUIStringFromGPU(ui_string UIString);
 
+void
+CalculateUIStringOffsetPosition(i32 XPos, i32 YPos, const char *OffsetColsByString, i32 OffsetRows,
+                                font_info *FontInfo, i32 *Out_OffsetXPos, i32 *Out_OffsetYPos);
+
 #endif

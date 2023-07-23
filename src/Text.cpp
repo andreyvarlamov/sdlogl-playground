@@ -282,3 +282,28 @@ PrepareRenderDataForString(const char *String, i32 StringLength, i32 BufferLengt
         CurrentX += GlyphInfo->Advance;
     }
 }
+
+void
+CalculateUIStringOffsetPosition(i32 XPos, i32 YPos, const char *OffsetColsByString, i32 OffsetRows,
+                                font_info *FontInfo, i32 *Out_OffsetXPos, i32 *Out_OffsetYPos)
+{
+    if (Out_OffsetXPos)
+    {
+        *Out_OffsetXPos = XPos;
+
+        if (OffsetColsByString)
+        {
+            while(*OffsetColsByString)
+            {
+                *Out_OffsetXPos += FontInfo->GlyphInfos[*OffsetColsByString].Advance;
+                OffsetColsByString++;
+            }
+        }
+    }
+
+    if (Out_OffsetYPos)
+    {
+        *Out_OffsetYPos = YPos;
+        *Out_OffsetYPos += OffsetRows * FontInfo->Height;
+    }
+}

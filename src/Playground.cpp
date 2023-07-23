@@ -37,6 +37,8 @@ glm::vec3 AdamPosition(-1.0f, 0.0f, -4.0f);
 f32 AdamYaw = 0.0f;
 i32 AdamMovementState = 0;
 
+#define DEBUG_TIMING_AVG_SAMPLES 10
+
 int
 main(int Argc, char *Argv[])
 {
@@ -92,13 +94,6 @@ main(int Argc, char *Argv[])
 
                 font_info *FontContrailOne24 =
                     RasterizeAndProcessFont("resources/fonts/ContrailOne-Regular.ttf", 24);
-                char TestCounterBuffer[64];
-                i32 TestCounter = 0;
-                f32 TestCounterAccumulator = 0.0f;
-                sprintf(TestCounterBuffer, "Counter: %d       ", TestCounter);
-                ui_string TestUIString = 
-                    PrepareUIString(TestCounterBuffer,
-                                    FontContrailOne24, 10, 10, SCREEN_WIDTH, SCREEN_HEIGHT);
 
                 // Load shaders
                 // ------------
@@ -112,45 +107,9 @@ main(int Argc, char *Argv[])
                 u32 BasicTextShader =
                     BuildShaderProgram("resources/shaders/BasicText.vs",
                                        "resources/shaders/BasicText.fs");
-                f32 BasicTextVertices[] = {
-                    -1.0,  1.0,  0.0,  1.0,
-                     1.0,  1.0,  1.0,  1.0,
-                    -1.0, -1.0,  0.0,  0.0,
-                     1.0, -1.0,  1.0,  0.0
-                };
-                u32 BasicTextIndices[] = {
-                    1, 0, 2,
-                    1, 2, 3
-                };
-                u32 BasicTextVAO;
-                glGenVertexArrays(1, &BasicTextVAO);
-                glBindVertexArray(BasicTextVAO);
-                u32 BasicTextVBO;
-                glGenBuffers(1, &BasicTextVBO);
-                glBindBuffer(GL_ARRAY_BUFFER, BasicTextVBO);
-                glBufferData(GL_ARRAY_BUFFER, sizeof(BasicTextVertices), BasicTextVertices, GL_STATIC_DRAW);
-                u32 BasicTextEBO;
-                glGenBuffers(1, &BasicTextEBO);
-                glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, BasicTextEBO);
-                glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(BasicTextIndices), BasicTextIndices, GL_STATIC_DRAW);
-
-                glEnableVertexAttribArray(0);
-                glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(f32), (void *) 0);
-                glEnableVertexAttribArray(1);
-                glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(f32), (void *) (2 * sizeof(f32)));
-
-                glBindVertexArray(0);
-
-                SetUniformInt(BasicTextShader, "FontAtlas", true, 0);
-
-                //SetUniformMat4F(BasicTextShader, "TextScale", false, glm::value_ptr(TextScale));
 
                 // Load models
                 // -----------
-                //skinned_model AtlbetaModel = LoadSkinnedModel("resources/models/animtest/atlbeta12.gltf");
-                //AtlbetaModel.AnimationState.CurrentAnimationA = 0;
-                //AtlbetaModel.AnimationState.CurrentAnimationB = 1;
-                //AtlbetaModel.AnimationState.BlendingFactor = 0.0f;
                 model SnowmanModel = LoadModel("resources/models/snowman/snowman.objm", true);
                 model ContainerModel = LoadModel("resources/models/container/container.objm", true);
                 model FloorModel = LoadModel("resources/models/primitives/floor.gltf", true);
@@ -174,6 +133,8 @@ main(int Argc, char *Argv[])
                 SetUniformInt(SkinnedMeshShader, "SpecularMap", false, 1);
                 SetUniformInt(SkinnedMeshShader, "EmissionMap", false, 2);
                 SetUniformInt(SkinnedMeshShader, "NormalMap", false, 3);
+                
+                SetUniformInt(BasicTextShader, "FontAtlas", true, 0);
 
                 // Light configuration
                 // -------------------
@@ -181,10 +142,77 @@ main(int Argc, char *Argv[])
                 SetUniformVec3F(StaticMeshShader, "LightDirection", true, &LightDir[0]);
                 SetUniformVec3F(SkinnedMeshShader, "LightDirection", true, &LightDir[0]);
 
+                // Debug UI setup
+                // --------------
+                i32 DebugUI_X = 10;
+                i32 DebugUI_Y = 10;
+                char DebugUI_GLInfoBuffer[256];
+                sprintf_s(DebugUI_GLInfoBuffer, "OpenGL %s (%s)",
+                          glGetString(GL_VERSION),
+                          glGetString(GL_RENDERER));
+                ui_string DebugUI_GLInfo = PrepareUIString(DebugUI_GLInfoBuffer, FontContrailOne24,
+                                                           DebugUI_X, DebugUI_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+                i32 DebugUI_Line2_Y;
+                CalculateUIStringOffsetPosition(DebugUI_X, DebugUI_Y, NULL, 1, FontContrailOne24,
+                                                NULL, &DebugUI_Line2_Y);
+                char DebugUI_FPSCounterTextBuffer[] = "FPS: ";
+                ui_string DebugUI_FPSCounterText = PrepareUIString(DebugUI_FPSCounterTextBuffer, FontContrailOne24,
+                                                                   DebugUI_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
+                i32 DebugUI_FPSCounterNumber_X;
+                CalculateUIStringOffsetPosition(DebugUI_X, DebugUI_Y, DebugUI_FPSCounterTextBuffer, 1, FontContrailOne24,
+                                                &DebugUI_FPSCounterNumber_X, NULL);
+                char DebugUI_FPSCounterNumberBuffer[] = "000.00  ";
+                ui_string DebugUI_FPSCounterNumber = PrepareUIString(DebugUI_FPSCounterNumberBuffer, FontContrailOne24,
+                                                                     DebugUI_FPSCounterNumber_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
+                i32 DebugUI_DeltaTimeText_X;
+                CalculateUIStringOffsetPosition(DebugUI_FPSCounterNumber_X, DebugUI_Line2_Y, DebugUI_FPSCounterNumberBuffer, 0, FontContrailOne24,
+                                                &DebugUI_DeltaTimeText_X, NULL);
+                char DebugUI_DeltaTimeTextBuffer[] = "| MS: ";
+                ui_string DebugUI_DeltaTimeText = PrepareUIString(DebugUI_DeltaTimeTextBuffer, FontContrailOne24,
+                                                                  DebugUI_DeltaTimeText_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
+                i32 DebugUI_DeltaTimeNumber_X;
+                CalculateUIStringOffsetPosition(DebugUI_DeltaTimeText_X, DebugUI_Line2_Y, DebugUI_DeltaTimeTextBuffer, 0, FontContrailOne24,
+                                                &DebugUI_DeltaTimeNumber_X, NULL);
+                char DebugUI_DeltaTimeNumberBuffer[] = "000.00  ";
+                ui_string DebugUI_DeltaTimeNumber = PrepareUIString(DebugUI_DeltaTimeNumberBuffer, FontContrailOne24,
+                                                                     DebugUI_DeltaTimeNumber_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
+                i32 DebugUI_WorkTimeText_X;
+                CalculateUIStringOffsetPosition(DebugUI_DeltaTimeNumber_X, DebugUI_Line2_Y, DebugUI_DeltaTimeNumberBuffer, 0, FontContrailOne24,
+                                                &DebugUI_WorkTimeText_X, NULL);
+                char DebugUI_WorkTimeTextBuffer[] = "| Work: ";
+                ui_string DebugUI_WorkTimeText = PrepareUIString(DebugUI_WorkTimeTextBuffer, FontContrailOne24,
+                                                                 DebugUI_WorkTimeText_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
+                i32 DebugUI_WorkTimeNumber_X;
+                CalculateUIStringOffsetPosition(DebugUI_WorkTimeText_X, DebugUI_Line2_Y, DebugUI_WorkTimeTextBuffer, 0, FontContrailOne24,
+                                                &DebugUI_WorkTimeNumber_X, NULL);
+                char DebugUI_WorkTimeNumberBuffer[] = "000.00  ";
+                ui_string DebugUI_WorkTimeNumber = PrepareUIString(DebugUI_WorkTimeNumberBuffer, FontContrailOne24,
+                                                                    DebugUI_WorkTimeNumber_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
+                i32 DebugUI_WorkTimePercent_X;
+                CalculateUIStringOffsetPosition(DebugUI_WorkTimeNumber_X, DebugUI_Line2_Y, DebugUI_WorkTimeNumberBuffer, 0, FontContrailOne24,
+                                                &DebugUI_WorkTimePercent_X, NULL);
+                char DebugUI_WorkTimePercentBuffer[] = "(100%)  ";
+                ui_string DebugUI_WorkTimePercent = PrepareUIString(DebugUI_WorkTimePercentBuffer, FontContrailOne24,
+                                                                    DebugUI_WorkTimePercent_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+                // Timing data
+                // -----------
+                u64 PerfCounterFrequency = SDL_GetPerformanceFrequency();
+                u64 LastCounter = SDL_GetPerformanceCounter();
+                f64 PrevFrameDeltaTimeSec = 0.0f;
+                f64 FPS = 0.0f;
+                f64 PrevFrameWorkTimeSec = 0.0f;
+                i32 CurrentTimingSample = 0;
+                f64 DeltaTimeSamples[DEBUG_TIMING_AVG_SAMPLES] = {};
+                f64 FPSSamples[DEBUG_TIMING_AVG_SAMPLES] = {};
+                f64 WorkTimeSamples[DEBUG_TIMING_AVG_SAMPLES] = {};
+                // TODO: Remove this temp variable which is used for testing animations
+                f64 ElapsedTime = 0.0f;
+
                 // Game Loop
                 // ---------
-                f32 DeltaTime = 0.0f;
-                u64 LastFrame = 0;
+
                 SDL_Event SdlEvent;
                 bool ShouldQuit = false;
                 while (!ShouldQuit)
@@ -199,11 +227,7 @@ main(int Argc, char *Argv[])
                         }
                     }
 
-                    // Timing
-                    // ------
-                    u64 CurrentFrame = SDL_GetTicks64();
-                    DeltaTime = (f32)((f64)(CurrentFrame - LastFrame) / 1000.0);
-                    LastFrame = CurrentFrame;
+                    u64 WorkCounterStart = SDL_GetPerformanceCounter();
 
                     // Process input
                     // -------------
@@ -223,7 +247,7 @@ main(int Argc, char *Argv[])
                     }
                     if (CurrentKeyStates[SDL_SCANCODE_Y])
                     {
-                        AdamYaw += DeltaTime * 180.0f;
+                        AdamYaw += (f32) PrevFrameDeltaTimeSec * 180.0f;
                         if (AdamYaw > 360.0f)
                         {
                             AdamYaw -= 360.0f;
@@ -231,7 +255,7 @@ main(int Argc, char *Argv[])
                     }
                     if (CurrentKeyStates[SDL_SCANCODE_U])
                     {
-                        AdamYaw -= DeltaTime * 180.0f;
+                        AdamYaw -= (f32) PrevFrameDeltaTimeSec * 180.0f;
                         if (AdamYaw < 0.0f)
                         {
                             AdamYaw += 360.0f;
@@ -310,7 +334,7 @@ main(int Argc, char *Argv[])
                             Velocity.y = 0.0f;
                         }
                         glm::vec3 NormalizedVelocity = glm::normalize(Velocity);
-                        glm::vec3 PositionDelta = NormalizedVelocity * CameraMovementSpeed * DeltaTime;
+                        glm::vec3 PositionDelta = NormalizedVelocity * CameraMovementSpeed * (f32) PrevFrameDeltaTimeSec;
                         CameraPosition += PositionDelta;
                     }
 
@@ -327,6 +351,13 @@ main(int Argc, char *Argv[])
                     glm::mat4 ViewTransform = glm::lookAt(CameraPosition, CameraPosition + CameraFront, CameraUp);
 
                     SetUniformMat4F(StaticMeshShader, "Projection", true, glm::value_ptr(ProjectionTransform));
+
+                    u64 BeforeFlipCounter = SDL_GetPerformanceCounter();
+                    u64 BeforeFlipCounterElapsed = BeforeFlipCounter - WorkCounterStart;
+                    PrevFrameWorkTimeSec = (f64) BeforeFlipCounterElapsed / (f64) PerfCounterFrequency;
+                    printf("%f\n", PrevFrameWorkTimeSec);
+                    WorkTimeSamples[CurrentTimingSample] = PrevFrameWorkTimeSec;
+
                     SetUniformMat4F(StaticMeshShader, "View", false, glm::value_ptr(ViewTransform));
                     SetUniformVec3F(StaticMeshShader, "ViewPosition", false, &CameraPosition[0]);
 
@@ -344,7 +375,7 @@ main(int Argc, char *Argv[])
                     RenderModel(&FloorModel, StaticMeshShader);
                     // container 1
                     ModelTransform = glm::mat4(1.0f);
-                    ModelTransform = glm::rotate(ModelTransform, CurrentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+                    ModelTransform = glm::rotate(ModelTransform, (f32) ElapsedTime, glm::vec3(0.0f, 1.0f, 0.0f));
                     ModelTransform = glm::scale(ModelTransform, glm::vec3(1.0f));
                     SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
                     RenderModel(&ContainerModel, StaticMeshShader);
@@ -357,7 +388,7 @@ main(int Argc, char *Argv[])
                     // quad wall
                     ModelTransform = glm::mat4(1.0f);
                     ModelTransform = glm::translate(ModelTransform, glm::vec3(-10.0f, 0.0f, 0.0f));
-                    ModelTransform = glm::rotate(ModelTransform, CurrentFrame / 1000.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+                    ModelTransform = glm::rotate(ModelTransform, (f32) ElapsedTime, glm::vec3(0.0f, 1.0f, 0.0f));
                     SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
                     RenderModel(&WallModel, StaticMeshShader);
                     // other side of wall (no z-fighting because faces are culled)
@@ -365,18 +396,15 @@ main(int Argc, char *Argv[])
                     SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
                     RenderModel(&WallModel, StaticMeshShader);
                     // snowman
-                    ModelTransform = glm::mat4(1.0f);
-                    ModelTransform = glm::translate(ModelTransform, glm::vec3(0.0f, 0.0f, -5.0f));
-                    ModelTransform = glm::rotate(ModelTransform, CurrentFrame / 500.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-                    SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
-                    RenderModel(&SnowmanModel, StaticMeshShader);
-                    // animtest
-                    //ModelTransform = glm::mat4(1.0f);
-                    //ModelTransform = glm::translate(ModelTransform, glm::vec3(5.0f, 0.0f, 3.0f));
-                    //ModelTransform = glm::rotate(ModelTransform, glm::radians(-90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-                    //ModelTransform = glm::scale(ModelTransform, glm::vec3(0.5f));
-                    //SetUniformMat4F(SkinnedMeshShader, "Model", true, glm::value_ptr(ModelTransform));
-                    //RenderSkinnedModel(&AtlbetaModel, SkinnedMeshShader, DeltaTime);
+                    for (i32 Index = 0; Index < 1; ++Index)
+                    {
+                        ModelTransform = glm::mat4(1.0f);
+                        f32 Offset = (f32) Index / 1000.0f;
+                        ModelTransform = glm::translate(ModelTransform, glm::vec3(Offset, 0.0f, -5.0f));
+                        ModelTransform = glm::rotate(ModelTransform, (f32) ElapsedTime * 2.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+                        SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
+                        RenderModel(&SnowmanModel, StaticMeshShader);
+                    }
                     // adam
                     ModelTransform = glm::mat4(1.0f);
                     glm::vec3 AdamPositionDelta(0.0f);
@@ -394,33 +422,92 @@ main(int Argc, char *Argv[])
 
                         glm::vec3 Direction(sin(glm::radians(AdamYaw)), 0.0f, cos(glm::radians(AdamYaw)));
 
-                        AdamPositionDelta = Velocity * DeltaTime * Direction;
+                        AdamPositionDelta = Direction * Velocity * (f32) PrevFrameDeltaTimeSec;
                     }
                     AdamPosition += AdamPositionDelta;
                     ModelTransform = glm::translate(ModelTransform, AdamPosition);
                     ModelTransform = glm::rotate(ModelTransform, glm::radians(AdamYaw), glm::vec3(0.0f, 1.0f, 0.0f));
                     //ModelTransform = glm::scale(ModelTransform, glm::vec3(0.5f));
                     SetUniformMat4F(SkinnedMeshShader, "Model", true, glm::value_ptr(ModelTransform));
-                    RenderSkinnedModel(&AdamModel, SkinnedMeshShader, DeltaTime);
+                    RenderSkinnedModel(&AdamModel, SkinnedMeshShader, (f32) PrevFrameDeltaTimeSec);
 
-                    // Render UI
-                    // ---------
+                    // Render Debug UI
+                    // ---------------
 
                     UseShader(BasicTextShader);
-                    TestCounterAccumulator += DeltaTime;
-                    if (TestCounterAccumulator >= 0.01f)
+
+                    if (CurrentTimingSample == 0)
                     {
-                        TestCounterAccumulator = 0.0f;
-                        TestCounter++;
-                        sprintf(TestCounterBuffer, "Counter: %d", TestCounter);
-                        UpdateUIString(TestUIString, TestCounterBuffer);
+                        f64 FPSAverage = 0.0f;
+                        f64 DeltaTimeAverage = 0.0f;
+                        f64 WorkTimeAverage = 0.0f;
+                        for (i32 Index = 0; Index < DEBUG_TIMING_AVG_SAMPLES; ++Index)
+                        {
+                            FPSAverage += FPSSamples[Index];
+                            DeltaTimeAverage += DeltaTimeSamples[Index];
+                            WorkTimeAverage += WorkTimeSamples[Index];
+                        }
+                        FPSAverage = FPSAverage / (f64) DEBUG_TIMING_AVG_SAMPLES;
+                        DeltaTimeAverage = DeltaTimeAverage / (f64) DEBUG_TIMING_AVG_SAMPLES;
+                        WorkTimeAverage = WorkTimeAverage / (f64) DEBUG_TIMING_AVG_SAMPLES;
+                        f32 WorkPercent;
+                        if (DeltaTimeAverage > 0.0f)
+                        {
+                            WorkPercent = (f32) (WorkTimeAverage / DeltaTimeAverage * 100.0);
+                        }
+                        else
+                        {
+                            WorkPercent = 0.0f;
+                        }
+
+                        sprintf_s(DebugUI_FPSCounterNumberBuffer, "%.2f", FPSAverage);
+                        UpdateUIString(DebugUI_FPSCounterNumber, DebugUI_FPSCounterNumberBuffer);
+                        sprintf_s(DebugUI_DeltaTimeNumberBuffer, "%.2f", DeltaTimeAverage * 1000.0);
+                        UpdateUIString(DebugUI_DeltaTimeNumber, DebugUI_DeltaTimeNumberBuffer);
+                        sprintf_s(DebugUI_WorkTimeNumberBuffer, "%.2f", WorkTimeAverage * 1000.0);
+                        UpdateUIString(DebugUI_WorkTimeNumber, DebugUI_WorkTimeNumberBuffer);
+                        sprintf_s(DebugUI_WorkTimePercentBuffer, "(%.0f%%)", WorkPercent);
+                        UpdateUIString(DebugUI_WorkTimePercent, DebugUI_WorkTimePercentBuffer);
                     }
-                    RenderUIString(TestUIString);
+
+                    RenderUIString(DebugUI_GLInfo);
+                    RenderUIString(DebugUI_FPSCounterText);
+                    RenderUIString(DebugUI_FPSCounterNumber);
+                    RenderUIString(DebugUI_DeltaTimeText);
+                    RenderUIString(DebugUI_DeltaTimeNumber);
+                    RenderUIString(DebugUI_WorkTimeText);
+                    RenderUIString(DebugUI_WorkTimeNumber);
+                    RenderUIString(DebugUI_WorkTimePercent);
+
                     UseShader(0);
+
+                    // Timing before frame flip
+                    // ------------------------
+                    //u64 BeforeFlipCounter = SDL_GetPerformanceCounter();
+                    //u64 BeforeFlipCounterElapsed = BeforeFlipCounter - WorkCounterStart;
+                    //PrevFrameWorkTimeSec = (f64) BeforeFlipCounterElapsed / (f64) PerfCounterFrequency;
+                    //printf("%f\n", PrevFrameWorkTimeSec);
+                    //WorkTimeSamples[CurrentTimingSample] = PrevFrameWorkTimeSec;
 
                     // Swap buffer
                     // -----------
                     SDL_GL_SwapWindow(Window);
+
+                    // Timing
+                    // ------
+                    u64 AfterFlipCounter = SDL_GetPerformanceCounter();
+                    u64 AfterFlipCounterElapsed = AfterFlipCounter - LastCounter;
+                    LastCounter = AfterFlipCounter;
+                    PrevFrameDeltaTimeSec = (f64) AfterFlipCounterElapsed / (f64) PerfCounterFrequency;
+                    FPS = (f64) PerfCounterFrequency / (f64) AfterFlipCounterElapsed;
+                    DeltaTimeSamples[CurrentTimingSample] = PrevFrameDeltaTimeSec;
+                    FPSSamples[CurrentTimingSample] = FPS;
+                    ++CurrentTimingSample;
+                    if (CurrentTimingSample >= DEBUG_TIMING_AVG_SAMPLES)
+                    {
+                        CurrentTimingSample = 0;
+                    }
+                    ElapsedTime += PrevFrameDeltaTimeSec;
                 }
             }
             else
