@@ -24,6 +24,7 @@ RasterizeAndProcessFont(const char *FontPath, i32 FontSizePoints)
     TTF_Font *Font = NULL;
     Font = TTF_OpenFont(FontPath, FontSizePoints);
     Result->Height = TTF_FontHeight(Font);
+    Result->Points = FontSizePoints;
 
     glyph_info *GlyphInfos = Result->GlyphInfos;
     SDL_Surface *RenderedGlyphs[128];
