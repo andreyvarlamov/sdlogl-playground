@@ -45,7 +45,7 @@ DEBUG_MoveCube(cube *Cube, f32 DeltaTime, glm::vec3 Velocity);
 void
 DEBUG_ProcessCubePosition(cube *Cube);
 void
-DEBUG_CheckCollisions(cube *CubeA, cube *CubeB);
+DEBUG_CheckCollisions(cube *CubeA, cube *CubeB, glm::vec3 AVelocity);
 void
 DEBUG_GetAABB(cube *Cube, glm::vec3 *Out_Min, glm::vec3 *Out_Max, glm::vec3 *Out_Center, glm::vec3 *Out_Extents);
 void
@@ -183,7 +183,7 @@ DEBUG_MoveCube(cube *Cube, f32 DeltaTime, glm::vec3 Velocity)
 
     DEBUG_ProcessCubePosition(Cube);
 
-    DEBUG_CheckCollisions(Cube, &CubeStatic);
+    DEBUG_CheckCollisions(Cube, &CubeStatic, Velocity);
 
     if (Cube->IsColliding)
     {
@@ -212,7 +212,7 @@ DEBUG_ProcessCubePosition(cube *Cube)
 }
 
 void
-DEBUG_CheckCollisions(cube *CubeA, cube *CubeB)
+DEBUG_CheckCollisions(cube *CubeA, cube *CubeB, glm::vec3 AVelocity)
 {
     glm::vec3 CubeAMin;
     glm::vec3 CubeAMax;
@@ -234,24 +234,19 @@ DEBUG_CheckCollisions(cube *CubeA, cube *CubeB)
 
     if (IsColliding)
     {
-        glm::vec3 Direction = glm::normalize(CubeBCenter - CubeACenter);
-        f32 GreatestAxisValue = 0.0f;
-        i32 GreatestAxis = 0;
+        glm::vec3 MovementDirection = glm::normalize(AVelocity);
+        
         for (i32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
         {
-            if (fabs(Direction[AxisIndex]) > GreatestAxisValue)
+            f32 Scale = fabs(MovementDirection[AxisIndex]);
+            if (MovementDirection[AxisIndex] > 0.0f) // NOTE: assumes centers never coincide (wrong obv)
             {
-                GreatestAxisValue = fabs(Direction[AxisIndex]);
-                GreatestAxis = AxisIndex;
+                CubeA->PositionError[AxisIndex] = (CubeAMax[AxisIndex] - CubeBMin[AxisIndex]) * Scale;
             }
-        }
-        if (Direction[GreatestAxis] > 0.0f) // NOTE: assumes centers never coincide (wrong obv)
-        {
-            CubeA->PositionError[GreatestAxis] = CubeAMax[GreatestAxis] - CubeBMin[GreatestAxis];
-        }
-        else
-        {
-            CubeA->PositionError[GreatestAxis] = CubeAMin[GreatestAxis] - CubeBMax[GreatestAxis];
+            else
+            {
+                CubeA->PositionError[AxisIndex] = (CubeAMin[AxisIndex] - CubeBMax[AxisIndex]) * Scale;
+            }
         }
         
         //for (i32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
