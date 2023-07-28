@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <cstdio>
 
+#include "Collisions.h"
 #include "Common.h"
 #include "Model.h"
 #include "Shader.h"
@@ -82,7 +83,7 @@ main(int Argc, char *Argv[])
 
                 // GL Global Settings
                 glEnable(GL_DEPTH_TEST);
-                glEnable(GL_CULL_FACE);
+                //glEnable(GL_CULL_FACE);
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
 
@@ -110,6 +111,10 @@ main(int Argc, char *Argv[])
                 u32 BasicTextShader =
                     BuildShaderProgram("resources/shaders/BasicText.vs",
                                        "resources/shaders/BasicText.fs");
+
+                u32 DebugCollisionsShader =
+                    BuildShaderProgram("resources/shaders/DebugCollisions.vs",
+                                       "resources/shaders/DebugCollisions.fs");
 
                 // Load models
                 // -----------
@@ -180,6 +185,8 @@ main(int Argc, char *Argv[])
                 char DebugUI_DeltaTimeNumberBuffer[] = "000.00  ";
                 ui_string DebugUI_DeltaTimeNumber = PrepareUIString(DebugUI_DeltaTimeNumberBuffer, FontContrailOne24,
                                                                      DebugUI_DeltaTimeNumber_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+                DEBUG_CollisionTestSetup(DebugCollisionsShader);
 
                 // Timing data
                 // -----------
@@ -409,6 +416,8 @@ main(int Argc, char *Argv[])
                     //ModelTransform = glm::scale(ModelTransform, glm::vec3(0.5f));
                     SetUniformMat4F(SkinnedMeshShader, "Model", true, glm::value_ptr(ModelTransform));
                     RenderSkinnedModel(&AdamModel, SkinnedMeshShader, (f32) PrevFrameDeltaTimeSec);
+
+                    DEBUG_CollisionTestUpdate(DebugCollisionsShader, (f32) PrevFrameDeltaTimeSec, ProjectionTransform, ViewTransform);
 
                     // Render Debug UI
                     // ---------------

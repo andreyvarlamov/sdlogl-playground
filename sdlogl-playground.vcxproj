@@ -182,11 +182,14 @@
     <None Include="resources\shaders\BasicMesh.fs" />
     <None Include="resources\shaders\BasicText.fs" />
     <None Include="resources\shaders\BasicText.vs" />
+    <None Include="resources\shaders\DebugCollisions.fs" />
+    <None Include="resources\shaders\DebugCollisions.vs" />
     <None Include="resources\shaders\StaticMesh.vs" />
     <None Include="resources\shaders\DebugBone.fs" />
     <None Include="resources\shaders\SkinnedMesh.vs" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\Collisions.h" />
     <ClInclude Include="src\Model.h" />
     <ClInclude Include="src\Common.h" />
     <ClInclude Include="src\Shader.h" />

@@ -80,6 +80,8 @@
     <None Include="resources\models\container\container.objm" />
     <None Include="resources\shaders\BasicText.fs" />
     <None Include="resources\shaders\BasicText.vs" />
+    <None Include="resources\shaders\DebugCollisions.vs" />
+    <None Include="resources\shaders\DebugCollisions.fs" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Common.h">
@@ -95,6 +97,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\Text.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Collisions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
