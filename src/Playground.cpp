@@ -4,7 +4,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include <glm/gtx/string_cast.hpp>
 #include <glm/gtc/quaternion.hpp>
 
 #include <cstdlib>
@@ -185,6 +184,13 @@ main(int Argc, char *Argv[])
                 char DebugUI_DeltaTimeNumberBuffer[] = "000.00  ";
                 ui_string DebugUI_DeltaTimeNumber = PrepareUIString(DebugUI_DeltaTimeNumberBuffer, FontContrailOne24,
                                                                      DebugUI_DeltaTimeNumber_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
+                i32 DebugUI_Line3_Y;
+                CalculateUIStringOffsetPosition(DebugUI_X, DebugUI_Y, NULL, 2, FontContrailOne24,
+                                                NULL, &DebugUI_Line3_Y);
+                char DebugUI_CollisionTestBuffer[] = "Collision Test: 0000000000000000000000";
+                ui_string DebugUI_CollisionTest = PrepareUIString(DebugUI_CollisionTestBuffer, FontContrailOne24,
+                                                           DebugUI_X, DebugUI_Line3_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
+
 
                 DEBUG_CollisionTestSetup(DebugCollisionsShader);
 
@@ -335,6 +341,32 @@ main(int Argc, char *Argv[])
                         CameraPosition += PositionDelta;
                     }
 
+                    glm::vec3 PlayerCubeVelocity(0.0f);
+                    if (CurrentKeyStates[SDL_SCANCODE_UP])
+                    {
+                        PlayerCubeVelocity.z = -1.0f;
+                    }
+                    if (CurrentKeyStates[SDL_SCANCODE_DOWN])
+                    {
+                        PlayerCubeVelocity.z = 1.0f;
+                    }
+                    if (CurrentKeyStates[SDL_SCANCODE_LEFT])
+                    {
+                        PlayerCubeVelocity.x = -1.0f;
+                    }
+                    if (CurrentKeyStates[SDL_SCANCODE_RIGHT])
+                    {
+                        PlayerCubeVelocity.x = 1.0f;
+                    }
+                    if (CurrentKeyStates[SDL_SCANCODE_PAGEUP])
+                    {
+                        PlayerCubeVelocity.y = 1.0f;
+                    }
+                    if (CurrentKeyStates[SDL_SCANCODE_PAGEDOWN])
+                    {
+                        PlayerCubeVelocity.y = -1.0f;
+                    }
+
                     // Render
                     // ------
                     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
@@ -417,7 +449,11 @@ main(int Argc, char *Argv[])
                     SetUniformMat4F(SkinnedMeshShader, "Model", true, glm::value_ptr(ModelTransform));
                     RenderSkinnedModel(&AdamModel, SkinnedMeshShader, (f32) PrevFrameDeltaTimeSec);
 
-                    DEBUG_CollisionTestUpdate(DebugCollisionsShader, (f32) PrevFrameDeltaTimeSec, ProjectionTransform, ViewTransform);
+                    glm::vec3 PlayerCubePosition;
+                    DEBUG_CollisionTestUpdate(DebugCollisionsShader, (f32) PrevFrameDeltaTimeSec,
+                                              ProjectionTransform, ViewTransform,
+                                              PlayerCubeVelocity,
+                                              &PlayerCubePosition);
 
                     // Render Debug UI
                     // ---------------
@@ -444,11 +480,19 @@ main(int Argc, char *Argv[])
                             UpdateUIString(DebugUI_DeltaTimeNumber, DebugUI_DeltaTimeNumberBuffer);
                         }
 
+                        sprintf_s(DebugUI_CollisionTestBuffer,
+                                  "Collision Test: %.2f, %.2f, %.2f",
+                                  PlayerCubePosition.x,
+                                  PlayerCubePosition.y,
+                                  PlayerCubePosition.z);
+                        UpdateUIString(DebugUI_CollisionTest, DebugUI_CollisionTestBuffer);
+
                         RenderUIString(DebugUI_GLInfo);
                         RenderUIString(DebugUI_FPSCounterText);
                         RenderUIString(DebugUI_FPSCounterNumber);
                         RenderUIString(DebugUI_DeltaTimeText);
                         RenderUIString(DebugUI_DeltaTimeNumber);
+                        RenderUIString(DebugUI_CollisionTest);
                     
                         UseShader(0);
                     }

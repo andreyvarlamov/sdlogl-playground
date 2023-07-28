@@ -6,6 +6,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include <cfloat>
 #include <cstdlib>
 
 #include "Common.h"
@@ -19,12 +20,17 @@ struct cube
 
     glm::mat4 TransientModelTransform;
     glm::vec3 TransientTransformedVertices[8];
+    glm::vec3 PositionError;
+    bool IsColliding;
 
     u32 VAO;
 };
 
-cube CubeA;
-cube CubeB;
+glm::vec3 ShapeColorNoCollision(0.8f, 0.8f, 0.0f);
+glm::vec3 ShapeColorCollision(1.0f, 0.7f, 0.7f);
+
+cube CubeStatic;
+cube CubeMoving;
 
 void
 DEBUG_GetUnitCubeVerticesAndIndices(glm::vec3 *Out_Vertices, i32 *Out_Indices);
@@ -35,35 +41,41 @@ DEBUG_GetRawVertexDataFromVec3(glm::vec3 *Vertex, i32 VertexCount);
 cube
 DEBUG_GenerateCube(glm::vec3 Position, glm::vec3 Scale);
 void
-DEBUG_UpdateCube(cube *Cube);
+DEBUG_MoveCube(cube *Cube, f32 DeltaTime, glm::vec3 Velocity);
 void
-DEBUG_RenderCube(u32 Shader, cube Cube);
+DEBUG_ProcessCubePosition(cube *Cube);
+void
+DEBUG_CheckCollisions(cube *CubeA, cube *CubeB);
+void
+DEBUG_GetAABB(cube *Cube, glm::vec3 *Out_Min, glm::vec3 *Out_Max, glm::vec3 *Out_Center, glm::vec3 *Out_Extents);
+void
+DEBUG_RenderCube(u32 Shader, cube *Cube);
 
 void
 DEBUG_CollisionTestSetup(u32 Shader)
 {
-    CubeA = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(2.0f, 1.0f, 1.0f));
-    CubeB = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, 2.0f), glm::vec3(1.0f, 1.0f, 2.0f));
+    CubeStatic = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(2.0f, 1.0f, 1.0f));
+    CubeMoving = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, 2.0f), glm::vec3(1.0f, 1.0f, 2.0f));
 }
 
 void
-DEBUG_CollisionTestUpdate(u32 Shader, f32 DeltaTime, glm::mat4 Projection, glm::mat4 View)
+DEBUG_CollisionTestUpdate(u32 Shader, f32 DeltaTime,
+                          glm::mat4 Projection, glm::mat4 View,
+                          glm::vec3 PlayerCubeVelocity,
+                          glm::vec3 *Out_PlayerCubePosition)
 {
-    // 1. Update positions, transforms, calculate vertices
-    DEBUG_UpdateCube(&CubeA);
-    DEBUG_UpdateCube(&CubeB);
-
-    // 2. Collision detection
-
-    // 3. Collision resolution, update positions, transforms
+    // 1. Update moving cubes
+    DEBUG_MoveCube(&CubeMoving, DeltaTime, PlayerCubeVelocity);
 
     // 4. Render
     UseShader(Shader);
     SetUniformMat4F(Shader, "Projection", false, glm::value_ptr(Projection));
     SetUniformMat4F(Shader, "View", false, glm::value_ptr(View));
 
-    DEBUG_RenderCube(Shader, CubeA);
-    DEBUG_RenderCube(Shader, CubeB);
+    DEBUG_RenderCube(Shader, &CubeStatic);
+    DEBUG_RenderCube(Shader, &CubeMoving);
+
+    *Out_PlayerCubePosition = CubeMoving.Position;
 }
 
 f32 *
@@ -122,11 +134,11 @@ DEBUG_TransformVertices(glm::mat4 Transform, glm::vec3 *Vertices, glm::vec3 *Out
 {
     for (i32 Index = 0; Index < VertexCount; ++Index)
     { 
-        glm::vec4 Transformed = Transform * glm::vec4(Out_TransformedVertices[Index], 1.0f);
+        glm::vec4 Transformed = Transform * glm::vec4(Vertices[Index], 1.0f);
 
         Out_TransformedVertices[Index].x = Transformed.x;
         Out_TransformedVertices[Index].y = Transformed.y;
-        Out_TransformedVertices[Index].z = Transformed.x;
+        Out_TransformedVertices[Index].z = Transformed.z;
     }
 }
 
@@ -158,29 +170,172 @@ DEBUG_GenerateCube(glm::vec3 Position, glm::vec3 Scale)
     memcpy_s(Result.Vertices, 8 * sizeof(glm::vec3), CubeVertices, 8 * sizeof(glm::vec3));
     Result.Scale = Scale;
     Result.Position = Position;
+    Result.IsColliding = false;
     Result.VAO = CubeVAO;
+    DEBUG_ProcessCubePosition(&Result);
     return Result;
 }
 
 void
-DEBUG_UpdateCube(cube *Cube)
+DEBUG_MoveCube(cube *Cube, f32 DeltaTime, glm::vec3 Velocity)
 {
+    Cube->Position += Velocity * DeltaTime;
+
+    DEBUG_ProcessCubePosition(Cube);
+
+    DEBUG_CheckCollisions(Cube, &CubeStatic);
+
+    if (Cube->IsColliding)
+    {
+        printf("Velocity: %.2f, %.2f, %.2f\n", Velocity.x, Velocity.y, Velocity.z);
+        printf("Speculative position: %.2f, %.2f, %.2f\n", Cube->Position.x, Cube->Position.y, Cube->Position.z);
+        printf("Position error: %.2f, %.2f, %.2f\n", Cube->PositionError.x, Cube->PositionError.y, Cube->PositionError.z);
+        Cube->Position -= Cube->PositionError;
+        printf("Fixed position: %.2f, %.2f, %.2f\n", Cube->Position.x, Cube->Position.y, Cube->Position.z);
+        DEBUG_ProcessCubePosition(Cube);
+        printf("Position error: %.2f, %.2f, %.2f\n", Cube->PositionError.x, Cube->PositionError.y, Cube->PositionError.z);
+        Cube->IsColliding = false;
+        CubeStatic.IsColliding = false;
+    }
+}
+
+void
+DEBUG_ProcessCubePosition(cube *Cube)
+{
+    Cube->PositionError = glm::vec3(0.0f);
+
     glm::mat4 Model(1.0f);
     Model = glm::translate(Model, Cube->Position);
-    Model = glm::scale(Model, Cube->Scale);
+    Model = glm::scale(Model, Cube->Scale); // TODO: Should scale be baked into VBO and original vertices already?
     Cube->TransientModelTransform = Model;
     DEBUG_TransformVertices(Model, Cube->Vertices, Cube->TransientTransformedVertices, 8);
 }
 
 void
-DEBUG_RenderCube(u32 Shader, cube Cube)
+DEBUG_CheckCollisions(cube *CubeA, cube *CubeB)
 {
-    SetUniformMat4F(Shader, "Model", false, glm::value_ptr(Cube.TransientModelTransform));
+    glm::vec3 CubeAMin;
+    glm::vec3 CubeAMax;
+    glm::vec3 CubeACenter;
+    glm::vec3 CubeBMin;
+    glm::vec3 CubeBMax;
+    glm::vec3 CubeBCenter;
+    DEBUG_GetAABB(CubeA, &CubeAMin, &CubeAMax, &CubeACenter, NULL);
+    DEBUG_GetAABB(CubeB, &CubeBMin, &CubeBMax, &CubeBCenter, NULL);
+
+    bool IsColliding = true;
+    for (i32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
+    {
+        IsColliding &= (CubeAMin[AxisIndex] < CubeBMax[AxisIndex] &&
+                        CubeAMax[AxisIndex] > CubeBMin[AxisIndex]);
+    }
+    CubeA->IsColliding = IsColliding;
+    CubeB->IsColliding = IsColliding;
+
+    if (IsColliding)
+    {
+        glm::vec3 Direction = glm::normalize(CubeBCenter - CubeACenter);
+        f32 GreatestAxisValue = 0.0f;
+        i32 GreatestAxis = 0;
+        for (i32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
+        {
+            if (fabs(Direction[AxisIndex]) > GreatestAxisValue)
+            {
+                GreatestAxisValue = fabs(Direction[AxisIndex]);
+                GreatestAxis = AxisIndex;
+            }
+        }
+        if (Direction[GreatestAxis] > 0.0f) // NOTE: assumes centers never coincide (wrong obv)
+        {
+            CubeA->PositionError[GreatestAxis] = CubeAMax[GreatestAxis] - CubeBMin[GreatestAxis];
+        }
+        else
+        {
+            CubeA->PositionError[GreatestAxis] = CubeAMin[GreatestAxis] - CubeBMax[GreatestAxis];
+        }
+        
+        //for (i32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
+        //{
+        //    f32 AxisError = 0.0f;
+        //    if (CubeACenter[AxisIndex] < CubeBCenter[AxisIndex])
+        //    {
+        //        AxisError = CubeAMax[AxisIndex] - CubeBMin[AxisIndex];
+        //    }
+        //    else if (CubeACenter[AxisIndex] > CubeBCenter[AxisIndex])
+        //    {
+        //        AxisError = CubeBMax[AxisIndex] - CubeAMin[AxisIndex];
+        //    }
+
+        //    CubeA->PositionError[AxisIndex] = AxisError;
+        //}
+    }
+}
+
+void
+DEBUG_GetAABB(cube *Cube, glm::vec3 *Out_Min, glm::vec3 *Out_Max, glm::vec3 *Out_Center, glm::vec3 *Out_Extents)
+{
+    glm::vec3 Min(FLT_MAX, FLT_MAX, FLT_MAX);
+    glm::vec3 Max(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+
+    i32 VertexCount = 8;
+    glm::vec3 *Vertices = Cube->TransientTransformedVertices;
+    for (i32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
+    {
+        for (i32 Index = 0; Index < 3; ++Index)
+        {
+            if (Vertices[VertexIndex][Index] > Max[Index])
+            {
+                Max[Index] = Vertices[VertexIndex][Index];
+            }
+            else if (Vertices[VertexIndex][Index] < Min[Index])
+            {
+                Min[Index] = Vertices[VertexIndex][Index];
+            }
+        }
+    }
+    
+    if (Out_Min)
+    {
+        *Out_Min = Min;
+    }
+    if (Out_Max)
+    {
+        *Out_Max = Max;
+    }
+
+    if (Out_Center || Out_Extents)
+    {
+        glm::vec3 Extents = (Max - Min) / 2.0f;
+        glm::vec3 Center = Min + Extents;
+        if (Out_Center)
+        {
+            *Out_Center = Center;
+        }
+        if (Out_Extents)
+        {
+            *Out_Extents = Extents;
+        }
+    }
+}
+
+void
+DEBUG_RenderCube(u32 Shader, cube *Cube)
+{
+    SetUniformMat4F(Shader, "Model", false, glm::value_ptr(Cube->TransientModelTransform));
+
+    if (!Cube->IsColliding)
+    {
+        SetUniformVec3F(Shader, "Color", false, &ShapeColorNoCollision[0]);
+    }
+    else
+    {
+        SetUniformVec3F(Shader, "Color", false, &ShapeColorCollision[0]);
+    }
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glLineWidth(3);
 
-    glBindVertexArray(Cube.VAO);
+    glBindVertexArray(Cube->VAO);
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
 
