@@ -25,6 +25,18 @@ struct debug_points
     u32 VAO;
 };
 
+#define DEBUG_VECTOR_BUFFER_SIZE 16
+struct debug_vectors
+{
+    glm::vec3 StartPoints[DEBUG_VECTOR_BUFFER_SIZE];
+    glm::vec3 EndPoints[DEBUG_VECTOR_BUFFER_SIZE];
+    i32 VectorCount;
+    i32 VectorBufferSize;
+
+    u32 VBO;
+    u32 VAO;
+};
+
 struct cube
 {
     glm::vec3 Vertices[8];
@@ -60,8 +72,11 @@ glm::vec3 ShapeColorNoCollision(0.8f, 0.8f, 0.0f);
 glm::vec3 ShapeColorCollision(1.0f, 0.7f, 0.7f);
 glm::vec3 PointColorPink(1.0f, 0.0f, 1.0f);
 glm::vec3 PointColorRed(1.0f, 0.0f, 0.0f);
+glm::vec3 VectorStartColor(0.2f, 0.2f, 0.2f);
+glm::vec3 VectorEndColor(1.0f, 1.0f, 1.0f);
 
 debug_points DebugPointsStorage;
+debug_vectors DebugVectorsStorage;
 
 cube CubeStatic;
 
@@ -72,6 +87,8 @@ sphere SphereMoving;
 
 debug_points
 DEBUG_InitializeDebugPoints(i32 PointBufferSize);
+debug_vectors
+DEBUG_InitializeDebugVectors(i32 VectorBufferSize);
 cube
 DEBUG_GenerateCube(glm::vec3 Position, glm::vec3 Scale);
 void
@@ -97,16 +114,21 @@ DEBUG_GetAABB(cube *Cube, glm::vec3 *Out_Min, glm::vec3 *Out_Max, glm::vec3 *Out
 void
 DEBUG_AddDebugPoint(debug_points *DebugPoints, glm::vec3 Position, glm::vec3 Color);
 void
+DEBUG_AddDebugVector(debug_vectors *DebugVectors, glm::vec3 VectorStart, glm::vec3 VectorEnd);
+void
 DEBUG_RenderCube(u32 Shader, cube *Cube);
 void
 DEBUG_RenderSphere(u32 Shader, sphere *Sphere);
 void
 DEBUG_RenderDebugPoints(u32 Shader, debug_points *DebugPoints);
+void
+DEBUG_RenderDebugVectors(u32 Shader, debug_vectors *DebugVectors);
 
 void
 DEBUG_CollisionTestSetup(u32 Shader)
 {
     DebugPointsStorage = DEBUG_InitializeDebugPoints(DEBUG_POINT_BUFFER_SIZE);
+    DebugVectorsStorage = DEBUG_InitializeDebugVectors(DEBUG_VECTOR_BUFFER_SIZE);
 
     CubeStatic = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(2.0f, 1.0f, 1.0f));
     
@@ -118,7 +140,8 @@ DEBUG_CollisionTestSetup(u32 Shader)
 }
 
 void
-DEBUG_CollisionTestUpdate(u32 Shader, f32 DeltaTime,
+DEBUG_CollisionTestUpdate(u32 DebugCollisionShader, u32 DebugDrawShader,
+                          f32 DeltaTime,
                           glm::mat4 Projection, glm::mat4 View,
                           glm::vec3 PlayerShapeVelocity,
                           glm::vec3 *Out_PlayerShapePosition)
@@ -129,17 +152,17 @@ DEBUG_CollisionTestUpdate(u32 Shader, f32 DeltaTime,
     DEBUG_MoveSphere(&SphereMoving, DeltaTime, PlayerShapeVelocity);
 #endif
 
-    UseShader(Shader);
-    SetUniformMat4F(Shader, "Projection", false, glm::value_ptr(Projection));
-    SetUniformMat4F(Shader, "View", false, glm::value_ptr(View));
+    UseShader(DebugCollisionShader);
+    SetUniformMat4F(DebugCollisionShader, "Projection", false, glm::value_ptr(Projection));
+    SetUniformMat4F(DebugCollisionShader, "View", false, glm::value_ptr(View));
 
-    DEBUG_RenderCube(Shader, &CubeStatic);
+    DEBUG_RenderCube(DebugCollisionShader, &CubeStatic);
     DEBUG_AddDebugPoint(&DebugPointsStorage, CubeStatic.Position, PointColorPink);
 
 #if CUBE
-    DEBUG_RenderCube(Shader, &CubeMoving);
+    DEBUG_RenderCube(DebugCollisionShader, &CubeMoving);
 #elif SPHERE
-    DEBUG_RenderSphere(Shader, &SphereMoving);
+    DEBUG_RenderSphere(DebugCollisionShader, &SphereMoving);
     DEBUG_AddDebugPoint(&DebugPointsStorage, SphereMoving.Position, PointColorPink);
 
 #endif
@@ -150,7 +173,12 @@ DEBUG_CollisionTestUpdate(u32 Shader, f32 DeltaTime,
     *Out_PlayerShapePosition = SphereMoving.Position;
 #endif
 
-    DEBUG_RenderDebugPoints(Shader, &DebugPointsStorage);
+    DEBUG_RenderDebugPoints(DebugCollisionShader, &DebugPointsStorage);
+
+    UseShader(DebugDrawShader);
+    SetUniformMat4F(DebugDrawShader, "Projection", false, glm::value_ptr(Projection));
+    SetUniformMat4F(DebugDrawShader, "View", false, glm::value_ptr(View));
+    DEBUG_RenderDebugVectors(DebugDrawShader, &DebugVectorsStorage);
 }
 
 debug_points
@@ -172,6 +200,31 @@ DEBUG_InitializeDebugPoints(i32 PointBufferSize)
     debug_points Result {};
     Result.VAO = VAO;
     Result.PointBufferSize = PointBufferSize;
+    return Result;
+}
+
+debug_vectors
+DEBUG_InitializeDebugVectors(i32 VectorBufferSize)
+{
+    u32 VAO;
+    glGenVertexArrays(1, &VAO);
+    u32 VBO;
+    glGenBuffers(1, &VBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, (2 + 2) * 3 * sizeof(f32), NULL, GL_STATIC_DRAW);
+    glBufferSubData(GL_ARRAY_BUFFER, 2 * 3 * sizeof(f32), 3 * sizeof(f32), &VectorStartColor[0]);
+    glBufferSubData(GL_ARRAY_BUFFER, (2 + 1) * 3 * sizeof(f32), 3 * sizeof(f32), &VectorEndColor[0]);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *) 0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *) (2 * 3 * sizeof(f32)));
+    glBindVertexArray(0);
+
+    debug_vectors Result {};
+    Result.VAO = VAO;
+    Result.VBO = VBO;
+    Result.VectorBufferSize = VectorBufferSize;
     return Result;
 }
 
@@ -488,6 +541,7 @@ DEBUG_MoveSphere(sphere *Sphere, f32 DeltaTime, glm::vec3 Velocity)
     Sphere->IsColliding = LengthSqr < RadiusSqr;
     CubeStatic.IsColliding = LengthSqr < RadiusSqr;
 
+    DEBUG_AddDebugVector(&DebugVectorsStorage, StaticCubeCenter, Sphere->Position);
     DEBUG_AddDebugPoint(&DebugPointsStorage, NearestPointGlobal, PointColorRed);
 }
 
@@ -550,6 +604,17 @@ DEBUG_AddDebugPoint(debug_points *DebugPoints, glm::vec3 Position, glm::vec3 Col
 }
 
 void
+DEBUG_AddDebugVector(debug_vectors *DebugVectors, glm::vec3 VectorStart, glm::vec3 VectorEnd)
+{
+    Assert(DebugVectors->VectorCount < DebugVectors->VectorBufferSize - 1);
+
+    DebugVectors->StartPoints[DebugVectors->VectorCount] = VectorStart;
+    DebugVectors->EndPoints[DebugVectors->VectorCount] = VectorEnd;
+
+    DebugVectors->VectorCount++;
+}
+
+void
 DEBUG_RenderCube(u32 Shader, cube *Cube)
 {
     SetUniformMat4F(Shader, "Model", false, glm::value_ptr(Cube->TransientModelTransform));
@@ -600,6 +665,9 @@ DEBUG_RenderSphere(u32 Shader, sphere *Sphere)
 void
 DEBUG_RenderDebugPoints(u32 Shader, debug_points *DebugPoints)
 {
+    glBindVertexArray(DebugPoints->VAO);
+    glPointSize(10);
+
     for (i32 PointIndex = 0; PointIndex < DebugPoints->PointCount; ++PointIndex)
     {
         glm::mat4 Model(1.0f);
@@ -608,14 +676,41 @@ DEBUG_RenderDebugPoints(u32 Shader, debug_points *DebugPoints)
 
         SetUniformVec3F(Shader, "Color", false, &DebugPoints->PointColors[PointIndex][0]);
 
-        glPointSize(10);
-
-        glBindVertexArray(DebugPoints->VAO);
         glDrawArrays(GL_POINTS, 0, 1);
-        glBindVertexArray(0);
     }
+    
+    glBindVertexArray(0);
 
     DebugPoints->PointCount = 0;
+}
+
+bool AlreadyPrinted = false;
+
+void
+DEBUG_RenderDebugVectors(u32 Shader, debug_vectors *DebugVectors)
+{
+    glBindVertexArray(DebugVectors->VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, DebugVectors->VBO);
+    glLineWidth(5);
+
+    for (i32 VectorIndex = 0; VectorIndex < DebugVectors->VectorCount; ++VectorIndex)
+    {
+        glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * sizeof(f32), &DebugVectors->StartPoints[VectorIndex][0]);
+        glBufferSubData(GL_ARRAY_BUFFER, 3 * sizeof(f32), 3 * sizeof(f32), &DebugVectors->EndPoints[VectorIndex][0]);
+
+        glDrawArrays(GL_LINES, 0, 2);
+        
+        if (!AlreadyPrinted)
+        {
+            PrintVBODataF(DebugVectors->VBO, 12);
+            AlreadyPrinted = true;
+        }
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+
+    DebugVectors->VectorCount = 0;
 }
 
 #endif

@@ -115,6 +115,10 @@ main(int Argc, char *Argv[])
                     BuildShaderProgram("resources/shaders/DebugCollisions.vs",
                                        "resources/shaders/DebugCollisions.fs");
 
+                u32 DebugDrawShader =
+                    BuildShaderProgram("resources/shaders/DebugDraw.vs",
+                                       "resources/shaders/DebugDraw.fs");
+
                 // Load models
                 // -----------
                 model SnowmanModel = LoadModel("resources/models/snowman/snowman.objm", true);
@@ -450,7 +454,8 @@ main(int Argc, char *Argv[])
                     RenderSkinnedModel(&AdamModel, SkinnedMeshShader, (f32) PrevFrameDeltaTimeSec);
 
                     glm::vec3 PlayerCubePosition;
-                    DEBUG_CollisionTestUpdate(DebugCollisionsShader, (f32) PrevFrameDeltaTimeSec,
+                    DEBUG_CollisionTestUpdate(DebugCollisionsShader, DebugDrawShader,
+                                              (f32) PrevFrameDeltaTimeSec,
                                               ProjectionTransform, ViewTransform,
                                               PlayerCubeVelocity,
                                               &PlayerCubePosition);

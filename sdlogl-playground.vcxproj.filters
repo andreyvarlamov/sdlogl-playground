@@ -85,6 +85,8 @@
     <None Include="resources\shaders\BasicText.vs" />
     <None Include="resources\shaders\DebugCollisions.vs" />
     <None Include="resources\shaders\DebugCollisions.fs" />
+    <None Include="resources\shaders\DebugDraw.vs" />
+    <None Include="resources\shaders\DebugDraw.fs" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Common.h">
