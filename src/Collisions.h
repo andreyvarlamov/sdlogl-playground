@@ -46,8 +46,11 @@ glm::vec3 ShapeColorNoCollision(0.8f, 0.8f, 0.0f);
 glm::vec3 ShapeColorCollision(1.0f, 0.7f, 0.7f);
 
 cube CubeStatic;
-//cube CubeMoving;
+
+cube CubeMoving;
 sphere SphereMoving;
+
+#define CUBE 1
 
 cube
 DEBUG_GenerateCube(glm::vec3 Position, glm::vec3 Scale);
@@ -82,9 +85,12 @@ void
 DEBUG_CollisionTestSetup(u32 Shader)
 {
     CubeStatic = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(2.0f, 1.0f, 1.0f));
-    //CubeMoving = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, 2.0f), glm::vec3(1.0f, 1.0f, 2.0f));
-
+    
+#if CUBE
+    CubeMoving = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, 2.0f), glm::vec3(1.0f, 1.0f, 2.0f));
+#elif SPHERE
     SphereMoving = DEBUG_GenerateSphere(glm::vec3(4.0f, 1.0f, 2.0f), 0.8f);
+#endif
 }
 
 void
@@ -93,18 +99,29 @@ DEBUG_CollisionTestUpdate(u32 Shader, f32 DeltaTime,
                           glm::vec3 PlayerShapeVelocity,
                           glm::vec3 *Out_PlayerShapePosition)
 {
-    //DEBUG_MoveCube(&CubeMoving, DeltaTime, PlayerShapeVelocity);
+#if CUBE
+    DEBUG_MoveCube(&CubeMoving, DeltaTime, PlayerShapeVelocity);
+#elif SPHERE
     DEBUG_MoveSphere(&SphereMoving, DeltaTime, PlayerShapeVelocity);
+#endif
 
     UseShader(Shader);
     SetUniformMat4F(Shader, "Projection", false, glm::value_ptr(Projection));
     SetUniformMat4F(Shader, "View", false, glm::value_ptr(View));
 
     DEBUG_RenderCube(Shader, &CubeStatic);
-    //DEBUG_RenderCube(Shader, &CubeMoving);
-    DEBUG_RenderSphere(Shader, &SphereMoving);
 
+#if CUBE
+    DEBUG_RenderCube(Shader, &CubeMoving);
+#elif SPHERE
+    DEBUG_RenderSphere(Shader, &SphereMoving);
+#endif
+
+#if CUBE
+    *Out_PlayerShapePosition = CubeMoving.Position;
+#elif SPHERE
     *Out_PlayerShapePosition = SphereMoving.Position;
+#endif
 }
 
 cube
