@@ -30,6 +30,7 @@ struct debug_vectors
 {
     glm::vec3 StartPoints[DEBUG_VECTOR_BUFFER_SIZE];
     glm::vec3 EndPoints[DEBUG_VECTOR_BUFFER_SIZE];
+    glm::vec3 VectorColors[DEBUG_VECTOR_BUFFER_SIZE];
     i32 VectorCount;
     i32 VectorBufferSize;
 
@@ -68,22 +69,35 @@ struct sphere
     u32 VAO;
 };
 
-glm::vec3 ShapeColorNoCollision(0.8f, 0.8f, 0.0f);
-glm::vec3 ShapeColorCollision(1.0f, 0.7f, 0.7f);
-glm::vec3 PointColorPink(1.0f, 0.0f, 1.0f);
-glm::vec3 PointColorRed(1.0f, 0.0f, 0.0f);
-glm::vec3 VectorStartColor(0.2f, 0.2f, 0.2f);
-glm::vec3 VectorEndColor(1.0f, 1.0f, 1.0f);
+glm::vec3 ColorYellow(0.8f, 0.8f, 0.0f);
+glm::vec3 ColorOrange(1.0f, 0.6f, 0.3f);
+
+glm::vec3 ColorPink(1.0f, 0.0f, 1.0f);
+glm::vec3 ColorRed(1.0f, 0.0f, 0.0f);
+glm::vec3 ColorBlue(0.0f, 0.0f, 1.0f);
+glm::vec3 ColorGrey(0.2f, 0.2f, 0.2f);
+
+glm::vec3 ColorWhite(1.0f, 1.0f, 1.0f);
 
 debug_points DebugPointsStorage;
 debug_vectors DebugVectorsStorage;
 
-cube CubeStatic;
+#define RESOLVE_COLLISIONS 0
 
+#define CUBE_CUBE 1
+#define SPHERE_CUBE 0
+#define CUBE_SPHERE 0
+
+#if CUBE_CUBE
+cube CubeMoving;
+cube CubeStatic;
+#elif SPHERE_CUBE
+sphere SphereMoving;
+cube CubeStatic;
+#elif CUBE_SPHERE
 cube CubeMoving;
 sphere SphereMoving;
-
-#define SPHERE 1
+#endif
 
 debug_points
 DEBUG_InitializeDebugPoints(i32 PointBufferSize);
@@ -114,7 +128,7 @@ DEBUG_GetAABB(cube *Cube, glm::vec3 *Out_Min, glm::vec3 *Out_Max, glm::vec3 *Out
 void
 DEBUG_AddDebugPoint(debug_points *DebugPoints, glm::vec3 Position, glm::vec3 Color);
 void
-DEBUG_AddDebugVector(debug_vectors *DebugVectors, glm::vec3 VectorStart, glm::vec3 VectorEnd);
+DEBUG_AddDebugVector(debug_vectors *DebugVectors, glm::vec3 VectorStart, glm::vec3 VectorEnd, glm::vec3 Color);
 void
 DEBUG_RenderCube(u32 Shader, cube *Cube);
 void
@@ -130,12 +144,15 @@ DEBUG_CollisionTestSetup(u32 Shader)
     DebugPointsStorage = DEBUG_InitializeDebugPoints(DEBUG_POINT_BUFFER_SIZE);
     DebugVectorsStorage = DEBUG_InitializeDebugVectors(DEBUG_VECTOR_BUFFER_SIZE);
 
-    CubeStatic = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(2.0f, 1.0f, 1.0f));
-    
-#if CUBE
+#if CUBE_CUBE
     CubeMoving = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, 2.0f), glm::vec3(1.0f, 1.0f, 2.0f));
-#elif SPHERE
-    SphereMoving = DEBUG_GenerateSphere(glm::vec3(4.0f, 1.0f, 2.0f), 0.8f);
+    CubeStatic = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(2.0f, 1.0f, 1.0f));
+#elif SPHERE_CUBE
+    SphereMoving = DEBUG_GenerateSphere(glm::vec3(4.0f, 1.0f, 2.0f), 0.5f);
+    CubeStatic = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(2.0f, 1.0f, 1.0f));
+#elif CUBE_SPHERE
+    CubeMoving = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, 2.0f), glm::vec3(1.0f, 1.0f, 2.0f));
+    SphereStatic = DEBUG_GenerateSphere(glm::vec3(4.0f, 1.0f, -2.0f), 0.5f);
 #endif
 }
 
@@ -146,35 +163,34 @@ DEBUG_CollisionTestUpdate(u32 DebugCollisionShader, u32 DebugDrawShader,
                           glm::vec3 PlayerShapeVelocity,
                           glm::vec3 *Out_PlayerShapePosition)
 {
-#if CUBE
+#if CUBE_CUBE
     DEBUG_MoveCube(&CubeMoving, DeltaTime, PlayerShapeVelocity);
-#elif SPHERE
-    DEBUG_MoveSphere(&SphereMoving, DeltaTime, PlayerShapeVelocity);
-#endif
 
     UseShader(DebugCollisionShader);
     SetUniformMat4F(DebugCollisionShader, "Projection", false, glm::value_ptr(Projection));
     SetUniformMat4F(DebugCollisionShader, "View", false, glm::value_ptr(View));
 
-    DEBUG_RenderCube(DebugCollisionShader, &CubeStatic);
-    DEBUG_AddDebugPoint(&DebugPointsStorage, CubeStatic.Position, PointColorPink);
-
-#if CUBE
     DEBUG_RenderCube(DebugCollisionShader, &CubeMoving);
-#elif SPHERE
-    DEBUG_RenderSphere(DebugCollisionShader, &SphereMoving);
-    DEBUG_AddDebugPoint(&DebugPointsStorage, SphereMoving.Position, PointColorPink);
-
-#endif
-
-#if CUBE
+    DEBUG_AddDebugPoint(&DebugPointsStorage, CubeMoving.Position, ColorPink);
     *Out_PlayerShapePosition = CubeMoving.Position;
-#elif SPHERE
+    DEBUG_RenderCube(DebugCollisionShader, &CubeStatic);
+    DEBUG_AddDebugPoint(&DebugPointsStorage, CubeStatic.Position, ColorPink);
+#elif SPHERE_CUBE
+    DEBUG_MoveSphere(&SphereMoving, DeltaTime, PlayerShapeVelocity);
+
+    UseShader(DebugCollisionShader);
+    SetUniformMat4F(DebugCollisionShader, "Projection", false, glm::value_ptr(Projection));
+    SetUniformMat4F(DebugCollisionShader, "View", false, glm::value_ptr(View));
+
+    DEBUG_RenderSphere(DebugCollisionShader, &SphereMoving);
+    DEBUG_AddDebugPoint(&DebugPointsStorage, SphereMoving.Position, ColorPink);
     *Out_PlayerShapePosition = SphereMoving.Position;
+    DEBUG_RenderCube(DebugCollisionShader, &CubeStatic);
+    DEBUG_AddDebugPoint(&DebugPointsStorage, CubeStatic.Position, ColorPink);
+#elif CUBE_SPHERE
 #endif
 
     DEBUG_RenderDebugPoints(DebugCollisionShader, &DebugPointsStorage);
-
     UseShader(DebugDrawShader);
     SetUniformMat4F(DebugDrawShader, "Projection", false, glm::value_ptr(Projection));
     SetUniformMat4F(DebugDrawShader, "View", false, glm::value_ptr(View));
@@ -213,8 +229,7 @@ DEBUG_InitializeDebugVectors(i32 VectorBufferSize)
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, (2 + 2) * 3 * sizeof(f32), NULL, GL_STATIC_DRAW);
-    glBufferSubData(GL_ARRAY_BUFFER, 2 * 3 * sizeof(f32), 3 * sizeof(f32), &VectorStartColor[0]);
-    glBufferSubData(GL_ARRAY_BUFFER, (2 + 1) * 3 * sizeof(f32), 3 * sizeof(f32), &VectorEndColor[0]);
+    glBufferSubData(GL_ARRAY_BUFFER, (2 + 1) * 3 * sizeof(f32), 3 * sizeof(f32), &ColorWhite);
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *) 0);
     glEnableVertexAttribArray(1);
@@ -448,14 +463,16 @@ DEBUG_MoveCube(cube *Cube, f32 DeltaTime, glm::vec3 Velocity)
     Cube->IsColliding = IsColliding;
     CubeStatic.IsColliding = IsColliding;
 
+    DEBUG_AddDebugVector(&DebugVectorsStorage, StaticCubeCenter, MovingCubeCenter, ColorGrey);
+
     if (IsColliding)
     {
-        printf("MovingCubeMin: %.4f, %.4f, %.4f; MovingCubeMax: %.4f, %.4f, %.4f\n",
-               MovingCubeMin.x, MovingCubeMin.y, MovingCubeMin.z,
-               MovingCubeMax.x, MovingCubeMax.y, MovingCubeMax.z);
-        printf("StaticCubeMin: %.4f, %.4f, %.4f; StaticCubeMax: %.4f, %.4f, %.4f\n",
-               StaticCubeMin.x, StaticCubeMin.y, StaticCubeMin.z,
-               StaticCubeMax.x, StaticCubeMax.y, StaticCubeMax.z);
+        //printf("MovingCubeMin: %.4f, %.4f, %.4f; MovingCubeMax: %.4f, %.4f, %.4f\n",
+        //       MovingCubeMin.x, MovingCubeMin.y, MovingCubeMin.z,
+        //       MovingCubeMax.x, MovingCubeMax.y, MovingCubeMax.z);
+        //printf("StaticCubeMin: %.4f, %.4f, %.4f; StaticCubeMax: %.4f, %.4f, %.4f\n",
+        //       StaticCubeMin.x, StaticCubeMin.y, StaticCubeMin.z,
+        //       StaticCubeMax.x, StaticCubeMax.y, StaticCubeMax.z);
         f32 MinPenetration = FLT_MAX;
         i32 MinPenetrationAxis = 0;
         bool MinPenetrationFromBMaxSide = false;
@@ -491,20 +508,28 @@ DEBUG_MoveCube(cube *Cube, f32 DeltaTime, glm::vec3 Velocity)
         }
 
         Cube->PositionAdjustment[MinPenetrationAxis] = Sign * MinPenetration;
+
+#if RESOLVE_COLLISIONS
+        DEBUG_AddDebugVector(&DebugVectorsStorage, Cube->Position, Cube->Position + 0.3f * glm::normalize(Cube->PositionAdjustment), ColorBlue);
+#else
+        DEBUG_AddDebugVector(&DebugVectorsStorage, Cube->Position, Cube->Position + Cube->PositionAdjustment, ColorBlue);
+#endif
     }
 
+#if RESOLVE_COLLISIONS
     if (Cube->IsColliding)
     {
-        printf("Velocity: %.2f, %.2f, %.2f\n", Velocity.x, Velocity.y, Velocity.z);
-        printf("Speculative position: %.2f, %.2f, %.2f\n", Cube->Position.x, Cube->Position.y, Cube->Position.z);
-        printf("Position adjustment: %.2f, %.2f, %.2f\n", Cube->PositionAdjustment.x, Cube->PositionAdjustment.y, Cube->PositionAdjustment.z);
+        //printf("Velocity: %.2f, %.2f, %.2f\n", Velocity.x, Velocity.y, Velocity.z);
+        //printf("Speculative position: %.2f, %.2f, %.2f\n", Cube->Position.x, Cube->Position.y, Cube->Position.z);
+        //printf("Position adjustment: %.2f, %.2f, %.2f\n", Cube->PositionAdjustment.x, Cube->PositionAdjustment.y, Cube->PositionAdjustment.z);
         Cube->Position += Cube->PositionAdjustment;
-        printf("Fixed position: %.2f, %.2f, %.2f\n", Cube->Position.x, Cube->Position.y, Cube->Position.z);
+        //printf("Fixed position: %.2f, %.2f, %.2f\n", Cube->Position.x, Cube->Position.y, Cube->Position.z);
         DEBUG_ProcessCubePosition(Cube);
-        printf("Position adjustment: %.2f, %.2f, %.2f\n", Cube->PositionAdjustment.x, Cube->PositionAdjustment.y, Cube->PositionAdjustment.z);
+        //printf("Position adjustment: %.2f, %.2f, %.2f\n", Cube->PositionAdjustment.x, Cube->PositionAdjustment.y, Cube->PositionAdjustment.z);
         Cube->IsColliding = false;
         CubeStatic.IsColliding = false;
     }
+#endif
 }
 
 void
@@ -541,8 +566,11 @@ DEBUG_MoveSphere(sphere *Sphere, f32 DeltaTime, glm::vec3 Velocity)
     Sphere->IsColliding = LengthSqr < RadiusSqr;
     CubeStatic.IsColliding = LengthSqr < RadiusSqr;
 
-    DEBUG_AddDebugVector(&DebugVectorsStorage, StaticCubeCenter, Sphere->Position);
-    DEBUG_AddDebugPoint(&DebugPointsStorage, NearestPointGlobal, PointColorRed);
+    DEBUG_AddDebugVector(&DebugVectorsStorage, StaticCubeCenter, Sphere->Position, ColorGrey);
+    DEBUG_AddDebugPoint(&DebugPointsStorage, NearestPointGlobal, ColorRed);
+
+#if RESOLVE_COLLISIONS
+#endif
 }
 
 void
@@ -604,12 +632,13 @@ DEBUG_AddDebugPoint(debug_points *DebugPoints, glm::vec3 Position, glm::vec3 Col
 }
 
 void
-DEBUG_AddDebugVector(debug_vectors *DebugVectors, glm::vec3 VectorStart, glm::vec3 VectorEnd)
+DEBUG_AddDebugVector(debug_vectors *DebugVectors, glm::vec3 VectorStart, glm::vec3 VectorEnd, glm::vec3 Color)
 {
     Assert(DebugVectors->VectorCount < DebugVectors->VectorBufferSize - 1);
 
     DebugVectors->StartPoints[DebugVectors->VectorCount] = VectorStart;
     DebugVectors->EndPoints[DebugVectors->VectorCount] = VectorEnd;
+    DebugVectors->VectorColors[DebugVectors->VectorCount] = Color;
 
     DebugVectors->VectorCount++;
 }
@@ -621,11 +650,11 @@ DEBUG_RenderCube(u32 Shader, cube *Cube)
 
     if (!Cube->IsColliding)
     {
-        SetUniformVec3F(Shader, "Color", false, &ShapeColorNoCollision[0]);
+        SetUniformVec3F(Shader, "Color", false, &ColorYellow[0]);
     }
     else
     {
-        SetUniformVec3F(Shader, "Color", false, &ShapeColorCollision[0]);
+        SetUniformVec3F(Shader, "Color", false, &ColorOrange[0]);
     }
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -645,11 +674,11 @@ DEBUG_RenderSphere(u32 Shader, sphere *Sphere)
     
     if (!Sphere->IsColliding)
     {
-        SetUniformVec3F(Shader, "Color", false, &ShapeColorNoCollision[0]);
+        SetUniformVec3F(Shader, "Color", false, &ColorYellow[0]);
     }
     else
     {
-        SetUniformVec3F(Shader, "Color", false, &ShapeColorCollision[0]);
+        SetUniformVec3F(Shader, "Color", false, &ColorOrange[0]);
     }
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -697,6 +726,7 @@ DEBUG_RenderDebugVectors(u32 Shader, debug_vectors *DebugVectors)
     {
         glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * sizeof(f32), &DebugVectors->StartPoints[VectorIndex][0]);
         glBufferSubData(GL_ARRAY_BUFFER, 3 * sizeof(f32), 3 * sizeof(f32), &DebugVectors->EndPoints[VectorIndex][0]);
+        glBufferSubData(GL_ARRAY_BUFFER, 2 * 3 * sizeof(f32), 3 * sizeof(f32), &DebugVectors->VectorColors[VectorIndex][0]);
 
         glDrawArrays(GL_LINES, 0, 2);
         
