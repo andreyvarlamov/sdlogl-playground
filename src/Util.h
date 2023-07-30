@@ -8,6 +8,9 @@ LoadTexture(const char *Path, bool GenerateMipmap);
 char *
 ReadFile(const char *Path, size_t *Out_Size);
 
+void
+PrintVBODataF(u32 VBO, size_t FloatCount);
+
 i32
 GetNullTerminatedStringLength(const char *String);
 void 

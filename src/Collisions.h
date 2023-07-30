@@ -10,7 +10,20 @@
 #include <cstdlib>
 
 #include "Common.h"
+#include "Math.h"
 #include "Shader.h"
+#include "Util.h"
+
+#define DEBUG_POINT_BUFFER_SIZE 16
+struct debug_points
+{
+    glm::vec3 Points[DEBUG_POINT_BUFFER_SIZE];
+    glm::vec3 PointColors[DEBUG_POINT_BUFFER_SIZE];
+    i32 PointCount;
+    i32 PointBufferSize;
+
+    u32 VAO;
+};
 
 struct cube
 {
@@ -38,20 +51,27 @@ struct sphere
 
     glm::mat4 TransientModelTransform;
     glm::vec3 TransientTransformedVertices[SPHERE_RING_COUNT * SPHERE_SECTOR_COUNT];
+    bool IsColliding;
 
     u32 VAO;
 };
 
 glm::vec3 ShapeColorNoCollision(0.8f, 0.8f, 0.0f);
 glm::vec3 ShapeColorCollision(1.0f, 0.7f, 0.7f);
+glm::vec3 PointColorPink(1.0f, 0.0f, 1.0f);
+glm::vec3 PointColorRed(1.0f, 0.0f, 0.0f);
+
+debug_points DebugPointsStorage;
 
 cube CubeStatic;
 
 cube CubeMoving;
 sphere SphereMoving;
 
-#define CUBE 1
+#define SPHERE 1
 
+debug_points
+DEBUG_InitializeDebugPoints(i32 PointBufferSize);
 cube
 DEBUG_GenerateCube(glm::vec3 Position, glm::vec3 Scale);
 void
@@ -73,17 +93,21 @@ DEBUG_MoveCube(cube *Cube, f32 DeltaTime, glm::vec3 Velocity);
 void
 DEBUG_MoveSphere(sphere *Sphere, f32 DeltaTime, glm::vec3 Velocity);
 void
-DEBUG_CheckCubeCubeCollision(cube *CubeA, cube *CubeB, glm::vec3 AVelocity);
-void
 DEBUG_GetAABB(cube *Cube, glm::vec3 *Out_Min, glm::vec3 *Out_Max, glm::vec3 *Out_Center, glm::vec3 *Out_Extents);
+void
+DEBUG_AddDebugPoint(debug_points *DebugPoints, glm::vec3 Position, glm::vec3 Color);
 void
 DEBUG_RenderCube(u32 Shader, cube *Cube);
 void
 DEBUG_RenderSphere(u32 Shader, sphere *Sphere);
+void
+DEBUG_RenderDebugPoints(u32 Shader, debug_points *DebugPoints);
 
 void
 DEBUG_CollisionTestSetup(u32 Shader)
 {
+    DebugPointsStorage = DEBUG_InitializeDebugPoints(DEBUG_POINT_BUFFER_SIZE);
+
     CubeStatic = DEBUG_GenerateCube(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(2.0f, 1.0f, 1.0f));
     
 #if CUBE
@@ -110,11 +134,14 @@ DEBUG_CollisionTestUpdate(u32 Shader, f32 DeltaTime,
     SetUniformMat4F(Shader, "View", false, glm::value_ptr(View));
 
     DEBUG_RenderCube(Shader, &CubeStatic);
+    DEBUG_AddDebugPoint(&DebugPointsStorage, CubeStatic.Position, PointColorPink);
 
 #if CUBE
     DEBUG_RenderCube(Shader, &CubeMoving);
 #elif SPHERE
     DEBUG_RenderSphere(Shader, &SphereMoving);
+    DEBUG_AddDebugPoint(&DebugPointsStorage, SphereMoving.Position, PointColorPink);
+
 #endif
 
 #if CUBE
@@ -122,6 +149,30 @@ DEBUG_CollisionTestUpdate(u32 Shader, f32 DeltaTime,
 #elif SPHERE
     *Out_PlayerShapePosition = SphereMoving.Position;
 #endif
+
+    DEBUG_RenderDebugPoints(Shader, &DebugPointsStorage);
+}
+
+debug_points
+DEBUG_InitializeDebugPoints(i32 PointBufferSize)
+{
+    f32 Point[] = { 0.0f, 0.0f, 0.0f };
+
+    u32 VAO;
+    glGenVertexArrays(1, &VAO);
+    u32 VBO;
+    glGenBuffers(1, &VBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, 1 * 3 * sizeof(f32), Point, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *) 0);
+    glBindVertexArray(0);
+
+    debug_points Result {};
+    Result.VAO = VAO;
+    Result.PointBufferSize = PointBufferSize;
+    return Result;
 }
 
 cube
@@ -325,7 +376,69 @@ DEBUG_MoveCube(cube *Cube, f32 DeltaTime, glm::vec3 Velocity)
 
     DEBUG_ProcessCubePosition(Cube);
 
-    DEBUG_CheckCubeCubeCollision(Cube, &CubeStatic, Velocity);
+    glm::vec3 MovingCubeMin;
+    glm::vec3 MovingCubeMax;
+    glm::vec3 MovingCubeCenter;
+    glm::vec3 StaticCubeMin;
+    glm::vec3 StaticCubeMax;
+    glm::vec3 StaticCubeCenter;
+    glm::vec3 StaticCubeExtents;
+    DEBUG_GetAABB(Cube, &MovingCubeMin, &MovingCubeMax, &MovingCubeCenter, NULL);
+    DEBUG_GetAABB(&CubeStatic, &StaticCubeMin, &StaticCubeMax, &StaticCubeCenter, &StaticCubeExtents);
+
+    bool IsColliding = true;
+    for (i32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
+    {
+        IsColliding &= (MovingCubeMin[AxisIndex] < StaticCubeMax[AxisIndex] &&
+                        MovingCubeMax[AxisIndex] > StaticCubeMin[AxisIndex]);
+    }
+    Cube->IsColliding = IsColliding;
+    CubeStatic.IsColliding = IsColliding;
+
+    if (IsColliding)
+    {
+        printf("MovingCubeMin: %.4f, %.4f, %.4f; MovingCubeMax: %.4f, %.4f, %.4f\n",
+               MovingCubeMin.x, MovingCubeMin.y, MovingCubeMin.z,
+               MovingCubeMax.x, MovingCubeMax.y, MovingCubeMax.z);
+        printf("StaticCubeMin: %.4f, %.4f, %.4f; StaticCubeMax: %.4f, %.4f, %.4f\n",
+               StaticCubeMin.x, StaticCubeMin.y, StaticCubeMin.z,
+               StaticCubeMax.x, StaticCubeMax.y, StaticCubeMax.z);
+        f32 MinPenetration = FLT_MAX;
+        i32 MinPenetrationAxis = 0;
+        bool MinPenetrationFromBMaxSide = false;
+        for (i32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
+        {
+            f32 PenetrationFromBMaxSide = StaticCubeMax[AxisIndex] - MovingCubeMin[AxisIndex];
+            Assert(PenetrationFromBMaxSide >= 0.0f);
+            if (PenetrationFromBMaxSide < MinPenetration)
+            {
+                MinPenetration = PenetrationFromBMaxSide;
+                MinPenetrationAxis = AxisIndex;
+                MinPenetrationFromBMaxSide = true;
+            }
+
+            f32 PenetrationFromBMinSide = MovingCubeMax[AxisIndex] - StaticCubeMin[AxisIndex];
+            Assert(PenetrationFromBMinSide >= 0.0f);
+            if (PenetrationFromBMinSide < MinPenetration)
+            {
+                MinPenetration = PenetrationFromBMinSide;
+                MinPenetrationAxis = AxisIndex;
+                MinPenetrationFromBMaxSide = false;
+            }
+        }
+
+        f32 Sign;
+        if (MinPenetrationFromBMaxSide)
+        {
+            Sign = 1.0f;
+        }
+        else
+        {
+            Sign = -1.0f;
+        }
+
+        Cube->PositionAdjustment[MinPenetrationAxis] = Sign * MinPenetration;
+    }
 
     if (Cube->IsColliding)
     {
@@ -348,75 +461,34 @@ DEBUG_MoveSphere(sphere *Sphere, f32 DeltaTime, glm::vec3 Velocity)
 
     DEBUG_ProcessSpherePosition(Sphere);
 
-    //DEBUG_CheckSphereCubeCollision(Sphere, &CubeStatic, Velocity);
-}
+    glm::vec3 StaticCubeMin;
+    glm::vec3 StaticCubeMax;
+    glm::vec3 StaticCubeCenter;
+    glm::vec3 StaticCubeExtents;
+    DEBUG_GetAABB(&CubeStatic, &StaticCubeMin, &StaticCubeMax, &StaticCubeCenter, &StaticCubeExtents);
 
-void
-DEBUG_CheckCubeCubeCollision(cube *CubeA, cube *CubeB, glm::vec3 AVelocity)
-{
-    glm::vec3 CubeAMin;
-    glm::vec3 CubeAMax;
-    glm::vec3 CubeACenter;
-    glm::vec3 CubeBMin;
-    glm::vec3 CubeBMax;
-    glm::vec3 CubeBCenter;
-    glm::vec3 CubeBExtents;
-    DEBUG_GetAABB(CubeA, &CubeAMin, &CubeAMax, &CubeACenter, NULL);
-    DEBUG_GetAABB(CubeB, &CubeBMin, &CubeBMax, &CubeBCenter, &CubeBExtents);
-
-    bool IsColliding = true;
+    bool IsColliding = false;
+    glm::vec3 VectorBetweenCenters = Sphere->Position - StaticCubeCenter;
+    glm::vec3 NearestPointOnStaticCube = VectorBetweenCenters;
     for (i32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
     {
-        IsColliding &= (CubeAMin[AxisIndex] < CubeBMax[AxisIndex] &&
-                        CubeAMax[AxisIndex] > CubeBMin[AxisIndex]);
+        if (NearestPointOnStaticCube[AxisIndex] > StaticCubeExtents[AxisIndex])
+        {
+            NearestPointOnStaticCube[AxisIndex] = StaticCubeExtents[AxisIndex];
+        }
+        else if (NearestPointOnStaticCube[AxisIndex] < -StaticCubeExtents[AxisIndex])
+        {
+            NearestPointOnStaticCube[AxisIndex] = -StaticCubeExtents[AxisIndex];
+        }
     }
-    CubeA->IsColliding = IsColliding;
-    CubeB->IsColliding = IsColliding;
+    glm::vec3 NearestPointGlobal = NearestPointOnStaticCube + StaticCubeCenter;
+    glm::vec3 VectorBetweenSphereCenterAndNearestPoint = NearestPointGlobal - Sphere->Position;
+    f32 LengthSqr = GetSquaredVectorLength(VectorBetweenSphereCenterAndNearestPoint);
+    f32 RadiusSqr = Sphere->Radius * Sphere->Radius;
+    Sphere->IsColliding = LengthSqr < RadiusSqr;
+    CubeStatic.IsColliding = LengthSqr < RadiusSqr;
 
-    if (IsColliding)
-    {
-        printf("CubeAMin: %.4f, %.4f, %.4f; CubeAMax: %.4f, %.4f, %.4f\n",
-               CubeAMin.x, CubeAMin.y, CubeAMin.z,
-               CubeAMax.x, CubeAMax.y, CubeAMax.z);
-        printf("CubeBMin: %.4f, %.4f, %.4f; CubeBMax: %.4f, %.4f, %.4f\n",
-               CubeBMin.x, CubeBMin.y, CubeBMin.z,
-               CubeBMax.x, CubeBMax.y, CubeBMax.z);
-        f32 MinPenetration = FLT_MAX;
-        i32 MinPenetrationAxis = 0;
-        bool MinPenetrationFromBMaxSide = false;
-        for (i32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
-        {
-            f32 PenetrationFromBMaxSide = CubeBMax[AxisIndex] - CubeAMin[AxisIndex];
-            Assert(PenetrationFromBMaxSide >= 0.0f);
-            if (PenetrationFromBMaxSide < MinPenetration)
-            {
-                MinPenetration = PenetrationFromBMaxSide;
-                MinPenetrationAxis = AxisIndex;
-                MinPenetrationFromBMaxSide = true;
-            }
-
-            f32 PenetrationFromBMinSide = CubeAMax[AxisIndex] - CubeBMin[AxisIndex];
-            Assert(PenetrationFromBMinSide >= 0.0f);
-            if (PenetrationFromBMinSide < MinPenetration)
-            {
-                MinPenetration = PenetrationFromBMinSide;
-                MinPenetrationAxis = AxisIndex;
-                MinPenetrationFromBMaxSide = false;
-            }
-        }
-
-        f32 Sign;
-        if (MinPenetrationFromBMaxSide)
-        {
-            Sign = 1.0f;
-        }
-        else
-        {
-            Sign = -1.0f;
-        }
-
-        CubeA->PositionAdjustment[MinPenetrationAxis] = Sign * MinPenetration;
-    }
+    DEBUG_AddDebugPoint(&DebugPointsStorage, NearestPointGlobal, PointColorRed);
 }
 
 void
@@ -467,6 +539,17 @@ DEBUG_GetAABB(cube *Cube, glm::vec3 *Out_Min, glm::vec3 *Out_Max, glm::vec3 *Out
 }
 
 void
+DEBUG_AddDebugPoint(debug_points *DebugPoints, glm::vec3 Position, glm::vec3 Color)
+{
+    Assert(DebugPoints->PointCount < DebugPoints->PointBufferSize - 1);
+
+    DebugPoints->Points[DebugPoints->PointCount] = Position;
+    DebugPoints->PointColors[DebugPoints->PointCount] = Color;
+
+    DebugPoints->PointCount++;
+}
+
+void
 DEBUG_RenderCube(u32 Shader, cube *Cube)
 {
     SetUniformMat4F(Shader, "Model", false, glm::value_ptr(Cube->TransientModelTransform));
@@ -494,8 +577,15 @@ void
 DEBUG_RenderSphere(u32 Shader, sphere *Sphere)
 {
     SetUniformMat4F(Shader, "Model", false, glm::value_ptr(Sphere->TransientModelTransform));
-
-    SetUniformVec3F(Shader, "Color", false, &ShapeColorNoCollision[0]);
+    
+    if (!Sphere->IsColliding)
+    {
+        SetUniformVec3F(Shader, "Color", false, &ShapeColorNoCollision[0]);
+    }
+    else
+    {
+        SetUniformVec3F(Shader, "Color", false, &ShapeColorCollision[0]);
+    }
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glLineWidth(3);
@@ -505,6 +595,27 @@ DEBUG_RenderSphere(u32 Shader, sphere *Sphere)
     glBindVertexArray(0);
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
+void
+DEBUG_RenderDebugPoints(u32 Shader, debug_points *DebugPoints)
+{
+    for (i32 PointIndex = 0; PointIndex < DebugPoints->PointCount; ++PointIndex)
+    {
+        glm::mat4 Model(1.0f);
+        Model = glm::translate(Model, DebugPoints->Points[PointIndex]);
+        SetUniformMat4F(Shader, "Model", false, glm::value_ptr(Model));
+
+        SetUniformVec3F(Shader, "Color", false, &DebugPoints->PointColors[PointIndex][0]);
+
+        glPointSize(10);
+
+        glBindVertexArray(DebugPoints->VAO);
+        glDrawArrays(GL_POINTS, 0, 1);
+        glBindVertexArray(0);
+    }
+
+    DebugPoints->PointCount = 0;
 }
 
 #endif

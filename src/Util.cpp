@@ -201,6 +201,33 @@ GetFileDirectory(char *FilePath, i32 FilePathCount,
 }
 
 // ----------------------------
+// MISC -----------------------
+// ----------------------------
+
+void
+PrintVBODataF(u32 VBO, size_t FloatCount)
+{
+    printf("VBO %d data (%d floats):\n", VBO, FloatCount);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    f32 *DebugVBOData = (f32 *) malloc(FloatCount * sizeof(f32));
+    glGetBufferSubData(GL_ARRAY_BUFFER, 0, FloatCount * sizeof(f32), DebugVBOData);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    for (i32 FloatIndex = 0; FloatIndex < FloatCount; ++FloatIndex)
+    {
+        printf("%.3f, ", DebugVBOData[FloatIndex]);
+
+        if ((FloatIndex + 1) % 3 == 0)
+        {
+            printf("\n");
+        }
+    }
+    printf("\n");
+
+    free(DebugVBOData);
+}
+
+// ----------------------------
 // INTERNAL HELPERS -----------
 // ----------------------------
 
