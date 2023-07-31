@@ -8,4 +8,7 @@
 f32
 GetSquaredVectorLength(glm::vec3 Vector);
 
+bool
+ClampVec3(glm::vec3 *Vector, glm::vec3 Min, glm::vec3 Max);
+
 #endif
