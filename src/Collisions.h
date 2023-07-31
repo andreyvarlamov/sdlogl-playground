@@ -46,7 +46,6 @@ struct cube
 
     glm::mat4 TransientModelTransform;
     glm::vec3 TransientTransformedVertices[8];
-    glm::vec3 PositionAdjustment;
     bool IsColliding;
 
     u32 VAO;
@@ -69,15 +68,16 @@ struct sphere
     u32 VAO;
 };
 
-glm::vec3 ColorYellow(0.8f, 0.8f, 0.0f);
-glm::vec3 ColorOrange(1.0f, 0.6f, 0.3f);
-
-glm::vec3 ColorPink(1.0f, 0.0f, 1.0f);
 glm::vec3 ColorRed(1.0f, 0.0f, 0.0f);
 glm::vec3 ColorBlue(0.0f, 0.0f, 1.0f);
-glm::vec3 ColorGrey(0.2f, 0.2f, 0.2f);
+glm::vec3 ColorGreen(0.0f, 1.0f, 0.0f);
+
+glm::vec3 ColorYellow(0.8f, 0.8f, 0.0f);
+glm::vec3 ColorOrange(1.0f, 0.6f, 0.3f);
+glm::vec3 ColorPink(1.0f, 0.0f, 1.0f);
 
 glm::vec3 ColorWhite(1.0f, 1.0f, 1.0f);
+glm::vec3 ColorGrey(0.2f, 0.2f, 0.2f);
 
 debug_points DebugPointsStorage;
 debug_vectors DebugVectorsStorage;
@@ -213,7 +213,7 @@ DEBUG_InitializeDebugPoints(i32 PointBufferSize)
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *) 0);
     glBindVertexArray(0);
 
-    debug_points Result {};
+    debug_points Result{};
     Result.VAO = VAO;
     Result.PointBufferSize = PointBufferSize;
     return Result;
@@ -236,7 +236,7 @@ DEBUG_InitializeDebugVectors(i32 VectorBufferSize)
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *) (2 * 3 * sizeof(f32)));
     glBindVertexArray(0);
 
-    debug_vectors Result {};
+    debug_vectors Result{};
     Result.VAO = VAO;
     Result.VBO = VBO;
     Result.VectorBufferSize = VectorBufferSize;
@@ -321,16 +321,16 @@ DEBUG_GetUnitCubeVerticesAndIndices(glm::vec3 *Out_Vertices, i32 *Out_Indices)
 {
     Assert(Out_Vertices);
     Assert(Out_Indices);
-    Out_Vertices[0].x = -0.5f; Out_Vertices[0].y =  0.5f; Out_Vertices[0].z =  0.5f;
-    Out_Vertices[1].x = -0.5f; Out_Vertices[1].y = -0.5f; Out_Vertices[1].z =  0.5f;
-    Out_Vertices[2].x =  0.5f; Out_Vertices[2].y = -0.5f; Out_Vertices[2].z =  0.5f;
-    Out_Vertices[3].x =  0.5f; Out_Vertices[3].y =  0.5f; Out_Vertices[3].z =  0.5f;
-    Out_Vertices[4].x =  0.5f; Out_Vertices[4].y =  0.5f; Out_Vertices[4].z = -0.5f;
-    Out_Vertices[5].x =  0.5f; Out_Vertices[5].y = -0.5f; Out_Vertices[5].z = -0.5f;
+    Out_Vertices[0].x = -0.5f; Out_Vertices[0].y = 0.5f; Out_Vertices[0].z = 0.5f;
+    Out_Vertices[1].x = -0.5f; Out_Vertices[1].y = -0.5f; Out_Vertices[1].z = 0.5f;
+    Out_Vertices[2].x = 0.5f; Out_Vertices[2].y = -0.5f; Out_Vertices[2].z = 0.5f;
+    Out_Vertices[3].x = 0.5f; Out_Vertices[3].y = 0.5f; Out_Vertices[3].z = 0.5f;
+    Out_Vertices[4].x = 0.5f; Out_Vertices[4].y = 0.5f; Out_Vertices[4].z = -0.5f;
+    Out_Vertices[5].x = 0.5f; Out_Vertices[5].y = -0.5f; Out_Vertices[5].z = -0.5f;
     Out_Vertices[6].x = -0.5f; Out_Vertices[6].y = -0.5f; Out_Vertices[6].z = -0.5f;
-    Out_Vertices[7].x = -0.5f; Out_Vertices[7].y =  0.5f; Out_Vertices[7].z = -0.5f;
+    Out_Vertices[7].x = -0.5f; Out_Vertices[7].y = 0.5f; Out_Vertices[7].z = -0.5f;
 
-    i32 Indices[] = { 
+    i32 Indices[] = {
         0, 1, 3,  3, 1, 2, // front
         4, 5, 7,  7, 5, 6, // back
         7, 0, 4,  4, 0, 3, // top
@@ -405,8 +405,6 @@ DEBUG_GetRawVertexDataFromVec3(glm::vec3 *Vertex, i32 VertexCount)
 void
 DEBUG_ProcessCubePosition(cube *Cube)
 {
-    Cube->PositionAdjustment = glm::vec3(0.0f);
-
     glm::mat4 Model(1.0f);
     Model = glm::translate(Model, Cube->Position);
     Model = glm::scale(Model, Cube->Scale); // TODO: Should scale be baked into VBO and original vertices already?
@@ -428,7 +426,7 @@ void
 DEBUG_TransformVertices(glm::mat4 Transform, glm::vec3 *Vertices, glm::vec3 *Out_TransformedVertices, i32 VertexCount)
 {
     for (i32 Index = 0; Index < VertexCount; ++Index)
-    { 
+    {
         glm::vec4 Transformed = Transform * glm::vec4(Vertices[Index], 1.0f);
 
         Out_TransformedVertices[Index].x = Transformed.x;
@@ -507,29 +505,19 @@ DEBUG_MoveCube(cube *Cube, f32 DeltaTime, glm::vec3 Velocity)
             Sign = -1.0f;
         }
 
-        Cube->PositionAdjustment[MinPenetrationAxis] = Sign * MinPenetration;
+        glm::vec3 PositionAdjustment{};
+        PositionAdjustment[MinPenetrationAxis] = Sign * MinPenetration;
 
 #if RESOLVE_COLLISIONS
-        DEBUG_AddDebugVector(&DebugVectorsStorage, Cube->Position, Cube->Position + 0.3f * glm::normalize(Cube->PositionAdjustment), ColorBlue);
-#else
-        DEBUG_AddDebugVector(&DebugVectorsStorage, Cube->Position, Cube->Position + Cube->PositionAdjustment, ColorBlue);
-#endif
-    }
-
-#if RESOLVE_COLLISIONS
-    if (Cube->IsColliding)
-    {
-        //printf("Velocity: %.2f, %.2f, %.2f\n", Velocity.x, Velocity.y, Velocity.z);
-        //printf("Speculative position: %.2f, %.2f, %.2f\n", Cube->Position.x, Cube->Position.y, Cube->Position.z);
-        //printf("Position adjustment: %.2f, %.2f, %.2f\n", Cube->PositionAdjustment.x, Cube->PositionAdjustment.y, Cube->PositionAdjustment.z);
-        Cube->Position += Cube->PositionAdjustment;
-        //printf("Fixed position: %.2f, %.2f, %.2f\n", Cube->Position.x, Cube->Position.y, Cube->Position.z);
+        DEBUG_AddDebugVector(&DebugVectorsStorage, Cube->Position, Cube->Position + 0.3f * glm::normalize(PositionAdjustment), ColorBlue);
+        Cube->Position += PositionAdjustment;
         DEBUG_ProcessCubePosition(Cube);
-        //printf("Position adjustment: %.2f, %.2f, %.2f\n", Cube->PositionAdjustment.x, Cube->PositionAdjustment.y, Cube->PositionAdjustment.z);
         Cube->IsColliding = false;
         CubeStatic.IsColliding = false;
-    }
+#else
+        DEBUG_AddDebugVector(&DebugVectorsStorage, Cube->Position, Cube->Position + PositionAdjustment, ColorBlue);
 #endif
+    }
 }
 
 void
@@ -539,38 +527,52 @@ DEBUG_MoveSphere(sphere *Sphere, f32 DeltaTime, glm::vec3 Velocity)
 
     DEBUG_ProcessSpherePosition(Sphere);
 
-    glm::vec3 StaticCubeMin;
-    glm::vec3 StaticCubeMax;
-    glm::vec3 StaticCubeCenter;
-    glm::vec3 StaticCubeExtents;
-    DEBUG_GetAABB(&CubeStatic, &StaticCubeMin, &StaticCubeMax, &StaticCubeCenter, &StaticCubeExtents);
+    glm::vec3 pgBoxMin;
+    glm::vec3 pgBoxMax;
+    glm::vec3 pgBoxCenter;
+    glm::vec3 BoxExtents;
+    DEBUG_GetAABB(&CubeStatic, &pgBoxMin, &pgBoxMax, &pgBoxCenter, &BoxExtents);
 
     bool IsColliding = false;
-    glm::vec3 VectorBetweenCenters = Sphere->Position - StaticCubeCenter;
-    glm::vec3 NearestPointOnStaticCube = VectorBetweenCenters;
+    glm::vec3 vBoxCenterSphereCenter = Sphere->Position - pgBoxCenter;
+    glm::vec3 plClosestOnBox = vBoxCenterSphereCenter;
     for (i32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
     {
-        if (NearestPointOnStaticCube[AxisIndex] > StaticCubeExtents[AxisIndex])
+        if (plClosestOnBox[AxisIndex] > BoxExtents[AxisIndex])
         {
-            NearestPointOnStaticCube[AxisIndex] = StaticCubeExtents[AxisIndex];
+            plClosestOnBox[AxisIndex] = BoxExtents[AxisIndex];
         }
-        else if (NearestPointOnStaticCube[AxisIndex] < -StaticCubeExtents[AxisIndex])
+        else if (plClosestOnBox[AxisIndex] < -BoxExtents[AxisIndex])
         {
-            NearestPointOnStaticCube[AxisIndex] = -StaticCubeExtents[AxisIndex];
+            plClosestOnBox[AxisIndex] = -BoxExtents[AxisIndex];
         }
     }
-    glm::vec3 NearestPointGlobal = NearestPointOnStaticCube + StaticCubeCenter;
-    glm::vec3 VectorBetweenSphereCenterAndNearestPoint = NearestPointGlobal - Sphere->Position;
-    f32 LengthSqr = GetSquaredVectorLength(VectorBetweenSphereCenterAndNearestPoint);
+    glm::vec3 pgClosestOnBox = plClosestOnBox + pgBoxCenter;
+    glm::vec3 vSphereCenterClosestOnBox = pgClosestOnBox - Sphere->Position;
+    f32 lsvSphereCenterClosestOnBox = GetSquaredVectorLength(vSphereCenterClosestOnBox);
     f32 RadiusSqr = Sphere->Radius * Sphere->Radius;
-    Sphere->IsColliding = LengthSqr < RadiusSqr;
-    CubeStatic.IsColliding = LengthSqr < RadiusSqr;
+    IsColliding = lsvSphereCenterClosestOnBox < RadiusSqr;
+    Sphere->IsColliding = lsvSphereCenterClosestOnBox < RadiusSqr;
+    CubeStatic.IsColliding = lsvSphereCenterClosestOnBox < RadiusSqr;
 
-    DEBUG_AddDebugVector(&DebugVectorsStorage, StaticCubeCenter, Sphere->Position, ColorGrey);
-    DEBUG_AddDebugPoint(&DebugPointsStorage, NearestPointGlobal, ColorRed);
+    if (IsColliding)
+    {
+        glm::vec3 plClosestOnSphere = glm::normalize(vSphereCenterClosestOnBox) * Sphere->Radius;
+        glm::vec3 pgClosestOnSphere = plClosestOnSphere + Sphere->Position;
+        glm::vec3 PositionAdjustment = pgClosestOnBox - pgClosestOnSphere;
 
 #if RESOLVE_COLLISIONS
+        DEBUG_AddDebugVector(&DebugVectorsStorage, Sphere->Position, Sphere->Position + 0.3f * glm::normalize(PositionAdjustment), ColorBlue);
+        Sphere->Position += PositionAdjustment;
+        DEBUG_ProcessSpherePosition(Sphere);
+        Sphere->IsColliding = false;
+        CubeStatic.IsColliding = false;
+#else
+        DEBUG_AddDebugVector(&DebugVectorsStorage, Sphere->Position, Sphere->Position + PositionAdjustment, ColorBlue);
+        DEBUG_AddDebugPoint(&DebugPointsStorage, pgClosestOnSphere, ColorRed);
+        DEBUG_AddDebugPoint(&DebugPointsStorage, pgClosestOnBox, ColorRed);
 #endif
+    }
 }
 
 void
@@ -595,7 +597,7 @@ DEBUG_GetAABB(cube *Cube, glm::vec3 *Out_Min, glm::vec3 *Out_Max, glm::vec3 *Out
             }
         }
     }
-    
+
     if (Out_Min)
     {
         *Out_Min = Min;
@@ -671,7 +673,7 @@ void
 DEBUG_RenderSphere(u32 Shader, sphere *Sphere)
 {
     SetUniformMat4F(Shader, "Model", false, glm::value_ptr(Sphere->TransientModelTransform));
-    
+
     if (!Sphere->IsColliding)
     {
         SetUniformVec3F(Shader, "Color", false, &ColorYellow[0]);
@@ -707,7 +709,7 @@ DEBUG_RenderDebugPoints(u32 Shader, debug_points *DebugPoints)
 
         glDrawArrays(GL_POINTS, 0, 1);
     }
-    
+
     glBindVertexArray(0);
 
     DebugPoints->PointCount = 0;
@@ -729,7 +731,7 @@ DEBUG_RenderDebugVectors(u32 Shader, debug_vectors *DebugVectors)
         glBufferSubData(GL_ARRAY_BUFFER, 2 * 3 * sizeof(f32), 3 * sizeof(f32), &DebugVectors->VectorColors[VectorIndex][0]);
 
         glDrawArrays(GL_LINES, 0, 2);
-        
+
         if (!AlreadyPrinted)
         {
             PrintVBODataF(DebugVectors->VBO, 12);
