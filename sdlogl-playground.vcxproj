@@ -132,6 +132,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\DebugUI.cpp" />
     <ClCompile Include="src\Math.cpp" />
     <ClCompile Include="src\Model.cpp" />
     <ClCompile Include="src\Playground.cpp" />
@@ -193,6 +194,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Collisions.h" />
+    <ClInclude Include="src\DebugUI.h" />
     <ClInclude Include="src\Math.h" />
     <ClInclude Include="src\Model.h" />
     <ClInclude Include="src\Common.h" />

@@ -11,11 +11,6 @@
 
 #include "Util.h"
 
-void
-PrepareRenderDataForString(const char *String, i32 StringLength, i32 OldStringLength, font_info *FontInfo, 
-                           i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight,
-                           f32 *Out_Positions, f32 *Out_UVs);
-
 font_info *
 RasterizeAndProcessFont(const char *FontPath, i32 FontSizePoints)
 {
@@ -158,7 +153,7 @@ PrepareUIString(const char *Text, font_info *FontInfo,
     Result.UVs = (f32 *) malloc(Result.UVsBufferSize);
 
     PrepareRenderDataForString(Text, Result.StringLength, Result.StringLength, FontInfo,
-                               Result.XPos, Result.YPos, Result.ScreenWidth, Result.ScreenHeight,
+                               Result.XPos, Result.YPos, Result.ScreenWidth, Result.ScreenHeight, 0,
                                Result.Positions, Result.UVs);
 
     glGenVertexArrays(1, &Result.VAO);
@@ -200,7 +195,7 @@ UpdateUIString(ui_string UIString, const char *NewText)
     // NOTE: Do not want to update text length in UIString, because the buffer is capable of holding
     //       the same length of strings throughout its lifetime.
     PrepareRenderDataForString(NewText, NewTextLength, UIString.StringLength, UIString.FontInfo,
-                               UIString.XPos, UIString.YPos, UIString.ScreenWidth, UIString.ScreenHeight,
+                               UIString.XPos, UIString.YPos, UIString.ScreenWidth, UIString.ScreenHeight, 0,
                                UIString.Positions, UIString.UVs);
 
     glBindBuffer(GL_ARRAY_BUFFER, UIString.VBO);
@@ -211,7 +206,7 @@ UpdateUIString(ui_string UIString, const char *NewText)
 
 void
 PrepareRenderDataForString(const char *String, i32 StringLength, i32 BufferLength, font_info *FontInfo, 
-                        i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight,
+                        i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight, i32 LineOffset,
                         f32 *Out_Positions, f32 *Out_UVs)
 {
     Assert(StringLength <= BufferLength);
@@ -222,7 +217,7 @@ PrepareRenderDataForString(const char *String, i32 StringLength, i32 BufferLengt
     f32 AtlasHeight = (f32) FontInfo->AtlasHeight;
 
     i32 CurrentX = XPos;
-    i32 CurrentY = YPos;
+    i32 CurrentY = YPos + LineOffset * FontInfo->Height;
     for (i32 TextIndex = 0; TextIndex < BufferLength; ++TextIndex)
     {
         u8 Glyph;

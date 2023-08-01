@@ -11,6 +11,7 @@
 
 #include "Collisions.h"
 #include "Common.h"
+#include "DebugUI.h"
 #include "Model.h"
 #include "Shader.h"
 #include "Text.h"
@@ -198,6 +199,12 @@ main(int Argc, char *Argv[])
 
 
                 DEBUG_CollisionTestSetup(DebugCollisionsShader);
+
+                i32 DebugUI_Other_Y;
+                CalculateUIStringOffsetPosition(DebugUI_X, DebugUI_Y, NULL, 2, FontContrailOne24,
+                                                NULL, &DebugUI_Other_Y);
+
+                DEBUG_InitializeDebugUI(DebugUI_X, DebugUI_Other_Y, SCREEN_WIDTH, SCREEN_HEIGHT, BasicTextShader);
 
                 // Timing data
                 // -----------
@@ -510,9 +517,13 @@ main(int Argc, char *Argv[])
                         RenderUIString(DebugUI_DeltaTimeText);
                         RenderUIString(DebugUI_DeltaTimeNumber);
                         RenderUIString(DebugUI_CollisionTest);
-                    
+
+                        DEBUG_RenderAllDebugStrings();
+
                         UseShader(0);
                     }
+
+                    DEBUG_ResetAllDebugStrings();
 
                     // Swap buffer
                     // -----------
