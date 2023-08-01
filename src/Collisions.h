@@ -7,9 +7,11 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <cfloat>
-#include <cstdlib>
+#include <cstdio>
+#include <cstring>
 
 #include "Common.h"
+#include "DebugUI.h"
 #include "Math.h"
 #include "Shader.h"
 #include "Util.h"
@@ -110,6 +112,10 @@ DEBUG_MoveBox(aabb *Box, f32 DeltaTime, glm::vec3 Velocity, bool ForceResolve);
 void
 DEBUG_MoveSphere(sphere *Sphere, f32 DeltaTime, glm::vec3 Velocity, bool ForceResolve);
 bool
+DEBUG_CheckCollision2AABB(aabb A, aabb B, glm::vec3 *Out_PositionAdjustment);
+bool
+DEBUG_CheckCollisionSphereAABB(sphere A, aabb B, glm::vec3 *Out_PositionAdjustment);
+bool
 DEBUG_GetClosestPointOnBoxSurface(aabb Box, glm::vec3 *PointRelativeToCenter);
 void
 DEBUG_AddDebugPoint(debug_points *DebugPoints, glm::vec3 Position, glm::vec3 Color);
@@ -157,11 +163,13 @@ DEBUG_CollisionTestUpdate(u32 DebugCollisionShader, u32 DebugDrawShader,
                           f32 DeltaTime,
                           glm::mat4 Projection, glm::mat4 View,
                           glm::vec3 PlayerShapeVelocity,
-                          glm::vec3 *Out_PlayerShapePosition,
                           bool ForceResolve)
 {
 #if BOX_BOX
     DEBUG_MoveBox(&BoxMoving, DeltaTime, PlayerShapeVelocity, ForceResolve);
+    char DebugBuffer[128];
+    sprintf_s(DebugBuffer, "Box: <%.2f, %.2f, %.2f>", BoxMoving.Position.x, BoxMoving.Position.y, BoxMoving.Position.z);
+    DEBUG_AddDebugString(DebugBuffer);
 
     UseShader(DebugCollisionShader);
     SetUniformMat4F(DebugCollisionShader, "Projection", false, glm::value_ptr(Projection));
@@ -169,7 +177,6 @@ DEBUG_CollisionTestUpdate(u32 DebugCollisionShader, u32 DebugDrawShader,
 
     DEBUG_RenderBox(DebugCollisionShader, &BoxMoving);
     DEBUG_AddDebugPoint(&DebugPointsStorage, BoxMoving.Position, ColorPink);
-    *Out_PlayerShapePosition = BoxMoving.Position;
     DEBUG_RenderBox(DebugCollisionShader, &BoxStatic);
     DEBUG_AddDebugPoint(&DebugPointsStorage, BoxStatic.Position, ColorPink);
 #elif SPHERE_BOX
@@ -181,7 +188,7 @@ DEBUG_CollisionTestUpdate(u32 DebugCollisionShader, u32 DebugDrawShader,
 
     DEBUG_RenderSphere(DebugCollisionShader, &SphereMoving);
     DEBUG_AddDebugPoint(&DebugPointsStorage, SphereMoving.Position, ColorPink);
-    *Out_PlayerShapePosition = SphereMoving.Position;
+    //*Out_PlayerShapePosition = SphereMoving.Position;
     DEBUG_RenderBox(DebugCollisionShader, &BoxStatic);
     DEBUG_AddDebugPoint(&DebugPointsStorage, BoxStatic.Position, ColorPink);
 #elif BOX_SPHERE
@@ -404,31 +411,74 @@ DEBUG_MoveBox(aabb *Box, f32 DeltaTime, glm::vec3 Velocity, bool ForceResolve)
 {
     Box->Position += Velocity * DeltaTime;
 
-    glm::vec3 BoxCenter = Box->Position;
-    glm::vec3 BoxExtents = Box->Extents;
-    glm::vec3 BoxMin = BoxCenter - BoxExtents;
-    glm::vec3 BoxMax = BoxCenter + BoxExtents;
+    glm::vec3 PositionAdjustment(0.0f);
+    Box->IsColliding = DEBUG_CheckCollision2AABB(*Box, BoxStatic, &PositionAdjustment);
+    if (Box->IsColliding)
+    {
+        if (gResolveCollisions || ForceResolve)
+        {
+            DEBUG_AddDebugVector(&DebugVectorsStorage, Box->Position, Box->Position + 0.3f * glm::normalize(PositionAdjustment), ColorBlue);
+            Box->Position += PositionAdjustment;
+            Box->IsColliding = false;
+        }
+        else
+        {
+            DEBUG_AddDebugVector(&DebugVectorsStorage, Box->Position, Box->Position + PositionAdjustment, ColorBlue);
+        }
+    }
+}
 
-    glm::vec3 StaticBoxCenter = BoxStatic.Position;
-    glm::vec3 StaticBoxExtents = BoxStatic.Extents;
-    glm::vec3 StaticBoxMin = StaticBoxCenter - StaticBoxExtents;
-    glm::vec3 StaticBoxMax = StaticBoxCenter + StaticBoxExtents;
+void
+DEBUG_MoveSphere(sphere *Sphere, f32 DeltaTime, glm::vec3 Velocity, bool ForceResolve)
+{
+    Sphere->Position += Velocity * DeltaTime;
 
-    Box->IsColliding = true;
+    glm::vec3 PositionAdjustment(0.0f);
+    Sphere->IsColliding = DEBUG_CheckCollisionSphereAABB(*Sphere, BoxStatic, &PositionAdjustment);
+    
+    if (Sphere->IsColliding)
+    {
+        if (gResolveCollisions || ForceResolve)
+        {
+            DEBUG_AddDebugVector(&DebugVectorsStorage, Sphere->Position, Sphere->Position + 0.3f * glm::normalize(PositionAdjustment), ColorBlue);
+            Sphere->Position += PositionAdjustment;
+            Sphere->IsColliding = false;
+        }
+        else
+        {
+            DEBUG_AddDebugVector(&DebugVectorsStorage, Sphere->Position, Sphere->Position + PositionAdjustment, ColorBlue);
+        }
+    }
+}
+
+bool
+DEBUG_CheckCollision2AABB(aabb A, aabb B, glm::vec3 *Out_PositionAdjustment)
+{
+    glm::vec3 ACenter = A.Position;
+    glm::vec3 AExtents = A.Extents;
+    glm::vec3 AMin = ACenter - AExtents;
+    glm::vec3 AMax = ACenter + AExtents;
+
+    glm::vec3 BCenter = B.Position;
+    glm::vec3 BExtents = B.Extents;
+    glm::vec3 BMin = BCenter - BExtents;
+    glm::vec3 BMax = BCenter + BExtents;
+
+    bool IsColliding = true;
     for (i32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
     {
-        Box->IsColliding &= (BoxMin[AxisIndex] < StaticBoxMax[AxisIndex] &&
-                             BoxMax[AxisIndex] > StaticBoxMin[AxisIndex]);
+        IsColliding &= (AMin[AxisIndex] < BMax[AxisIndex] &&
+                        AMax[AxisIndex] > BMin[AxisIndex]);
     }
 
-    if (Box->IsColliding)
+    if (Out_PositionAdjustment && IsColliding)
     {
         f32 MinPenetration = FLT_MAX;
         i32 MinPenetrationAxis = 0;
         bool MinPenetrationFromBMaxSide = false;
         for (i32 AxisIndex = 0; AxisIndex < 3; ++AxisIndex)
         {
-            f32 PenetrationFromBMaxSide = StaticBoxMax[AxisIndex] - BoxMin[AxisIndex];
+            f32 PenetrationFromBMaxSide = BMax[AxisIndex] - AMin[AxisIndex];
             Assert(PenetrationFromBMaxSide >= 0.0f);
             if (PenetrationFromBMaxSide < MinPenetration)
             {
@@ -437,7 +487,7 @@ DEBUG_MoveBox(aabb *Box, f32 DeltaTime, glm::vec3 Velocity, bool ForceResolve)
                 MinPenetrationFromBMaxSide = true;
             }
 
-            f32 PenetrationFromBMinSide = BoxMax[AxisIndex] - StaticBoxMin[AxisIndex];
+            f32 PenetrationFromBMinSide = AMax[AxisIndex] - BMin[AxisIndex];
             Assert(PenetrationFromBMinSide >= 0.0f);
             if (PenetrationFromBMinSide < MinPenetration)
             {
@@ -456,71 +506,47 @@ DEBUG_MoveBox(aabb *Box, f32 DeltaTime, glm::vec3 Velocity, bool ForceResolve)
         {
             Sign = -1.0f;
         }
-        glm::vec3 PositionAdjustment{};
-        PositionAdjustment[MinPenetrationAxis] = Sign * MinPenetration;
-
-        //DEBUG_AddDebugVector(&DebugVectorsStorage, BoxMin, StaticBoxMax, ColorGreen);
-        //DEBUG_AddDebugVector(&DebugVectorsStorage, StaticBoxMin, BoxMax, ColorGrey);
-        //DEBUG_AddDebugVector(&DebugVectorsStorage, StaticBoxCenter, BoxCenter, ColorGrey);
-
-        if (gResolveCollisions || ForceResolve)
-        {
-            DEBUG_AddDebugVector(&DebugVectorsStorage, BoxCenter, BoxCenter + 0.3f * glm::normalize(PositionAdjustment), ColorBlue);
-            Box->Position += PositionAdjustment;
-            Box->IsColliding = false;
-        }
-        else
-        {
-            DEBUG_AddDebugVector(&DebugVectorsStorage, BoxCenter, BoxCenter + PositionAdjustment, ColorBlue);
-        }
+        *Out_PositionAdjustment = glm::vec3(0.0f);
+        (*Out_PositionAdjustment)[MinPenetrationAxis] = Sign * MinPenetration;
     }
+
+    return IsColliding;
 }
 
-void
-DEBUG_MoveSphere(sphere *Sphere, f32 DeltaTime, glm::vec3 Velocity, bool ForceResolve)
+bool
+DEBUG_CheckCollisionSphereAABB(sphere A, aabb B, glm::vec3 *Out_PositionAdjustment)
 {
-    Sphere->Position += Velocity * DeltaTime;
+    glm::vec3 ACenter = A.Position;
+    f32 ARadius = A.Radius;
 
-    glm::vec3 SphereCenter = Sphere->Position;
-    f32 SphereRadius = Sphere->Radius;
+    glm::vec3 BCenter = BoxStatic.Position;
+    glm::vec3 BExtents = BoxStatic.Extents;
+    glm::vec3 BMin = BCenter - BExtents;
+    glm::vec3 BMax = BCenter + BExtents;
 
-    glm::vec3 StaticBoxCenter = BoxStatic.Position;
-    glm::vec3 StaticBoxExtents = BoxStatic.Extents;
-    glm::vec3 StaticBoxMin = StaticBoxCenter - StaticBoxExtents;
-    glm::vec3 StaticBoxMax = StaticBoxCenter + StaticBoxExtents;
+    glm::vec3 vBCenterACenter = ACenter - BCenter;
+    glm::vec3 pClosestOnB = vBCenterACenter;
+    bool IsACenterOutsideB = DEBUG_GetClosestPointOnBoxSurface(BoxStatic, &pClosestOnB);
+    glm::vec3 pClosestOnBGlobal = pClosestOnB + BCenter;
+    glm::vec3 vACenterClosestOnB = pClosestOnBGlobal- ACenter;
+    DEBUG_AddDebugPoint(&DebugPointsStorage, pClosestOnBGlobal, ColorRed);
+    f32 LengthSqr = GetSquaredVectorLength(vACenterClosestOnB);
+    f32 RadiusSqr = ARadius * ARadius;
+    bool IsClosestOnBCloserThanRadius = (RadiusSqr - LengthSqr) > 0.000001;
+    bool IsColliding = !IsACenterOutsideB || IsClosestOnBCloserThanRadius;
 
-    glm::vec3 vBoxCenterSphereCenter = SphereCenter - StaticBoxCenter;
-    glm::vec3 pClosestOnStaticBox = vBoxCenterSphereCenter;
-    bool IsSphereCenterOutsideStaticBox = 
-        DEBUG_GetClosestPointOnBoxSurface(BoxStatic, &pClosestOnStaticBox);
-    glm::vec3 pClosestOnStaticBoxGlobal = pClosestOnStaticBox + StaticBoxCenter;
-    glm::vec3 vSphereCenterClosestOnStaticBox = pClosestOnStaticBoxGlobal - SphereCenter;
-            DEBUG_AddDebugPoint(&DebugPointsStorage, pClosestOnStaticBoxGlobal, ColorRed);
-    f32 LengthSqr = GetSquaredVectorLength(vSphereCenterClosestOnStaticBox);
-    f32 RadiusSqr = SphereRadius * SphereRadius;
-    bool IsClosestOnBoxCloserThanRadius = (RadiusSqr - LengthSqr) > 0.000001;
-    Sphere->IsColliding = !IsSphereCenterOutsideStaticBox || IsClosestOnBoxCloserThanRadius;
-
-    if (Sphere->IsColliding)
+    if (Out_PositionAdjustment && IsColliding)
     {
-        f32 Sign = IsSphereCenterOutsideStaticBox ? 1.0f : -1.0f;
-        glm::vec3 pClosestOnSphere = Sign * glm::normalize(vSphereCenterClosestOnStaticBox) * SphereRadius;
-        glm::vec3 pClosestOnSphereGlobal = pClosestOnSphere + SphereCenter;
-        glm::vec3 PositionAdjustment = pClosestOnStaticBoxGlobal - pClosestOnSphereGlobal;
+        f32 Sign = IsACenterOutsideB ? 1.0f : -1.0f;
+        glm::vec3 pClosestOnA = Sign * glm::normalize(vACenterClosestOnB) * ARadius;
+        glm::vec3 pClosestOnAGlobal = pClosestOnA + ACenter;
+        DEBUG_AddDebugPoint(&DebugPointsStorage, pClosestOnAGlobal, ColorRed);
 
-        if (gResolveCollisions || ForceResolve)
-        {
-            DEBUG_AddDebugVector(&DebugVectorsStorage, SphereCenter, SphereCenter + 0.3f * glm::normalize(PositionAdjustment), ColorBlue);
-            Sphere->Position += PositionAdjustment;
-            Sphere->IsColliding = false;
-        }
-        else
-        {
-            DEBUG_AddDebugVector(&DebugVectorsStorage, SphereCenter, SphereCenter + PositionAdjustment, ColorGreen);
-            DEBUG_AddDebugVector(&DebugVectorsStorage, SphereCenter, SphereCenter + PositionAdjustment, ColorBlue);
-            DEBUG_AddDebugPoint(&DebugPointsStorage, pClosestOnSphereGlobal, ColorRed);
-        }
+        *Out_PositionAdjustment = glm::vec3(0.0f);
+        (*Out_PositionAdjustment) = pClosestOnBGlobal - pClosestOnAGlobal;
     }
+
+    return IsColliding;
 }
 
 bool

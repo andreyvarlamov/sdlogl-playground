@@ -31,7 +31,7 @@ f32 CameraYaw = -90.0f;
 f32 CameraPitch = 0.0f;
 bool CameraFPSMode = true;
 
-bool DebugUIToggle = false;
+bool DebugUIToggle = true;
 
 bool CameraFPSModeButtonPressed = false;
 bool AdamMovementStateButtonPressed = false;
@@ -190,21 +190,12 @@ main(int Argc, char *Argv[])
                 char DebugUI_DeltaTimeNumberBuffer[] = "000.00  ";
                 ui_string DebugUI_DeltaTimeNumber = PrepareUIString(DebugUI_DeltaTimeNumberBuffer, FontContrailOne24,
                                                                      DebugUI_DeltaTimeNumber_X, DebugUI_Line2_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
-                i32 DebugUI_Line3_Y;
-                CalculateUIStringOffsetPosition(DebugUI_X, DebugUI_Y, NULL, 2, FontContrailOne24,
-                                                NULL, &DebugUI_Line3_Y);
-                char DebugUI_CollisionTestBuffer[] = "Collision Test: 0000000000000000000000";
-                ui_string DebugUI_CollisionTest = PrepareUIString(DebugUI_CollisionTestBuffer, FontContrailOne24,
-                                                           DebugUI_X, DebugUI_Line3_Y, SCREEN_WIDTH, SCREEN_HEIGHT);
-
-
-                DEBUG_CollisionTestSetup(DebugCollisionsShader);
-
                 i32 DebugUI_Other_Y;
                 CalculateUIStringOffsetPosition(DebugUI_X, DebugUI_Y, NULL, 2, FontContrailOne24,
                                                 NULL, &DebugUI_Other_Y);
-
                 DEBUG_InitializeDebugUI(DebugUI_X, DebugUI_Other_Y, SCREEN_WIDTH, SCREEN_HEIGHT, BasicTextShader);
+                
+                DEBUG_CollisionTestSetup(DebugCollisionsShader);
 
                 // Timing data
                 // -----------
@@ -471,12 +462,10 @@ main(int Argc, char *Argv[])
                     SetUniformMat4F(SkinnedMeshShader, "Model", true, glm::value_ptr(ModelTransform));
                     RenderSkinnedModel(&AdamModel, SkinnedMeshShader, (f32) PrevFrameDeltaTimeSec);
 
-                    glm::vec3 PlayerCubePosition;
                     DEBUG_CollisionTestUpdate(DebugCollisionsShader, DebugDrawShader,
                                               (f32) PrevFrameDeltaTimeSec,
                                               ProjectionTransform, ViewTransform,
                                               PlayerCubeVelocity,
-                                              &PlayerCubePosition,
                                               DebugCollisionsForceResolve);
 
                     // Render Debug UI
@@ -504,19 +493,11 @@ main(int Argc, char *Argv[])
                             UpdateUIString(DebugUI_DeltaTimeNumber, DebugUI_DeltaTimeNumberBuffer);
                         }
 
-                        sprintf_s(DebugUI_CollisionTestBuffer,
-                                  "Collision Test: %.2f, %.2f, %.2f",
-                                  PlayerCubePosition.x,
-                                  PlayerCubePosition.y,
-                                  PlayerCubePosition.z);
-                        UpdateUIString(DebugUI_CollisionTest, DebugUI_CollisionTestBuffer);
-
                         RenderUIString(DebugUI_GLInfo);
                         RenderUIString(DebugUI_FPSCounterText);
                         RenderUIString(DebugUI_FPSCounterNumber);
                         RenderUIString(DebugUI_DeltaTimeText);
                         RenderUIString(DebugUI_DeltaTimeNumber);
-                        RenderUIString(DebugUI_CollisionTest);
 
                         DEBUG_RenderAllDebugStrings();
 
