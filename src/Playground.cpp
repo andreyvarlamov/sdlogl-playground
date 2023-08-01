@@ -35,6 +35,7 @@ bool DebugUIToggle = false;
 bool CameraFPSModeButtonPressed = false;
 bool AdamMovementStateButtonPressed = false;
 bool DebugUIToggleButtonPressed = false;
+bool DebugCollisionsForceResolvePressed = false;
 
 glm::vec3 AdamPosition(-1.0f, 0.0f, -4.0f);
 f32 AdamYaw = 0.0f;
@@ -370,6 +371,16 @@ main(int Argc, char *Argv[])
                     {
                         PlayerCubeVelocity.y = -1.0f;
                     }
+                    bool DebugCollisionsForceResolve = false;
+                    if (CurrentKeyStates[SDL_SCANCODE_BACKSPACE] && !DebugCollisionsForceResolvePressed)
+                    {
+                        DebugCollisionsForceResolve = true;
+                        DebugCollisionsForceResolvePressed = true;
+                    }
+                    else if (!CurrentKeyStates[SDL_SCANCODE_BACKSPACE])
+                    {
+                        DebugCollisionsForceResolvePressed = false;
+                    }
 
                     // Render
                     // ------
@@ -458,7 +469,8 @@ main(int Argc, char *Argv[])
                                               (f32) PrevFrameDeltaTimeSec,
                                               ProjectionTransform, ViewTransform,
                                               PlayerCubeVelocity,
-                                              &PlayerCubePosition);
+                                              &PlayerCubePosition,
+                                              DebugCollisionsForceResolve);
 
                     // Render Debug UI
                     // ---------------
