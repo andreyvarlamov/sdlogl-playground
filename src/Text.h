@@ -57,6 +57,11 @@ PrepareUIString(const char *Text, font_info *FontInfo,
                 i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight);
 
 void
+PrepareRenderDataForString(const char *String, i32 StringLength, i32 OldStringLength, font_info *FontInfo, 
+                           i32 XPos, i32 YPos, i32 ScreenWidth, i32 ScreenHeight, i32 LineOffset,
+                           f32 *Out_Positions, f32 *Out_UVs);
+
+void
 RenderUIString(ui_string UIString);
 
 void

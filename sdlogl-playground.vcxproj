@@ -132,6 +132,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\DebugUI.cpp" />
     <ClCompile Include="src\Model.cpp" />
     <ClCompile Include="src\Playground.cpp" />
     <ClCompile Include="src\Shader.cpp" />
@@ -187,6 +188,7 @@
     <None Include="resources\shaders\SkinnedMesh.vs" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\DebugUI.h" />
     <ClInclude Include="src\Model.h" />
     <ClInclude Include="src\Common.h" />
     <ClInclude Include="src\Shader.h" />
