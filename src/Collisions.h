@@ -78,20 +78,14 @@ debug_vectors DebugVectorsStorage;
 
 bool gResolveCollisions = false;
 
-#define BOX_BOX 1
-#define SPHERE_BOX 0
-#define BOX_SPHERE 0
-
-#if BOX_BOX
-aabb BoxMoving;
-aabb BoxStatic;
-#elif SPHERE_BOX
-sphere SphereMoving;
-aabb BoxStatic;
-#elif BOX_SPHERE
-aabb BoxMoving;
-sphere SphereStatic;
-#endif
+#define SHAPE_TYPE_COUNT 2
+#define SHAPE_MAX_COUNT 4
+aabb gBoxes[SHAPE_MAX_COUNT];
+i32 gBoxCount = 0;
+sphere gSpheres[SHAPE_MAX_COUNT];
+i32 gSphereCount = 0;
+i32 gControlShapeType = 0;
+i32 gControlShape = 0;
 
 debug_points
 DEBUG_InitializeDebugPoints(i32 PointBufferSize);
@@ -122,9 +116,9 @@ DEBUG_AddDebugPoint(debug_points *DebugPoints, glm::vec3 Position, glm::vec3 Col
 void
 DEBUG_AddDebugVector(debug_vectors *DebugVectors, glm::vec3 VectorStart, glm::vec3 VectorEnd, glm::vec3 Color);
 void
-DEBUG_RenderBox(u32 Shader, aabb *Box);
+DEBUG_RenderBox(u32 Shader, aabb *Box, glm::vec3 Color);
 void
-DEBUG_RenderSphere(u32 Shader, sphere *Sphere);
+DEBUG_RenderSphere(u32 Shader, sphere *Sphere, glm::vec3 Color);
 void
 DEBUG_RenderDebugPoints(u32 Shader, debug_points *DebugPoints);
 void
@@ -136,26 +130,13 @@ DEBUG_CollisionTestSetup(u32 Shader)
     DebugPointsStorage = DEBUG_InitializeDebugPoints(DEBUG_POINT_BUFFER_SIZE);
     DebugVectorsStorage = DEBUG_InitializeDebugVectors(DEBUG_VECTOR_BUFFER_SIZE);
 
-#if BOX_BOX
-    BoxMoving = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, 2.0f), glm::vec3(0.5f, 0.5f, 1.0f));
-    BoxStatic = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(1.0f, 0.5f, 0.5f));
-    //BoxMoving = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, 2.0f), glm::vec3(0.5f, 0.5f, 0.5f));
-    //BoxStatic = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(1.0f, 1.0f, 1.0f));
-    //BoxMoving = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(1.0f, 1.0f, 1.0f));
-    //BoxStatic = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, 2.0f), glm::vec3(0.5f, 0.5f, 0.5f));
-    //BoxMoving = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, 2.0f), glm::vec3(0.5f, 4.0f, 0.5f));
-    //BoxStatic = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(1.0f, 1.0f, 1.0f));
-#elif SPHERE_BOX
-    SphereMoving = DEBUG_GenerateSphere(glm::vec3(4.0f, 1.0f, 2.0f), 0.8f);
-    BoxStatic = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(1.0f, 0.5f, 0.5f));
-    //SphereMoving = DEBUG_GenerateSphere(glm::vec3(4.0f, 1.0f, 2.0f), 1.5f);
-    //BoxStatic = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(1.0f, 0.5f, 0.5f));
-    //SphereMoving = DEBUG_GenerateSphere(glm::vec3(4.0f, 1.0f, 2.0f), 0.3f);
-    //BoxStatic = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, -2.0f), glm::vec3(1.0f, 0.5f, 0.5f));
-#elif BOX_SPHERE
-    BoxMoving = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, 2.0f), glm::vec3(0.5f, 0.5f, 1.0f));
-    SphereStatic = DEBUG_GenerateSphere(glm::vec3(4.0f, 1.0f, -2.0f), 0.5f);
-#endif
+    gBoxes[gBoxCount++] = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, 4.0f), glm::vec3(0.5f, 0.5f, 1.0f));
+    gBoxes[gBoxCount++] = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, 0.0f), glm::vec3(1.0f, 0.5f, 0.5f));
+    gSpheres[gSphereCount++] = DEBUG_GenerateSphere(glm::vec3(3.5f, 1.0f, -2.0f), 0.8f);
+    gSpheres[gSphereCount++] = DEBUG_GenerateSphere(glm::vec3(4.5f, 1.0f, -2.0f), 0.3f);
+
+    Assert(gBoxCount <= SHAPE_MAX_COUNT);
+    Assert(gSphereCount <= SHAPE_MAX_COUNT);
 }
 
 void
@@ -163,36 +144,91 @@ DEBUG_CollisionTestUpdate(u32 DebugCollisionShader, u32 DebugDrawShader,
                           f32 DeltaTime,
                           glm::mat4 Projection, glm::mat4 View,
                           glm::vec3 PlayerShapeVelocity,
-                          bool ForceResolve)
+                          bool ForceResolve, bool IncreaseControlShapeType, bool IncreaseControlShape)
 {
-#if BOX_BOX
-    DEBUG_MoveBox(&BoxMoving, DeltaTime, PlayerShapeVelocity, ForceResolve);
+    if (IncreaseControlShapeType)
+    {
+        if (++gControlShapeType >= SHAPE_TYPE_COUNT)
+        {
+            gControlShapeType = 0;
+        }
+
+        gControlShape = 0;
+    }
+
+    if (IncreaseControlShape)
+    {
+        i32 MaxShapeCount = gControlShapeType == 0 ? gBoxCount : gSphereCount;
+        if (++gControlShape >= MaxShapeCount)
+        {
+            gControlShape = 0;
+        }
+    }
+
     char DebugBuffer[128];
-    sprintf_s(DebugBuffer, "Box: <%.2f, %.2f, %.2f>", BoxMoving.Position.x, BoxMoving.Position.y, BoxMoving.Position.z);
+    sprintf_s(DebugBuffer, "Control: {Type = %d, Shape = %d}", gControlShapeType, gControlShape);
     DEBUG_AddDebugString(DebugBuffer);
 
+    if (gControlShapeType == 0)
+    {
+        if (gControlShape < gBoxCount)
+        {
+            aabb *MovingBox = &gBoxes[gControlShape];
+            DEBUG_MoveBox(MovingBox, DeltaTime, PlayerShapeVelocity, ForceResolve);
+        }
+    }
+    else if (gControlShapeType == 1)
+    {
+        if (gControlShape < gSphereCount)
+        {
+            sphere *MovingSphere = &gSpheres[gControlShape];
+            DEBUG_MoveSphere(MovingSphere, DeltaTime, PlayerShapeVelocity, ForceResolve);
+        }
+    }
+
     UseShader(DebugCollisionShader);
     SetUniformMat4F(DebugCollisionShader, "Projection", false, glm::value_ptr(Projection));
     SetUniformMat4F(DebugCollisionShader, "View", false, glm::value_ptr(View));
 
-    DEBUG_RenderBox(DebugCollisionShader, &BoxMoving);
-    DEBUG_AddDebugPoint(&DebugPointsStorage, BoxMoving.Position, ColorPink);
-    DEBUG_RenderBox(DebugCollisionShader, &BoxStatic);
-    DEBUG_AddDebugPoint(&DebugPointsStorage, BoxStatic.Position, ColorPink);
-#elif SPHERE_BOX
-    DEBUG_MoveSphere(&SphereMoving, DeltaTime, PlayerShapeVelocity, ForceResolve);
+    for (i32 BoxIndex = 0; BoxIndex < gBoxCount; ++BoxIndex)
+    {
+        aabb *Box = &gBoxes[BoxIndex];
+        glm::vec3 Color = ColorGrey;
+        if (gControlShapeType == 0 && gControlShape == BoxIndex)
+        {
+            if (!Box->IsColliding)
+            {
+                Color = ColorYellow;
+            }
+            else
+            {
+                Color = ColorOrange;
+            }
+        }
 
-    UseShader(DebugCollisionShader);
-    SetUniformMat4F(DebugCollisionShader, "Projection", false, glm::value_ptr(Projection));
-    SetUniformMat4F(DebugCollisionShader, "View", false, glm::value_ptr(View));
+        DEBUG_RenderBox(DebugCollisionShader, Box, Color);
+        DEBUG_AddDebugPoint(&DebugPointsStorage, Box->Position, ColorPink);
+    }
 
-    DEBUG_RenderSphere(DebugCollisionShader, &SphereMoving);
-    DEBUG_AddDebugPoint(&DebugPointsStorage, SphereMoving.Position, ColorPink);
-    //*Out_PlayerShapePosition = SphereMoving.Position;
-    DEBUG_RenderBox(DebugCollisionShader, &BoxStatic);
-    DEBUG_AddDebugPoint(&DebugPointsStorage, BoxStatic.Position, ColorPink);
-#elif BOX_SPHERE
-#endif
+    for (i32 SphereIndex = 0; SphereIndex < gSphereCount; ++SphereIndex)
+    {
+        sphere *Sphere = &gSpheres[SphereIndex];
+        glm::vec3 Color = ColorGrey;
+        if (gControlShapeType == 1 && gControlShape == SphereIndex)
+        {
+            if (!Sphere->IsColliding)
+            {
+                Color = ColorYellow;
+            }
+            else
+            {
+                Color = ColorOrange;
+            }
+        }
+
+        DEBUG_RenderSphere(DebugCollisionShader, Sphere, Color);
+        DEBUG_AddDebugPoint(&DebugPointsStorage, Sphere->Position, ColorPink);
+    }
 
     DEBUG_RenderDebugPoints(DebugCollisionShader, &DebugPointsStorage);
     UseShader(DebugDrawShader);
@@ -411,8 +447,22 @@ DEBUG_MoveBox(aabb *Box, f32 DeltaTime, glm::vec3 Velocity, bool ForceResolve)
 {
     Box->Position += Velocity * DeltaTime;
 
-    glm::vec3 PositionAdjustment(0.0f);
-    Box->IsColliding = DEBUG_CheckCollision2AABB(*Box, BoxStatic, &PositionAdjustment);
+    for (i32 BoxIndex = 0; BoxIndex < gBoxCount; ++BoxIndex)
+    {
+        if (gControlShape != BoxIndex)
+        {
+            glm::vec3 PositionAdjustment(0.0f);
+            Box->IsColliding = DEBUG_CheckCollision2AABB(*Box, gBoxes[BoxIndex], &PositionAdjustment);
+        }
+    }
+
+    for (i32 SphereIndex = 0; SphereIndex < gSphereCount; ++SphereIndex)
+    {
+        glm::vec3 PositionAdjustment(0.0f);
+        Box->IsColliding = DEBUG_CheckCollisionSphereAABB(gSpheres[SphereIndex], *Box, &PositionAdjustment);
+    }
+
+#if 0
     if (Box->IsColliding)
     {
         if (gResolveCollisions || ForceResolve)
@@ -426,6 +476,7 @@ DEBUG_MoveBox(aabb *Box, f32 DeltaTime, glm::vec3 Velocity, bool ForceResolve)
             DEBUG_AddDebugVector(&DebugVectorsStorage, Box->Position, Box->Position + PositionAdjustment, ColorBlue);
         }
     }
+#endif
 }
 
 void
@@ -433,9 +484,23 @@ DEBUG_MoveSphere(sphere *Sphere, f32 DeltaTime, glm::vec3 Velocity, bool ForceRe
 {
     Sphere->Position += Velocity * DeltaTime;
 
-    glm::vec3 PositionAdjustment(0.0f);
-    Sphere->IsColliding = DEBUG_CheckCollisionSphereAABB(*Sphere, BoxStatic, &PositionAdjustment);
-    
+    for (i32 BoxIndex = 0; BoxIndex < gBoxCount; ++BoxIndex)
+    {
+        glm::vec3 PositionAdjustment(0.0f);
+        Sphere->IsColliding = DEBUG_CheckCollisionSphereAABB(*Sphere, gBoxes[BoxIndex], &PositionAdjustment);
+    }
+
+    //for (i32 SphereIndex = 0; SphereIndex < gSphereCount; ++SphereIndex)
+    //{
+    //    if (gControlShape != SphereIndex)
+    //    {
+    //        glm::vec3 PositionAdjustment(0.0f);
+    //        Sphere->IsColliding = DEBUG_CheckCollisionSphereSphere(gSpheres[SphereIndex], *Box, &PositionAdjustment);
+    //    }
+    //}
+
+
+#if 0
     if (Sphere->IsColliding)
     {
         if (gResolveCollisions || ForceResolve)
@@ -449,6 +514,7 @@ DEBUG_MoveSphere(sphere *Sphere, f32 DeltaTime, glm::vec3 Velocity, bool ForceRe
             DEBUG_AddDebugVector(&DebugVectorsStorage, Sphere->Position, Sphere->Position + PositionAdjustment, ColorBlue);
         }
     }
+#endif
 }
 
 bool
@@ -519,14 +585,14 @@ DEBUG_CheckCollisionSphereAABB(sphere A, aabb B, glm::vec3 *Out_PositionAdjustme
     glm::vec3 ACenter = A.Position;
     f32 ARadius = A.Radius;
 
-    glm::vec3 BCenter = BoxStatic.Position;
-    glm::vec3 BExtents = BoxStatic.Extents;
+    glm::vec3 BCenter = B.Position;
+    glm::vec3 BExtents = B.Extents;
     glm::vec3 BMin = BCenter - BExtents;
     glm::vec3 BMax = BCenter + BExtents;
 
     glm::vec3 vBCenterACenter = ACenter - BCenter;
     glm::vec3 pClosestOnB = vBCenterACenter;
-    bool IsACenterOutsideB = DEBUG_GetClosestPointOnBoxSurface(BoxStatic, &pClosestOnB);
+    bool IsACenterOutsideB = DEBUG_GetClosestPointOnBoxSurface(B, &pClosestOnB);
     glm::vec3 pClosestOnBGlobal = pClosestOnB + BCenter;
     glm::vec3 vACenterClosestOnB = pClosestOnBGlobal- ACenter;
     DEBUG_AddDebugPoint(&DebugPointsStorage, pClosestOnBGlobal, ColorRed);
@@ -603,20 +669,13 @@ DEBUG_AddDebugVector(debug_vectors *DebugVectors, glm::vec3 VectorStart, glm::ve
 }
 
 void
-DEBUG_RenderBox(u32 Shader, aabb *Box)
+DEBUG_RenderBox(u32 Shader, aabb *Box, glm::vec3 Color)
 {
     glm::mat4 Model(1.0f);
     Model = glm::translate(Model, Box->Position);
     SetUniformMat4F(Shader, "Model", false, glm::value_ptr(Model));
 
-    if (!Box->IsColliding)
-    {
-        SetUniformVec3F(Shader, "Color", false, &ColorYellow[0]);
-    }
-    else
-    {
-        SetUniformVec3F(Shader, "Color", false, &ColorOrange[0]);
-    }
+    SetUniformVec3F(Shader, "Color", false, &Color[0]);
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glLineWidth(3);
@@ -629,20 +688,13 @@ DEBUG_RenderBox(u32 Shader, aabb *Box)
 }
 
 void
-DEBUG_RenderSphere(u32 Shader, sphere *Sphere)
+DEBUG_RenderSphere(u32 Shader, sphere *Sphere, glm::vec3 Color)
 {
     glm::mat4 Model(1.0f);
     Model = glm::translate(Model, Sphere->Position);
     SetUniformMat4F(Shader, "Model", false, glm::value_ptr(Model));
 
-    if (!Sphere->IsColliding)
-    {
-        SetUniformVec3F(Shader, "Color", false, &ColorYellow[0]);
-    }
-    else
-    {
-        SetUniformVec3F(Shader, "Color", false, &ColorOrange[0]);
-    }
+    SetUniformVec3F(Shader, "Color", false, &Color[0]);
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
     glLineWidth(3);

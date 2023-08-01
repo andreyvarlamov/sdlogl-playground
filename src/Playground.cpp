@@ -37,6 +37,8 @@ bool CameraFPSModeButtonPressed = false;
 bool AdamMovementStateButtonPressed = false;
 bool DebugUIToggleButtonPressed = false;
 bool DebugCollisionsForceResolvePressed = false;
+bool DebugCollisionsIncreaseShapeTypePressed = false;
+bool DebugCollisionsIncreaseShapePressed = false;
 
 glm::vec3 AdamPosition(-1.0f, 0.0f, -4.0f);
 f32 AdamYaw = 0.0f;
@@ -379,6 +381,26 @@ main(int Argc, char *Argv[])
                     {
                         DebugCollisionsForceResolvePressed = false;
                     }
+                    bool DebugCollisionsIncreaseShapeType = false;
+                    if (CurrentKeyStates[SDL_SCANCODE_LEFTBRACKET] && !DebugCollisionsIncreaseShapeTypePressed)
+                    {
+                        DebugCollisionsIncreaseShapeType = true;
+                        DebugCollisionsIncreaseShapeTypePressed = true;
+                    }
+                    else if (!CurrentKeyStates[SDL_SCANCODE_LEFTBRACKET])
+                    {
+                        DebugCollisionsIncreaseShapeTypePressed = false;
+                    }
+                    bool DebugCollisionsIncreaseShape = false;
+                    if (CurrentKeyStates[SDL_SCANCODE_RIGHTBRACKET] && !DebugCollisionsIncreaseShapePressed)
+                    {
+                        DebugCollisionsIncreaseShape = true;
+                        DebugCollisionsIncreaseShapePressed = true;
+                    }
+                    else if (!CurrentKeyStates[SDL_SCANCODE_RIGHTBRACKET])
+                    {
+                        DebugCollisionsIncreaseShapePressed = false;
+                    }
 
                     // Render
                     // ------
@@ -466,7 +488,9 @@ main(int Argc, char *Argv[])
                                               (f32) PrevFrameDeltaTimeSec,
                                               ProjectionTransform, ViewTransform,
                                               PlayerCubeVelocity,
-                                              DebugCollisionsForceResolve);
+                                              DebugCollisionsForceResolve,
+                                              DebugCollisionsIncreaseShapeType,
+                                              DebugCollisionsIncreaseShape);
 
                     // Render Debug UI
                     // ---------------
