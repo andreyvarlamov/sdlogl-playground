@@ -435,7 +435,7 @@ main(int Argc, char *Argv[])
                     ModelTransform = glm::rotate(ModelTransform, (f32) ElapsedTime, glm::vec3(0.0f, 1.0f, 0.0f));
                     ModelTransform = glm::scale(ModelTransform, glm::vec3(1.0f));
                     SetUniformMat4F(StaticMeshShader, "Model", false, glm::value_ptr(ModelTransform));
-                    RenderModel(&ContainerModel, StaticMeshShader);
+                    //RenderModel(&ContainerModel, StaticMeshShader);
                     // container 2
                     ModelTransform = glm::mat4(1.0f);
                     ModelTransform = glm::translate(ModelTransform, glm::vec3(-1.5f, 2.0f, -2.0f));

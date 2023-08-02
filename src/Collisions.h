@@ -62,6 +62,15 @@ struct sphere
     u32 VAO;
 };
 
+struct plane
+{
+    glm::vec3 Normal;
+    f32 Distance;
+
+    i32 IndexCount;
+    u32 VAO;
+};
+
 glm::vec3 ColorRed(1.0f, 0.0f, 0.0f);
 glm::vec3 ColorBlue(0.0f, 0.0f, 1.0f);
 glm::vec3 ColorGreen(0.0f, 1.0f, 0.0f);
@@ -76,14 +85,16 @@ glm::vec3 ColorGrey(0.2f, 0.2f, 0.2f);
 debug_points DebugPointsStorage;
 debug_vectors DebugVectorsStorage;
 
-bool gResolveCollisions = true;
+bool gResolveCollisions = false;
 
-#define SHAPE_TYPE_COUNT 2
+#define SHAPE_TYPE_COUNT 3
 #define SHAPE_MAX_COUNT 4
 aabb gBoxes[SHAPE_MAX_COUNT];
 i32 gBoxCount = 0;
 sphere gSpheres[SHAPE_MAX_COUNT];
 i32 gSphereCount = 0;
+plane gPlanes[SHAPE_MAX_COUNT];
+i32 gPlaneCount = 0;
 i32 gControlShapeType = 0;
 i32 gControlShape = 0;
 
@@ -99,6 +110,10 @@ sphere
 DEBUG_GenerateSphere(glm::vec3 Position, f32 Radius);
 void
 DEBUG_GetSphereVerticesAndIndices(f32 Radius, i32 RingCount, i32 SectorCount, glm::vec3 *Out_Vertices, i32 *Out_Indices);
+plane
+DEBUG_GeneratePlane(glm::vec3 Normal, f32 Distance);
+void
+DEBUG_GetPlaneVerticesAndIndices(glm::vec3 *Out_Vertices, i32 *Out_Indices);
 f32 *
 DEBUG_GetRawVertexDataFromVec3(glm::vec3 *Vertex, i32 VertexCount);
 void
@@ -124,6 +139,8 @@ DEBUG_RenderBox(u32 Shader, aabb *Box, glm::vec3 Color);
 void
 DEBUG_RenderSphere(u32 Shader, sphere *Sphere, glm::vec3 Color);
 void
+DEBUG_RenderPlane(u32 Shader, plane *Plane, glm::vec3 Color);
+void
 DEBUG_RenderDebugPoints(u32 Shader, debug_points *DebugPoints);
 void
 DEBUG_RenderDebugVectors(u32 Shader, debug_vectors *DebugVectors);
@@ -136,11 +153,15 @@ DEBUG_CollisionTestSetup(u32 Shader)
 
     gBoxes[gBoxCount++] = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, 4.0f), glm::vec3(0.5f, 0.5f, 1.0f));
     gBoxes[gBoxCount++] = DEBUG_GenerateBox(glm::vec3(4.0f, 1.0f, 0.0f), glm::vec3(1.0f, 0.5f, 0.5f));
+    
     gSpheres[gSphereCount++] = DEBUG_GenerateSphere(glm::vec3(3.5f, 1.0f, -2.0f), 0.8f);
     gSpheres[gSphereCount++] = DEBUG_GenerateSphere(glm::vec3(4.5f, 1.0f, -2.0f), 0.3f);
+    
+    gPlanes[gPlaneCount++] = DEBUG_GeneratePlane(glm::vec3(0.0f, 1.0f, 0.0f), 1.0f);
 
     Assert(gBoxCount <= SHAPE_MAX_COUNT);
     Assert(gSphereCount <= SHAPE_MAX_COUNT);
+    Assert(gPlaneCount <= SHAPE_MAX_COUNT);
 }
 
 void
@@ -232,6 +253,17 @@ DEBUG_CollisionTestUpdate(u32 DebugCollisionShader, u32 DebugDrawShader,
 
         DEBUG_RenderSphere(DebugCollisionShader, Sphere, Color);
         DEBUG_AddDebugPoint(&DebugPointsStorage, Sphere->Position, ColorPink);
+    }
+
+    for (i32 PlaneIndex = 0; PlaneIndex < gPlaneCount; ++PlaneIndex)
+    {
+        plane *Plane = &gPlanes[PlaneIndex];
+        glm::vec3 Color = ColorGrey;
+
+        DEBUG_RenderPlane(DebugCollisionShader, Plane, Color);
+        glm::vec3 PlaneOrigin = Plane->Normal * Plane->Distance;
+        DEBUG_AddDebugPoint(&DebugPointsStorage, PlaneOrigin, ColorPink);
+        DEBUG_AddDebugVector(&DebugVectorsStorage, PlaneOrigin, PlaneOrigin + Plane->Normal * 0.3f, ColorRed);
     }
 
     DEBUG_RenderDebugPoints(DebugCollisionShader, &DebugPointsStorage);
@@ -355,6 +387,38 @@ DEBUG_GenerateSphere(glm::vec3 Position, f32 Radius)
     return Result;
 }
 
+plane
+DEBUG_GeneratePlane(glm::vec3 Normal, f32 Distance)
+{
+    glm::vec3 Vertices[4];
+    i32 Indices[6];
+    DEBUG_GetPlaneVerticesAndIndices(Vertices, Indices);
+
+    f32 *RawData = DEBUG_GetRawVertexDataFromVec3(Vertices, 4);
+    u32 VAO;
+    glGenVertexArrays(1, &VAO);
+    u32 VBO;
+    glGenBuffers(1, &VBO);
+    u32 EBO;
+    glGenBuffers(1, &EBO);
+    glBindVertexArray(VAO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, 4 * 3 * sizeof(f32), RawData, GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(i32), Indices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(f32), (void *) 0);
+    glBindVertexArray(0);
+    free(RawData);
+
+    plane Result;
+    Result.Normal = glm::normalize(Normal);
+    Result.Distance = Distance;
+    Result.IndexCount = 6;
+    Result.VAO = VAO;
+    return Result;
+}
+
 void
 DEBUG_GetBoxVerticesAndIndices(glm::vec3 Extents, glm::vec3 *Out_Vertices, i32 *Out_Indices)
 {
@@ -425,6 +489,26 @@ DEBUG_GetSphereVerticesAndIndices(f32 Radius, i32 RingCount, i32 SectorCount, gl
             Out_Indices[IndexIndex++] = (RingIndex + 1) * SectorCount + (SectorIndex + 1);
         }
     }
+}
+
+void
+DEBUG_GetPlaneVerticesAndIndices(glm::vec3 *Out_Vertices, i32 *Out_Indices)
+{
+    Assert(Out_Vertices);
+    Assert(Out_Indices);
+
+    f32 HalfWidth = 0.5f;
+    f32 HalfDepth = 0.5f;
+
+    Out_Vertices[0].x = -HalfWidth; Out_Vertices[0].y = 0.0f; Out_Vertices[0].z = -HalfDepth;
+    Out_Vertices[1].x = -HalfWidth; Out_Vertices[1].y = 0.0f; Out_Vertices[1].z =  HalfDepth;
+    Out_Vertices[2].x =  HalfWidth; Out_Vertices[2].y = 0.0f; Out_Vertices[2].z =  HalfDepth;
+    Out_Vertices[3].x =  HalfWidth; Out_Vertices[3].y = 0.0f; Out_Vertices[3].z = -HalfDepth;
+
+    i32 Indices[] = {
+        0, 1, 3,  3, 1, 2
+    };
+    memcpy_s(Out_Indices, 6 * sizeof(i32), Indices, 6 * sizeof(i32));
 }
 
 f32 *
@@ -736,6 +820,30 @@ DEBUG_RenderSphere(u32 Shader, sphere *Sphere, glm::vec3 Color)
 
     glBindVertexArray(Sphere->VAO);
     glDrawElements(GL_TRIANGLES, Sphere->IndexCount, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+}
+
+void
+DEBUG_RenderPlane(u32 Shader, plane *Plane, glm::vec3 Color)
+{
+    glm::mat4 Model(1.0f);
+    Model = glm::translate(Model, Plane->Distance * Plane->Normal);
+    glm::vec3 U(1.0f, 0.0f, 0.0f);
+    glm::vec3 Projection = glm::dot(Plane->Normal, U) * U;
+    glm::vec3 V = glm::normalize(Plane->Normal - Projection);
+    glm::mat3 Rotation(Plane->Normal, U, V);
+    Model *= glm::mat4(Rotation);
+    SetUniformMat4F(Shader, "Model", false, glm::value_ptr(Model));
+
+    SetUniformVec3F(Shader, "Color", false, &Color[0]);
+
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glLineWidth(3);
+
+    glBindVertexArray(Plane->VAO);
+    glDrawElements(GL_TRIANGLES, Plane->IndexCount, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
