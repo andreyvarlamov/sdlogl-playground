@@ -50,8 +50,8 @@ struct aabb
     u32 VAO;
 };
 
-#define SPHERE_RING_COUNT 10
-#define SPHERE_SECTOR_COUNT 15
+#define SPHERE_RING_COUNT 29
+#define SPHERE_SECTOR_COUNT 30
 struct sphere
 {
     glm::vec3 Position;
@@ -517,6 +517,7 @@ DEBUG_GetRawVertexDataFromVec3(glm::vec3 *Vertex, i32 VertexCount)
     i32 VectorSize = 3;
 
     f32 *Result = (f32 *) malloc(VectorSize * VertexCount * sizeof(f32));
+    Assert(Result);
     f32 *ResultCursor = Result;
 
     for (i32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)

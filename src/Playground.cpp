@@ -49,6 +49,13 @@ i32 AdamMovementState = 0;
 int
 main(int Argc, char *Argv[])
 {
+    glm::quat Q {};
+    Q.w = 1.0f;
+    Q.x = 0.0f;
+    Q.y = 0.0f;
+    Q.z = 0.0f;
+    glm::mat4 Test = glm::mat4_cast(Q);
+    Q = Q * Q;
     if (SDL_Init(SDL_INIT_VIDEO) >= 0)
     {
         // SDL/GL attributes
@@ -86,7 +93,7 @@ main(int Argc, char *Argv[])
 
                 // GL Global Settings
                 glEnable(GL_DEPTH_TEST);
-                //glEnable(GL_CULL_FACE);
+                glEnable(GL_CULL_FACE);
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);  
 
@@ -133,8 +140,8 @@ main(int Argc, char *Argv[])
                 WallModel.Meshes[0].DiffuseMapID = LoadTexture("resources/textures/brickwall.jpg", true);
                 WallModel.Meshes[0].NormalMapID = LoadTexture("resources/textures/brickwall_normal.jpg", true);
                 skinned_model AdamModel = LoadSkinnedModel("resources/models/adam/adam.gltf", false);
-                AdamModel.AnimationState.CurrentAnimationA = 0;
-                AdamModel.AnimationState.CurrentAnimationB = 2;
+                AdamModel.AnimationState.CurrentAnimationA = 2;
+                AdamModel.AnimationState.CurrentAnimationB = 3;
                 AdamModel.AnimationState.BlendingFactor = 0.0f;
 
                 // Shader global uniforms
@@ -411,7 +418,7 @@ main(int Argc, char *Argv[])
                     // -------------------------
 
                     // Common transform matrices
-                    glm::mat4 ProjectionTransform = glm::perspective(glm::radians(CameraFov / 2.0f), (f32)SCREEN_WIDTH / (f32)SCREEN_HEIGHT, 0.1f, 1000.0f);
+                    glm::mat4 ProjectionTransform = glm::perspective(glm::radians(CameraFov), (f32)SCREEN_WIDTH / (f32)SCREEN_HEIGHT, 0.1f, 1000.0f);
                     glm::mat4 ViewTransform = glm::lookAt(CameraPosition, CameraPosition + CameraFront, CameraUp);
 
                     SetUniformMat4F(StaticMeshShader, "Projection", true, glm::value_ptr(ProjectionTransform));
